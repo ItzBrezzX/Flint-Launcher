@@ -248,10 +248,6 @@ class MinecraftInstaller(
         return resolve(id, 0)
     }
 
-    private companion object {
-        const val MAX_VERSION_INHERITANCE_DEPTH = 16
-    }
-
     private suspend fun fetchAndStore(entry: VersionEntry): VersionJson {
         val text = fetchText(entry.url)
         val expected = entry.sha1
@@ -292,6 +288,7 @@ class MinecraftInstaller(
         MessageDigest.getInstance("SHA-1").digest(bytes).joinToString("") { "%02x".format(it) }
 
     companion object {
+        const val MAX_VERSION_INHERITANCE_DEPTH = 16
         const val DEFAULT_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
     }
 }
