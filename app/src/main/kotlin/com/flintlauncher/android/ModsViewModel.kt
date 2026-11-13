@@ -82,7 +82,7 @@ class ModsViewModel(
     }
 
     fun setProjectType(value: String) {
-        if (value !in setOf("mod", "shader", "resourcepack", "modpack", "datapack", "world", "plugin")) return
+        if (value !in setOf("all", "mod", "shader", "resourcepack", "modpack", "datapack", "world", "plugin")) return
         _state.value = _state.value.copy(
             selectedProjectType = value,
             selectedCategory = "",
