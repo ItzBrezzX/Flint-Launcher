@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -42,9 +43,9 @@ import com.flintlauncher.android.ui.theme.FlintColors
 enum class Destination(val label: String, val icon: ImageVector) {
     PLAY("HOME", Icons.Filled.PlayArrow),
     PROFILES("INSTANCES", Icons.Filled.AccountCircle),
-    MODS("MOD LIBRARY", Icons.Filled.Build),
-    PARTNERS("SERVERS", Icons.Filled.Star),
+    MODS("LIBRARY", Icons.Filled.Build),
     SETTINGS("SETTINGS", Icons.Filled.Settings),
+    ABOUT("ABOUT", Icons.Filled.Info),
 }
 
 private val LauncherBackground = FlintColors.Charcoal
@@ -71,7 +72,7 @@ fun FlintScaffold(
         if (maxWidth >= 560.dp) {
             Row(Modifier.fillMaxSize()) {
                 Column(
-                    Modifier.width(184.dp).fillMaxHeight().background(LauncherPanel),
+                    Modifier.width(164.dp).fillMaxHeight().background(LauncherPanel),
                 ) {
                     Column(
                         Modifier.fillMaxWidth().height(88.dp).padding(horizontal = 14.dp, vertical = 12.dp),
