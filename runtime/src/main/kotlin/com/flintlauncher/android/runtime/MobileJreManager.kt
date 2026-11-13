@@ -80,6 +80,9 @@ class MobileJreManager(
     private val downloads: DownloadManager,
 ) : JavaRuntimeManager {
 
+    @Volatile
+    private var verifiedRuntimeCanonicalPath: String? = null
+
     init {
         require(RuntimeArchitecture.normalize(deviceArch) != null) {
             "Unsupported Android process architecture: " + deviceArch
@@ -258,6 +261,13 @@ class MobileJreManager(
                 detected.homeDir.canonicalFile == runtime.homeDir.canonicalFile
             if (!filesMatch || !NativeBridge.isNativeLoaded) return@runCatching false
 
+            val canonicalPath = runtime.homeDir.canonicalPath
+            if (verifiedRuntimeCanonicalPath == canonicalPath) return@runCatching true
+
+            // HotSpot cannot be safely unloaded. If another runtime was already
+            // loaded in this process, do not try to start a second VM.
+            if (NativeBridge.safeJreStatus().startsWith("jre-loaded:")) return@runCatching false
+
             val probeDir = File(
                 runtimesDir,
                 ".flint-jvm-probe-" + runtime.id.replace(Regex("[^A-Za-z0-9._-]"), "_"),
@@ -267,6 +277,7 @@ class MobileJreManager(
                 classpathDir = probeDir,
                 workingDir = probeDir,
             )
+            if (result.passed) verifiedRuntimeCanonicalPath = canonicalPath
             result.passed
         }.getOrDefault(false)
     }
