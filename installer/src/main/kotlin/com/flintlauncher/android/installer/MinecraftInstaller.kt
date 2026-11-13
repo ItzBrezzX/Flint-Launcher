@@ -119,6 +119,9 @@ class MinecraftInstaller(
             }
 
             onStage(InstallStage.GENERATING_METADATA)
+            // Legacy versions do not read the content-addressed object store directly.
+            // Materialize their old path-based assets before marking the version installed.
+            LegacyAssetMaterializer.materialize(index, layout)
             layout.installMarker(versionId).apply { parentFile?.mkdirs() }.writeText(vanillaId)
             onStage(InstallStage.FINAL_VERIFICATION)
             // Marker is written only after existence + size (+ client hash) checks pass
