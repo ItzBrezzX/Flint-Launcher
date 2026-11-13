@@ -260,7 +260,21 @@ fun ModsScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            items(results.value, key = { it.id }) { project ->
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Text(
+                                    "FEATURED ON MODRINTH",
+                                    color = libraryGreen,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.sp,
+                                )
+                            }
+                            item(span = { GridItemSpan(maxLineSpan) }, key = "featured-${results.value.first().id}") {
+                                ModProjectCard(results.value.first()) {
+                                    actions.onSelectProject?.invoke(results.value.first().id)
+                                }
+                            }
+                            items(results.value.drop(1), key = { it.id }) { project ->
                                 ModProjectCard(project) { actions.onSelectProject?.invoke(project.id) }
                             }
                             if (state.offset + state.pageLimit < state.totalHits) {
