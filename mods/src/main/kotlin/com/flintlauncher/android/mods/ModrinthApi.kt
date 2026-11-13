@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.toHttpUrl
 import java.io.IOException
 
 /**
@@ -149,6 +150,6 @@ class ModrinthApi(
 
     companion object {
         private val SORTS = setOf("relevance", "downloads", "follows", "newest", "updated")
-        val DEFAULT_BASE_URL: HttpUrl = HttpUrl.get("https://api.modrinth.com/v2/")
+        val DEFAULT_BASE_URL: HttpUrl = "https://api.modrinth.com/v2/".toHttpUrl()
     }
 }
