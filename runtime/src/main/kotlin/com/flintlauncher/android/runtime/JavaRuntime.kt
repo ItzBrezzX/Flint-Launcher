@@ -100,9 +100,9 @@ data class LaunchRequest(
 )
 
 /**
- * Result of attempting to start the game process.
- * SUCCESS means the process was started and is believed to be running —
- * not that the user reached the main menu.
+ * Result of a game launch attempt. [Started] is reserved for an asynchronous
+ * backend that can track a live session; the current synchronous JLI bridge
+ * returns [Exited] when the Java main method has finished.
  */
 sealed class LaunchResult {
     data class Started(val pid: Int?, val logFile: File?) : LaunchResult()
