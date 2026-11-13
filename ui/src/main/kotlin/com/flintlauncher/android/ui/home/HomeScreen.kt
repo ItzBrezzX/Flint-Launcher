@@ -1,6 +1,7 @@
 package com.flintlauncher.android.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +17,17 @@ import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -145,7 +156,7 @@ private fun MainHero(state: HomeUiState, actions: HomeActions, compact: Boolean)
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                LaunchButton(state, actions)
+                ReferenceLaunchButton(state, actions)
             }
         }
     }
@@ -173,6 +184,62 @@ private fun LaunchMessageCard(message: String, actions: HomeActions) {
                 onClick = { actions.onDismissLaunchMessage?.invoke() },
                 enabled = actions.onDismissLaunchMessage != null,
             ) { Text("DISMISS", color = HeroOrange, fontSize = 9.sp) }
+        }
+    }
+}
+
+@Composable
+private fun ReferenceLaunchButton(state: HomeUiState, actions: HomeActions) {
+    var expanded by remember { mutableStateOf(false) }
+    val canLaunch = state.selected != null && actions.onLaunch != null
+    Row(
+        Modifier.fillMaxWidth(0.68f).height(58.dp).clip(RoundedCornerShape(7.dp)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            Modifier.weight(1f).fillMaxSize()
+                .background(if (canLaunch) HeroOrange else Color(0xFF69533D))
+                .clickable(enabled = canLaunch) { actions.onLaunch?.invoke() },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color(0xFF17120C))
+            Column(
+                Modifier.padding(start = 5.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("LAUNCH GAME", color = Color(0xFF17120C), fontSize = 14.sp, fontWeight = FontWeight.Black)
+                Text(
+                    state.selected?.summary ?: "No profile selected",
+                    color = Color(0xFF2C2116),
+                    fontSize = 8.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Box {
+            androidx.compose.material3.Surface(
+                modifier = Modifier.width(42.dp).height(58.dp)
+                    .clickable(enabled = state.installations.isNotEmpty()) { expanded = true },
+                color = if (canLaunch) Color(0xFFE17B13) else Color(0xFF514333),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.ArrowDropDown, contentDescription = "Choose profile", tint = Color(0xFF17120C))
+                }
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                state.installations.forEach { item ->
+                    DropdownMenuItem(
+                        text = { Text("${item.name} · ${item.minecraftVersion} · ${item.loader}") },
+                        enabled = actions.onSelectInstallation != null,
+                        onClick = {
+                            expanded = false
+                            actions.onSelectInstallation?.invoke(item.id)
+                        },
+                    )
+                }
+            }
         }
     }
 }
