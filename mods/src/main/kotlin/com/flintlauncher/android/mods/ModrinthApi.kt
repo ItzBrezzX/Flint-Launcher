@@ -100,7 +100,7 @@ class ModrinthApi(
     }
 
     private fun buildFacets(filters: ModrinthFilters): List<List<String>> = buildList {
-        add(listOf("project_type:${filters.projectType}"))
+        if (filters.projectType != "all") add(listOf("project_type:${filters.projectType}"))
         filters.category?.takeIf { it.isNotBlank() }?.let { add(listOf("categories:$it")) }
         filters.loader?.takeIf { it.isNotBlank() }?.let { add(listOf("categories:$it")) }
         filters.gameVersion?.takeIf { it.isNotBlank() }?.let { add(listOf("versions:$it")) }
@@ -150,7 +150,7 @@ class ModrinthApi(
 
     companion object {
         private val SORTS = setOf("relevance", "downloads", "follows", "newest", "updated")
-        private val PROJECT_TYPES = setOf("mod", "shader", "resourcepack", "modpack", "datapack", "world", "plugin")
+        private val PROJECT_TYPES = setOf("all", "mod", "shader", "resourcepack", "modpack", "datapack", "world", "plugin")
         val DEFAULT_BASE_URL: HttpUrl = HttpUrl.Builder().scheme("https").host("api.modrinth.com").addPathSegment("v2").build()
     }
 }
