@@ -12,7 +12,7 @@ import okhttp3.Request
 import java.io.IOException
 
 /**
- * Public, read-only Modrinth API v2 client. Search is always restricted to mods.
+ * Public, read-only Modrinth API v2 client. Search is restricted to supported Minecraft project types.
  * Search facets use only fields documented by Modrinth: project_type, categories,
  * versions, client_side and server_side. Loaders are a categories facet in search.
  */
@@ -26,6 +26,7 @@ class ModrinthApi(
         require(filters.offset >= 0) { "Offset cannot be negative" }
         require(filters.limit in 1..100) { "Limit must be between 1 and 100" }
         require(filters.index in SORTS) { "Unsupported Modrinth sort index" }
+        require(filters.projectType in PROJECT_TYPES) { "Unsupported Modrinth project type" }
 
         val url = baseUrl.newBuilder()
             .addPathSegment("search")
@@ -99,7 +100,7 @@ class ModrinthApi(
     }
 
     private fun buildFacets(filters: ModrinthFilters): List<List<String>> = buildList {
-        add(listOf("project_type:mod"))
+        add(listOf("project_type:${filters.projectType}"))
         filters.category?.takeIf { it.isNotBlank() }?.let { add(listOf("categories:$it")) }
         filters.loader?.takeIf { it.isNotBlank() }?.let { add(listOf("categories:$it")) }
         filters.gameVersion?.takeIf { it.isNotBlank() }?.let { add(listOf("versions:$it")) }
@@ -149,6 +150,7 @@ class ModrinthApi(
 
     companion object {
         private val SORTS = setOf("relevance", "downloads", "follows", "newest", "updated")
+        private val PROJECT_TYPES = setOf("mod", "shader", "resourcepack", "modpack", "datapack", "world", "plugin")
         val DEFAULT_BASE_URL: HttpUrl = HttpUrl.Builder().scheme("https").host("api.modrinth.com").addPathSegment("v2").build()
     }
 }
