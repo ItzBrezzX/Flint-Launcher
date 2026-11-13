@@ -46,7 +46,7 @@ data class ModsUiState(
     val gameVersions: List<ModFilterOption> = emptyList(),
     val loaders: List<ModFilterOption> = emptyList(),
     val selectedCategory: String = "",
-    val selectedProjectType: String = "mod",
+    val selectedProjectType: String = "all",
     val selectedGameVersion: String = "",
     val selectedLoader: String = "",
     val clientSide: String = "",
