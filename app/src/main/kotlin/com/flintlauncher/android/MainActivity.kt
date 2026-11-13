@@ -23,10 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flintlauncher.android.ui.home.HomeScreen
+import com.flintlauncher.android.ui.mods.ModsScreen
 import com.flintlauncher.android.ui.nav.Destination
 import com.flintlauncher.android.ui.nav.FlintScaffold
 import com.flintlauncher.android.ui.nav.NotImplementedScreen
 import com.flintlauncher.android.ui.state.HomeActions
+import com.flintlauncher.android.ui.state.ModsActions
 import com.flintlauncher.android.ui.state.VersionsActions
 import com.flintlauncher.android.ui.theme.FlintTheme
 import com.flintlauncher.android.ui.versions.InstallationsScreen
@@ -36,6 +38,7 @@ class MainActivity : ComponentActivity() {
     private val factory get() = AppViewModelFactory((application as FlintApplication).container)
     private val homeViewModel: HomeViewModel by viewModels { factory }
     private val versionsViewModel: VersionsViewModel by viewModels { factory }
+    private val modsViewModel: ModsViewModel by viewModels { factory }
 
     // The install works without the notification permission; this only controls the progress notification.
     private val notificationPermission =
@@ -50,6 +53,7 @@ class MainActivity : ComponentActivity() {
                 var destination by rememberSaveable { mutableStateOf(Destination.PLAY) }
                 val homeState by homeViewModel.state.collectAsStateWithLifecycle()
                 val versionsState by versionsViewModel.state.collectAsStateWithLifecycle()
+                val modsState by modsViewModel.state.collectAsStateWithLifecycle()
 
                 // Only capabilities that really exist are wired. Every other action stays
                 // null, which the UI renders as a disabled control.
@@ -78,6 +82,27 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                val modsActions = remember {
+                    ModsActions(
+                        onQueryChange = { modsViewModel.setQuery(it) },
+                        onSearch = { modsViewModel.search() },
+                        onRefresh = { modsViewModel.refresh() },
+                        onCategoryChange = { modsViewModel.setCategory(it) },
+                        onGameVersionChange = { modsViewModel.setGameVersion(it) },
+                        onLoaderChange = { modsViewModel.setLoader(it) },
+                        onClientSideChange = { modsViewModel.setClientSide(it) },
+                        onServerSideChange = { modsViewModel.setServerSide(it) },
+                        onSelectProfile = { modsViewModel.selectProfile(it) },
+                        onCreateProfile = { name, version, loader -> modsViewModel.createProfile(name, version, loader) },
+                        onSelectProject = { modsViewModel.selectProject(it) },
+                        onCloseProject = { modsViewModel.closeProject() },
+                        onInstallVersion = { projectId, versionId -> modsViewModel.installVersion(projectId, versionId) },
+                        onUninstall = { modsViewModel.uninstall(it) },
+                        onLoadMore = { modsViewModel.loadMore() },
+                        onDismissNotice = { modsViewModel.dismissNotice() },
+                    )
+                }
+
                 FlintScaffold(
                     selected = destination,
                     onSelect = { destination = it },
@@ -85,6 +110,7 @@ class MainActivity : ComponentActivity() {
                     when (destination) {
                         Destination.PLAY -> HomeScreen(state = homeState, actions = homeActions)
                         Destination.PROFILES -> InstallationsScreen(state = versionsState, actions = versionsActions)
+                        Destination.MODS -> ModsScreen(state = modsState, actions = modsActions)
                         else -> NotImplementedScreen(destination.label)
                     }
                 }
