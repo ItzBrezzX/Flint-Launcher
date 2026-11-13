@@ -32,7 +32,7 @@ object NativeBridge {
     /** Actual EGL/GLES driver strings from a temporary pbuffer context. */
     external fun nativeEglCapabilities(): String
 
-    /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
+    /** Load mobile OpenJDK libjvm/libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
 
     /** Human-readable state/error from the native JRE loader. */
