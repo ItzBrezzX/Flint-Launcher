@@ -209,6 +209,30 @@ private fun InstancePanel(state: HomeUiState, actions: HomeActions) {
                 }
             }
             LaunchButton(state, actions)
+            state.launchMessage?.let { message ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = FlintColors.PanelRaised,
+                    shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(1.dp, FlintColors.Ember.copy(alpha = 0.35f)),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 11.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            message,
+                            modifier = Modifier.weight(1f),
+                            color = FlintColors.TextMuted,
+                            fontSize = 10.sp,
+                        )
+                        TextButton(
+                            onClick = { actions.onDismissLaunchMessage?.invoke() },
+                            enabled = actions.onDismissLaunchMessage != null,
+                        ) { Text("DISMISS", fontSize = 9.sp) }
+                    }
+                }
+            }
             TextButton(
                 onClick = { actions.onOpenInstances?.invoke() },
                 enabled = actions.onOpenInstances != null,
