@@ -28,6 +28,7 @@ private class FileServer : Dispatcher() {
     val requests = CopyOnWriteArrayList<RecordedRequest>()
     val failuresLeft = ConcurrentHashMap<String, AtomicInteger>()
     @Volatile var supportRanges = true
+    @Volatile var truncateNextResponsePath: String? = null
 
     override fun dispatch(request: RecordedRequest): MockResponse {
         requests.add(request)
@@ -39,6 +40,14 @@ private class FileServer : Dispatcher() {
         val range = request.getHeader("Range")
         if (supportRanges && range != null) {
             val start = range.removePrefix("bytes=").substringBefore('-').toInt()
+            if (truncateNextResponsePath == path) {
+                truncateNextResponsePath = null
+                val end = (start + 399).coerceAtMost(data.lastIndex)
+                return MockResponse()
+                    .setResponseCode(206)
+                    .setHeader("Content-Range", "bytes $start-$end/${data.size}")
+                    .setBody(Buffer().write(data.copyOfRange(start, end + 1)))
+            }
             return MockResponse()
                 .setResponseCode(206)
                 .setHeader("Content-Range", "bytes $start-${data.size - 1}/${data.size}")
@@ -159,6 +168,22 @@ class DownloadManagerTest {
         assertEquals("bytes=1000-", fileServer.requests.single().getHeader("Range"))
         assertTrue(File(tmp.root, "r.bin").readBytes().contentEquals(data))
         assertFalse(File(tmp.root, "r.bin.part").exists())
+    }
+
+    @Test
+    fun resumesFromCheckpointWhenServerEndsResponseEarly() = runBlocking {
+        val data = bytes(3_000)
+        fileServer.files["/short.bin"] = data
+        fileServer.truncateNextResponsePath = "/short.bin"
+        val manager = newManager()
+
+        val result = manager.run(listOf(request("/short.bin", data)))
+
+        assertEquals(1, result.completed)
+        assertTrue(File(tmp.root, "short.bin").readBytes().contentEquals(data))
+        assertEquals("bytes=0-", fileServer.requests[0].getHeader("Range"))
+        assertEquals("bytes=400-", fileServer.requests[1].getHeader("Range"))
+        assertFalse(File(tmp.root, "short.bin.part").exists())
     }
 
     @Test

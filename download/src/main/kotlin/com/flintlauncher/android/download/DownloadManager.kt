@@ -47,6 +47,8 @@ private class RetryableDownloadException(message: String) : IOException(message)
  *
  * One batch runs at a time. Pause/cancel take effect between buffer reads.
  */
+private val CONTENT_RANGE = Regex("""bytes (\d+)-(\d+)/(\d+|\*)""", RegexOption.IGNORE_CASE)
+
 class DownloadManager(
     private val client: OkHttpClient,
     private val config: DownloadConfig = DownloadConfig(),
@@ -236,12 +238,23 @@ class DownloadManager(
                         throw RetryableDownloadException("Range not satisfiable, restarting")
                     }
                     response.code == 206 -> {
-                        val start = response.header("Content-Range")
-                            ?.substringAfter("bytes ", "")?.substringBefore('-')?.toLongOrNull()
-                        if (start != offset) {
+                        val range = response.header("Content-Range")
+                            ?.let { CONTENT_RANGE.matchEntire(it.trim()) }
+                        val start = range?.groupValues?.get(1)?.toLongOrNull()
+                        val end = range?.groupValues?.get(2)?.toLongOrNull()
+                        val total = range?.groupValues?.get(3)?.takeUnless { it == "*" }?.toLongOrNull()
+                        val bodyLength = response.body?.contentLength() ?: -1L
+                        val validRange = start == offset &&
+                            end != null && end >= offset &&
+                            (total == null || end < total) &&
+                            (expectedSize == null || total == expectedSize) &&
+                            (bodyLength < 0L || bodyLength == end - offset + 1L)
+                        if (!validRange) {
+                            // Never append a response whose range cannot be proven to
+                            // continue this exact checkpoint.
                             part.delete()
                             sync(counted, 0)
-                            throw RetryableDownloadException("Unexpected Content-Range")
+                            throw RetryableDownloadException("Invalid or inconsistent Content-Range; checkpoint reset")
                         }
                         append = true
                     }
@@ -278,9 +291,17 @@ class DownloadManager(
     private fun finish(request: DownloadRequest, part: File, counted: AtomicLong) {
         val size = request.sizeBytes
         if (size != null && part.length() != size) {
-            part.delete()
-            sync(counted, 0)
-            throw RetryableDownloadException("Size mismatch: expected $size bytes, got a different length")
+            val actual = part.length()
+            if (actual > size) {
+                // An oversized partial cannot be safely resumed.
+                part.delete()
+                sync(counted, 0)
+            } else {
+                // Keep a short partial: the next attempt (or a later Retry) resumes
+                // from this exact byte offset using HTTP Range instead of restarting.
+                sync(counted, actual)
+            }
+            throw RetryableDownloadException("Incomplete download: expected $size bytes, received $actual; checkpoint preserved")
         }
         val hash = request.hash
         if (hash != null && !FileHasher.matches(part, hash)) {
