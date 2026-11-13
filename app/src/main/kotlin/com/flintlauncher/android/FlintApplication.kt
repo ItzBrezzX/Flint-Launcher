@@ -1,10 +1,8 @@
 package com.flintlauncher.android
-import android.os.Build
-import android.os.Process
-import com.flintlauncher.android.runtime.MobileJreManager
-import com.flintlauncher.android.runtime.RuntimeArchitecture
 
 import android.app.Application
+import android.os.Build
+import android.os.Process
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
@@ -77,8 +75,23 @@ class AppContainer(private val app: Application) {
     private val modDownloadManager = DownloadManager(modDownloadHttp, DownloadConfig(concurrency = 2))
 
     /** ABI for this app process (different from the set of ABIs supported by the CPU). */
+    val deviceModel: String = Build.MODEL.orEmpty()
+    val androidVersion: String = Build.VERSION.RELEASE.orEmpty()
+    val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList()
+    val totalMemoryMb: Long = runCatching {
+        File("/proc/meminfo").useLines { lines ->
+            lines.firstOrNull { it.startsWith("MemTotal:") }
+                ?.substringAfter(":")
+                ?.trim()
+                ?.substringBefore(" ")
+                ?.toLongOrNull()
+                ?.div(1024)
+                ?: 0L
+        }
+    }.getOrDefault(0L)
+
     val deviceProcessArch: String? = RuntimeArchitecture.fromSupportedAbis(
-        Build.SUPPORTED_ABIS.toList(),
+        supportedAbis,
         Process.is64Bit(),
     )
     val mobileJreManager: MobileJreManager? = deviceProcessArch?.let { arch ->
@@ -120,7 +133,14 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(ModsViewModel::class.java) ->
             ModsViewModel(container.modrinthRepository, container.profileRepository)
         modelClass.isAssignableFrom(RuntimeSettingsViewModel::class.java) ->
-            RuntimeSettingsViewModel(container.mobileJreManager, container.deviceProcessArch)
+            RuntimeSettingsViewModel(
+                container.mobileJreManager,
+                container.deviceProcessArch,
+                container.deviceModel,
+                container.androidVersion,
+                container.supportedAbis,
+                container.totalMemoryMb,
+            )
         else -> throw IllegalArgumentException("Unknown ViewModel $modelClass")
     } as T
 }
