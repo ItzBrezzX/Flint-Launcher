@@ -55,8 +55,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.flintlauncher.android.ui.state.InstalledModUi
 import com.flintlauncher.android.ui.state.Loadable
 import com.flintlauncher.android.ui.state.ModFilterOption
@@ -451,6 +453,7 @@ private fun ModProjectCard(project: ModProjectUi, onClick: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val trustedIconUrl = remember(project.iconUrl) { trustedModrinthIcon(project.iconUrl) }
             Box(
                 modifier = Modifier
                     .size(62.dp)
@@ -464,6 +467,14 @@ private fun ModProjectCard(project: ModProjectUi, onClick: () -> Unit) {
                     tint = FlintColors.Ember,
                     modifier = Modifier.size(30.dp),
                 )
+                if (trustedIconUrl != null) {
+                    AsyncImage(
+                        model = trustedIconUrl,
+                        contentDescription = project.title + " icon",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
             }
             Column(
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
@@ -693,4 +704,11 @@ private fun compactCount(value: Long): String = when {
     value >= 1_000_000 -> "${"%.1f".format(value / 1_000_000.0)}M"
     value >= 1_000 -> "${"%.1f".format(value / 1_000.0)}K"
     else -> value.toString()
+}
+
+/** Only fetch icon images from Modrinth's official HTTPS CDN. */
+private fun trustedModrinthIcon(value: String?): String? {
+    if (value.isNullOrBlank()) return null
+    val uri = runCatching { java.net.URI(value) }.getOrNull() ?: return null
+    return value.takeIf { uri.scheme.equals("https", ignoreCase = true) && uri.host.equals("cdn.modrinth.com", ignoreCase = true) }
 }

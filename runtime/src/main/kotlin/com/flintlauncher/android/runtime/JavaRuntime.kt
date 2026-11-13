@@ -3,6 +3,28 @@ package com.flintlauncher.android.runtime
 import java.io.File
 
 /**
+ * ABI names normalized to the Android runtime artifact identifiers.
+ * This describes the current app process ABI, not just every ABI the CPU supports.
+ */
+object RuntimeArchitecture {
+    fun normalize(value: String): String? = when (value.trim().lowercase().replace('-', '_')) {
+        "arm64", "arm64_v8a", "aarch64" -> "arm64"
+        "arm", "armeabi_v7a", "armv7", "armv7l", "aarch32" -> "arm"
+        "x86", "i386", "i486", "i586", "i686" -> "x86"
+        "x86_64", "amd64" -> "x86_64"
+        else -> null
+    }
+
+    fun fromSupportedAbis(abis: List<String>, is64BitProcess: Boolean): String? =
+        abis.asSequence()
+            .mapNotNull(::normalize)
+            .firstOrNull { arch ->
+                if (is64BitProcess) arch == "arm64" || arch == "x86_64"
+                else arch == "arm" || arch == "x86"
+            }
+}
+
+/**
  * Describes an on-device Java runtime that can host Minecraft.
  *
  * Real implementations will download / extract / verify ARM64 JREs
@@ -42,7 +64,7 @@ data class RendererInfo(
  */
 interface JavaRuntimeManager {
     suspend fun listInstalled(): List<JavaRuntimeInfo>
-    suspend fun findCompatible(requiredMajor: Int, preferArch: String = "aarch64"): JavaRuntimeInfo?
+    suspend fun findCompatible(requiredMajor: Int, preferArch: String = "arm64"): JavaRuntimeInfo?
     suspend fun install(major: Int): Result<JavaRuntimeInfo>
     suspend fun verify(runtime: JavaRuntimeInfo): Boolean
 }

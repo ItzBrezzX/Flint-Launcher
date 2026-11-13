@@ -39,13 +39,14 @@ fun HomeScreen(
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val wide = maxWidth >= 540.dp
+        val compactLandscape = maxHeight < 520.dp
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = if (wide) 18.dp else 16.dp, vertical = if (compactLandscape) 8.dp else 12.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compactLandscape) 10.dp else 16.dp),
         ) {
             HomeTopBar(state, actions)
             if (wide) {
@@ -56,14 +57,14 @@ fun HomeScreen(
                     Column(
                         modifier = Modifier.weight(1.6f),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) { MainSections(state, actions) }
+                    ) { MainSections(state, actions, compactLandscape) }
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) { PartnersSection(state.partners, actions) }
                 }
             } else {
-                MainSections(state, actions)
+                MainSections(state, actions, compactLandscape)
                 PartnersSection(state.partners, actions)
             }
             if (state.launcherVersion.isNotBlank()) {
@@ -78,9 +79,9 @@ fun HomeScreen(
 }
 
 @Composable
-private fun EmptyHeroBanner() {
+private fun EmptyHeroBanner(height: androidx.compose.ui.unit.Dp) {
     Surface(
-        modifier = Modifier.fillMaxWidth().height(190.dp),
+        modifier = Modifier.fillMaxWidth().height(height),
         color = FlintColors.Panel,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, FlintColors.PanelRaised),
@@ -114,8 +115,8 @@ private fun LaunchMessageCard(message: String, actions: HomeActions) {
 }
 
 @Composable
-private fun MainSections(state: HomeUiState, actions: HomeActions) {
-    EmptyHeroBanner()
+private fun MainSections(state: HomeUiState, actions: HomeActions, compactLandscape: Boolean) {
+    EmptyHeroBanner(if (compactLandscape) 132.dp else 190.dp)
     LaunchButton(state, actions)
     state.launchMessage?.let { LaunchMessageCard(it, actions) }
     ProfileSlots(state, actions)

@@ -1,6 +1,8 @@
 package com.flintlauncher.android
 
 import android.app.Application
+import android.os.Build
+import android.os.Process
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
@@ -14,6 +16,8 @@ import com.flintlauncher.android.mods.ModrinthApi
 import com.flintlauncher.android.mods.ModrinthModInstaller
 import com.flintlauncher.android.mods.ModrinthRepository
 import com.flintlauncher.android.profiles.ProfileRepository
+import com.flintlauncher.android.runtime.MobileJreManager
+import com.flintlauncher.android.runtime.RuntimeArchitecture
 import com.flintlauncher.android.partners.BundledServerFeed
 import com.flintlauncher.android.partners.McStatusClient
 import com.flintlauncher.android.partners.PartnersRepository
@@ -69,7 +73,37 @@ class AppContainer(private val app: Application) {
     private val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
     private val layout = GameLayout(gameRoot)
     private val downloadManager = DownloadManager(downloadHttp, DownloadConfig(concurrency = 4))
+    private val runtimeDownloadManager = DownloadManager(downloadHttp, DownloadConfig(concurrency = 1, maxAttempts = 4))
     private val modDownloadManager = DownloadManager(modDownloadHttp, DownloadConfig(concurrency = 2))
+
+    val deviceModel: String = Build.MODEL.orEmpty()
+    val androidVersion: String = Build.VERSION.RELEASE.orEmpty()
+    val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList()
+    val totalMemoryMb: Long = runCatching {
+        File("/proc/meminfo").useLines { lines ->
+            lines.firstOrNull { it.startsWith("MemTotal:") }
+                ?.substringAfter(":")
+                ?.trim()
+                ?.substringBefore(" ")
+                ?.toLongOrNull()
+                ?.div(1024)
+                ?: 0L
+        }
+    }.getOrDefault(0L)
+
+    /** ABI for this app process (different from the set of ABIs supported by the CPU). */
+    val deviceProcessArch: String? = RuntimeArchitecture.fromSupportedAbis(
+        supportedAbis,
+        Process.is64Bit(),
+    )
+    val mobileJreManager: MobileJreManager? = deviceProcessArch?.let { arch ->
+        MobileJreManager(
+            runtimesDir = File(app.filesDir, "runtimes"),
+            downloadDir = File(app.cacheDir, "jre-downloads"),
+            deviceArch = arch,
+            downloads = runtimeDownloadManager,
+        )
+    }
 
     val profileRepository = ProfileRepository(File(app.filesDir, "profiles.json"))
     val modrinthRepository = ModrinthRepository(
@@ -95,11 +129,20 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(HomeViewModel::class.java) ->
-            HomeViewModel(container.partnersRepository, container.installer, container.launcherVersion)
+            HomeViewModel(container.partnersRepository, container.installer, container.mobileJreManager, container.deviceProcessArch, container.launcherVersion)
         modelClass.isAssignableFrom(VersionsViewModel::class.java) ->
             VersionsViewModel(container.installer, container.installCoordinator, container::startInstallService)
         modelClass.isAssignableFrom(ModsViewModel::class.java) ->
             ModsViewModel(container.modrinthRepository, container.profileRepository)
+        modelClass.isAssignableFrom(RuntimeSettingsViewModel::class.java) ->
+            RuntimeSettingsViewModel(
+                container.mobileJreManager,
+                container.deviceProcessArch,
+                container.deviceModel,
+                container.androidVersion,
+                container.supportedAbis,
+                container.totalMemoryMb,
+            )
         else -> throw IllegalArgumentException("Unknown ViewModel $modelClass")
     } as T
 }

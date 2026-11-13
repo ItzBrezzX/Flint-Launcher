@@ -354,6 +354,7 @@ class ModsViewModel(
         serverSide = serverSide,
         downloads = downloads,
         installed = projectId in installedIds,
+        iconUrl = iconUrl,
     )
 
     private fun String.toOption() = ModFilterOption(

@@ -59,8 +59,20 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
         "/lib/libjli.so",
         "/lib/aarch64/libjli.so",
         "/lib/arm64/libjli.so",
+        "/lib/aarch32/libjli.so",
+        "/lib/arm/libjli.so",
+        "/lib/i386/libjli.so",
+        "/lib/amd64/libjli.so",
+        "/lib/x86_64/libjli.so",
         "/lib/jli/libjli.so",
         "/lib/server/libjli.so",
+        "/lib/aarch64/server/libjli.so",
+        "/lib/arm64/server/libjli.so",
+        "/lib/aarch32/server/libjli.so",
+        "/lib/arm/server/libjli.so",
+        "/lib/i386/server/libjli.so",
+        "/lib/amd64/server/libjli.so",
+        "/lib/x86_64/server/libjli.so",
         nullptr
     };
 

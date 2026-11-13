@@ -1,6 +1,6 @@
 # Spike 0.4 — reproducible ARM64 debug APK with native library verification.
 # Fails the job if libflint_native.so is missing from the APK.
-name: Android Build (arm64 native)
+name: Android Build (multi-ABI native)
 
 on:
   workflow_dispatch:
@@ -82,19 +82,22 @@ jobs:
           set -euo pipefail
           gradle :native:assembleDebug --stacktrace --info | tee "${RUNNER_TEMP}/native-build.log"
 
-      - name: Locate libflint_native.so after module build
+      - name: Verify native library for every packaged ABI
         run: |
           set -euo pipefail
-          SO=$(find native/build -name 'libflint_native.so' -path '*/arm64-v8a/*' | head -n1 || true)
-          if [ -z "${SO}" ]; then
-            echo "::error::libflint_native.so not found under native/build for arm64-v8a"
-            find native/build -type f -name '*.so' -print || true
-            exit 1
-          fi
-          echo "Found ${SO}"
-          ls -la "${SO}"
-          file "${SO}" || true
-          echo "${SO}" > "${RUNNER_TEMP}/so-path.txt"
+          : > "${RUNNER_TEMP}/so-path.txt"
+          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
+            SO=$(find native/build -name 'libflint_native.so' -path "*/${ABI}/*" | head -n1 || true)
+            if [ -z "${SO}" ]; then
+              echo "::error::libflint_native.so not found under native/build for ${ABI}"
+              find native/build -type f -name '*.so' -print || true
+              exit 1
+            fi
+            echo "Found ${ABI}: ${SO}"
+            ls -la "${SO}"
+            file "${SO}" || true
+            echo "${ABI}: ${SO}" >> "${RUNNER_TEMP}/so-path.txt"
+          done
 
       - name: Unit tests (host JVM)
         run: |
@@ -118,16 +121,18 @@ jobs:
           APK="${APKS[0]}"
           echo "Checking APK: ${APK}"
           unzip -l "${APK}" | tee "${RUNNER_TEMP}/apk-listing.txt"
-          if ! unzip -l "${APK}" | grep -E 'lib/arm64-v8a/libflint_native\.so$'; then
-            echo "::error::APK is missing lib/arm64-v8a/libflint_native.so"
-            exit 1
-          fi
-          # Extract and size-check the .so from the APK itself
+          # Every ABI advertised by app/build.gradle.kts must be present in the final APK.
           TMP=$(mktemp -d)
-          unzip -o -d "${TMP}" "${APK}" "lib/arm64-v8a/libflint_native.so"
-          ls -la "${TMP}/lib/arm64-v8a/libflint_native.so"
-          test -s "${TMP}/lib/arm64-v8a/libflint_native.so"
-          echo "OK: libflint_native.so present and non-empty inside APK"
+          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
+            ENTRY="lib/${ABI}/libflint_native.so"
+            if ! unzip -l "${APK}" | grep -F "${ENTRY}"; then
+              echo "::error::APK is missing ${ENTRY}"
+              exit 1
+            fi
+            unzip -o -d "${TMP}" "${APK}" "${ENTRY}"
+            test -s "${TMP}/${ENTRY}"
+            echo "OK: ${ENTRY} is present and non-empty"
+          done
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

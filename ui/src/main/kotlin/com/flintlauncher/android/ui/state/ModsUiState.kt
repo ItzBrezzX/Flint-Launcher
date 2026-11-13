@@ -19,6 +19,7 @@ data class ModProjectUi(
     val serverSide: String,
     val downloads: Long,
     val installed: Boolean,
+    val iconUrl: String? = null,
 )
 
 data class ModVersionUi(
