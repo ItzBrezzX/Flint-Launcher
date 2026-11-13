@@ -517,6 +517,12 @@ private fun ModProjectCard(project: ModProjectUi, onClick: () -> Unit) {
                     style = MaterialTheme.typography.labelSmall,
                     color = FlintColors.TextMuted,
                 )
+                Text(
+                    project.projectType.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = libraryGreen,
+                    fontWeight = FontWeight.Bold,
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -533,14 +539,18 @@ private fun ModProjectCard(project: ModProjectUi, onClick: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        "CLIENT ${project.clientSide.uppercase()} · SERVER ${project.serverSide.uppercase()}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = FlintColors.TextMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    TextButton(onClick = onClick) { Text("Versions") }
+                    if (project.projectType == "mod") {
+                        Text(
+                            "CLIENT ${project.clientSide.uppercase()} · SERVER ${project.serverSide.uppercase()}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = FlintColors.TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    } else {
+                        Text("Minecraft Java", style = MaterialTheme.typography.labelSmall, color = FlintColors.TextMuted)
+                    }
+                    TextButton(onClick = onClick) { Text(if (project.projectType == "mod") "Versions" else "Details") }
                 }
             }
         }
