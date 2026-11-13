@@ -50,8 +50,10 @@ object MinimalJvmProbe {
 
     /**
      * Attempt: nativeLoadJre(runtime) then nativeLaunchJvm(argv for FlintJvmProbe).
+     * The probe class is generated into [classpathDir], so javac is not needed.
      *
-     * [classpathDir] must contain FlintJvmProbe.class (or a jar listed in classpath).
+     * This starts a process-global HotSpot VM. Run it in a disposable process;
+     * after it returns, restart Flint before attempting a real game launch.
      */
     fun run(
         runtime: JavaRuntimeInfo,
@@ -77,6 +79,7 @@ object MinimalJvmProbe {
 
         val jreOk = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
         notes += if (jreOk) "nativeLoadJre=true" else "nativeLoadJre=false"
+        notes += "native JRE status: ${NativeBridge.safeJreStatus()}"
         if (!jreOk) {
             return JvmProbeResult(true, null, false, null, notes)
         }
