@@ -9,7 +9,6 @@ import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.toHttpUrl
 import java.io.IOException
 
 /**
@@ -150,6 +149,6 @@ class ModrinthApi(
 
     companion object {
         private val SORTS = setOf("relevance", "downloads", "follows", "newest", "updated")
-        val DEFAULT_BASE_URL: HttpUrl = "https://api.modrinth.com/v2/".toHttpUrl()
+        val DEFAULT_BASE_URL: HttpUrl = HttpUrl.Builder().scheme("https").host("api.modrinth.com").addPathSegment("v2").build()
     }
 }
