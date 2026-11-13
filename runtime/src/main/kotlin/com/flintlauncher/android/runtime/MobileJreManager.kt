@@ -83,7 +83,7 @@ class MobileJreManager(
 
     override suspend fun listInstalled(): List<JavaRuntimeInfo> = withContext(Dispatchers.IO) {
         if (!runtimesDir.isDirectory) return@withContext emptyList()
-        runtimesDir.listFiles()
+        val candidates = runtimesDir.listFiles()
             .orEmpty()
             .asSequence()
             .filter { it.isDirectory && !it.name.startsWith(".") }
@@ -91,6 +91,10 @@ class MobileJreManager(
             .filter { it.verified }
             .sortedWith(compareBy<JavaRuntimeInfo> { it.majorVersion }.thenBy { it.id })
             .toList()
+
+        // Do not expose a runtime as verified until the device's native bridge
+        // can load its actual libjli and resolve JLI_Launch.
+        candidates.filter { verify(it) }
     }
 
     /** Selects the lowest installed Java major that satisfies the game requirement. */
