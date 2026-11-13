@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.sp
 enum class Destination(val label: String, val icon: ImageVector) {
     PLAY("HOME", Icons.Filled.PlayArrow),
     PROFILES("JAVA EDITION", Icons.Filled.AccountCircle),
-    MODS("MODS", Icons.Filled.Build),
+    MODS("LIBRARY", Icons.Filled.Build),
     PARTNERS("SERVERS", Icons.Filled.Star),
     SETTINGS("SETTINGS", Icons.Filled.Settings),
 }
