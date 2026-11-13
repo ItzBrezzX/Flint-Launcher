@@ -81,6 +81,18 @@ class ModsViewModel(
         search()
     }
 
+    fun setProjectType(value: String) {
+        if (value !in setOf("mod", "shader", "resourcepack", "modpack", "datapack", "world", "plugin")) return
+        _state.value = _state.value.copy(
+            selectedProjectType = value,
+            selectedCategory = "",
+            selectedLoader = if (value == "mod") _state.value.selectedLoader else "",
+            clientSide = "",
+            serverSide = "",
+        )
+        search()
+    }
+
     fun setGameVersion(value: String) {
         _state.value = _state.value.copy(selectedGameVersion = value)
         search()
@@ -329,6 +341,7 @@ class ModsViewModel(
 
     private fun ModsUiState.toFilters(offset: Int): ModrinthFilters = ModrinthFilters(
         query = query,
+        projectType = selectedProjectType,
         category = selectedCategory.takeIf { it.isNotBlank() },
         clientSide = clientSide.toSideSupport(),
         serverSide = serverSide.toSideSupport(),
@@ -349,6 +362,7 @@ class ModsViewModel(
         title = title,
         description = description,
         author = author,
+        projectType = projectType,
         categories = displayCategories.ifEmpty { categories },
         clientSide = clientSide,
         serverSide = serverSide,
