@@ -109,11 +109,13 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
 
     std::lock_guard<std::mutex> guard(g_jre_mutex);
 
-    if (g_jli_launch != nullptr) {
-        if (home == g_jre_home) return JNI_TRUE;
-        g_jre_error = "A different JVM is already loaded in this app process; restart Flint before changing Java runtime.";
-        LOGE("%s", g_jre_error.c_str());
-        return JNI_FALSE;
+    if (g_libjvm != nullptr) {
+        if (home == g_jre_home && g_jli_launch != nullptr) return JNI_TRUE;
+        if (home != g_jre_home) {
+            g_jre_error = "A different JVM is already loaded in this app process; restart Flint before changing Java runtime.";
+            LOGE("%s", g_jre_error.c_str());
+            return JNI_FALSE;
+        }
     }
 
     const char *jvm_suffixes[] = {
@@ -138,6 +140,12 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
         "/lib/amd64/libjli.so",
         "/lib/x86_64/libjli.so",
         "/lib/i386/libjli.so",
+        "/lib/server/libjli.so",
+        "/lib/aarch64/server/libjli.so",
+        "/lib/arm64/server/libjli.so",
+        "/lib/arm/server/libjli.so",
+        "/lib/amd64/server/libjli.so",
+        "/lib/x86_64/server/libjli.so",
         "/lib/jli/libjli.so",
         nullptr
     };
@@ -155,13 +163,14 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     configure_jre_environment(home);
 
     /* Load the VM first so its dependent ELF libraries resolve in the JRE path. */
-    g_libjvm = dlopen(jvm_path.c_str(), RTLD_NOW | RTLD_GLOBAL);
+    if (g_libjvm == nullptr) g_libjvm = dlopen(jvm_path.c_str(), RTLD_NOW | RTLD_GLOBAL);
     if (!g_libjvm) {
         const char *error = dlerror();
         g_jre_error = std::string("dlopen libjvm.so failed: ") + (error ? error : "unknown linker error");
         LOGE("%s", g_jre_error.c_str());
         return JNI_FALSE;
     }
+    g_jre_home = home;
 
     g_libjli = dlopen(jli_path.c_str(), RTLD_NOW | RTLD_GLOBAL);
     if (!g_libjli) {
