@@ -481,7 +481,7 @@ private fun PartnerRail(state: HomeUiState, actions: HomeActions, modifier: Modi
 
 @Composable
 fun PartnersScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Modifier) {
-    BoxWithConstraints(modifier.fillMaxSize().background(HomePalette.Background)) {
+    Box(modifier.fillMaxSize().background(HomePalette.Background)) {
         Column(
             Modifier.fillMaxSize().padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
