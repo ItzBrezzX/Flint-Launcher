@@ -33,6 +33,20 @@ class ModsViewModel(
 
     init {
         load()
+        viewModelScope.launch {
+            mods.downloadProgress.collect { progress ->
+                _state.value = _state.value.copy(
+                    downloadState = progress.state.name,
+                    downloadPercent = progress.percent?.toFloat(),
+                    downloadBytes = progress.downloadedBytes,
+                    downloadTotalBytes = progress.totalBytes,
+                    downloadSpeedBytesPerSecond = progress.speedBytesPerSecond,
+                    downloadActiveFiles = progress.activeFiles,
+                    downloadCompletedFiles = progress.completedFiles,
+                    downloadTotalFiles = progress.totalFiles,
+                )
+            }
+        }
     }
 
     fun load() {
