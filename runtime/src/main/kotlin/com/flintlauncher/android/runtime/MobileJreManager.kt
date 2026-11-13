@@ -245,9 +245,9 @@ class MobileJreManager(
     }
 
     /**
-     * Verify the selected runtime by loading libjvm/libjli and resolving JLI_Launch.
-     * This is process-global and must not be called to enumerate every installed JRE.
-     * It does not execute Java bytecode or verify Minecraft graphics.
+     * Verify the selected runtime by loading its native libraries and executing
+     * a real Java 8-compatible class through JLI_Launch. This is process-global;
+     * never call it while enumerating all installed runtimes.
      */
     override suspend fun verify(runtime: JavaRuntimeInfo): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -258,7 +258,16 @@ class MobileJreManager(
                 detected.homeDir.canonicalFile == runtime.homeDir.canonicalFile
             if (!filesMatch || !NativeBridge.isNativeLoaded) return@runCatching false
 
-            NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
+            val probeDir = File(
+                runtimesDir,
+                ".flint-jvm-probe-" + runtime.id.replace(Regex("[^A-Za-z0-9._-]"), "_"),
+            )
+            val result = com.flintlauncher.android.runtime.testsupport.MinimalJvmProbe.run(
+                runtime = detected,
+                classpathDir = probeDir,
+                workingDir = probeDir,
+            )
+            result.passed
         }.getOrDefault(false)
     }
 
