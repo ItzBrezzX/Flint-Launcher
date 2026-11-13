@@ -97,7 +97,7 @@ fun FlintScaffold(
                         Row(
                             Modifier.fillMaxWidth()
                                 .padding(horizontal = 5.dp, vertical = 2.dp)
-                                .clip(RoundedCornerShape(3.dp))
+                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (active) LauncherGreen.copy(alpha = 0.14f) else Color.Transparent)
                                 .clickable { onSelect(destination) }
                                 .padding(horizontal = 12.dp, vertical = 15.dp),
@@ -126,9 +126,9 @@ fun FlintScaffold(
                         Modifier.fillMaxWidth().height(64.dp).background(LauncherPanel).padding(horizontal = 22.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Flint-Launcher", color = LauncherText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text(selected.label, color = LauncherText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        Text("Minecraft Java · Android", color = LauncherMuted, fontSize = 11.sp)
+                        Text("FLINT  /  MINECRAFT JAVA", color = LauncherMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Box(
                         Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().background(LauncherBackground),
