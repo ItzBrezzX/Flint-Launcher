@@ -97,7 +97,15 @@ class HomeViewModel(
             val prepared = installer.install(
                 selected.minecraftVersion,
                 onStage = { stage ->
-                    _state.update { it.copy(launchStage = stage.label) }
+                    _state.update {
+                        it.copy(
+                            launchStage = stage.label,
+                            launchProgressPercent = null,
+                            launchDownloadedBytes = 0,
+                            launchTotalBytes = null,
+                            launchSpeedBytesPerSecond = 0,
+                        )
+                    }
                 },
                 onProgress = { progress ->
                     _state.update {
@@ -133,7 +141,7 @@ class HomeViewModel(
             val arch = deviceArch
             if (manager == null || arch == null) {
                 _state.update {
-                    it.copy(launchMessage = "This APK process ABI is not supported by Flint's mobile Java runtime catalog.")
+                    it.copy(launchBusy = false, launchStage = null, launchMessage = "This APK process ABI is not supported by Flint's mobile Java runtime catalog.")
                 }
                 return@launch
             }
