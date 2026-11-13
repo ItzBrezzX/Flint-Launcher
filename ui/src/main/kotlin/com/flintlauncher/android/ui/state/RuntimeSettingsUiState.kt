@@ -19,6 +19,11 @@ data class RuntimeSettingsUiState(
     val rendererDiagnostics: String = "Not checked",
     val loading: Boolean = false,
     val installingMajor: Int? = null,
+    val installStage: String? = null,
+    val installPercent: Float? = null,
+    val installDownloadedBytes: Long = 0,
+    val installTotalBytes: Long? = null,
+    val installSpeedBytesPerSecond: Long = 0,
     val message: String? = null,
 ) {
     val recommendedMemoryMb: Int
