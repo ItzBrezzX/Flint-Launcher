@@ -44,7 +44,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val wide = maxWidth >= 760.dp
+        val wide = maxWidth >= 560.dp
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(horizontal = if (wide) 26.dp else 16.dp, vertical = 18.dp),
