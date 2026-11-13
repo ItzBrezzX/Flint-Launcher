@@ -15,7 +15,7 @@ The snapshot is a complete Android launcher, not a standalone runtime AAR. Its d
 
 | Area | Upstream location | Flint integration concern |
 | --- | --- | --- |
-| JVM entry point | `app_pojavlauncher/src/main/jni/jre_launcher.c` | Native JLI launch path, signal handling, and JNI lifecycle need a dedicated adapter; do not reuse Flint's current experimental implementation as if it were equivalent. |
+| JVM entry point | `app_pojavlauncher/src/main/jni/jre_launcher.c` | Native JLI launch path, signal handling, and JNI lifecycle need a dedicated adapter. The inspected entry point calls `JLI_Launch`; it is not evidence of a `JNI_CreateJavaVM` integration. Do not reuse Flint's current experimental implementation as if it were equivalent. |
 | Runtime setup | `app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/utils/JREUtils.java` | Loads the JRE's dependent shared libraries and configures runtime environment/library paths. |
 | Android game surface | `app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/MinecraftGLSurface.java` | Surface lifecycle, SDL setup, input dispatch, and GLFW bridge are coupled to upstream app classes. |
 | Native build | `app_pojavlauncher/src/main/jni/Android.mk` | Uses ndk-build and several native components; Flint currently uses a smaller CMake module. |
@@ -47,7 +47,7 @@ Do not bundle or vendor a component whose redistribution terms have not been ver
 
 Keep Flint's Compose UI, accounts, profiles, version metadata, download/install pipeline, and Modrinth marketplace independent from the game runtime.
 
-Introduce a backend contract behind `:runtime` rather than importing upstream launcher UI:
+Introduce a backend contract behind `:runtime` rather than importing upstream launcher UI. The inspected upstream snapshot uses `JLI_Launch` plus runtime library/environment setup; confirm the exact bootstrap sequence against the pinned native and Java sources before implementation:
 1. Runtime preparation: validate/extract a supported mobile JRE and its architecture.
 2. Native bootstrap: load the required JRE and backend libraries in a controlled order.
 3. Game launch: pass the resolved classpath, JVM arguments, main class, and game arguments.
