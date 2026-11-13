@@ -76,8 +76,9 @@ class PojavStyleGameLauncher(
 
     override suspend fun isRunning(): Boolean = running
     override suspend fun stop() {
-        running = false
-        NativeBridge.nativeShutdown()
+        if (running) {
+            logBuffer.appendLine("Stop requested, but an in-process JLI invocation cannot be safely interrupted yet.")
+        }
     }
 
     override fun stdout(): String = logBuffer.toString()
