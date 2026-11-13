@@ -4,6 +4,7 @@ import com.flintlauncher.android.nativebridge.NativeBridge
 import com.flintlauncher.android.runtime.JavaRuntimeInfo
 import com.flintlauncher.android.runtime.MobileJreManager
 import java.io.File
+import java.util.Base64
 
 /**
  * Host-side driver for Spike 0.3: load a mobile JRE and run a minimal Java main
@@ -26,9 +27,7 @@ data class JvmProbeResult(
 object MinimalJvmProbe {
 
     /**
-     * Writes a tiny standalone .java source that prints FLINT_JVM_OK and exits 0.
-     * The caller (or a device-side script) must compile it with the mobile javac
-     * or ship a prebuilt classes.jar built against the same major.
+     * Writes the equivalent Java source for inspection or manual debugging.
      */
     fun writeProbeSource(dir: File): File {
         dir.mkdirs()
@@ -82,6 +81,13 @@ object MinimalJvmProbe {
             return JvmProbeResult(true, null, false, null, notes)
         }
 
+        val probeClass = try {
+            writeProbeClass(classpathDir)
+        } catch (error: Exception) {
+            notes += "could not write probe class: ${error.message}"
+            return JvmProbeResult(true, null, false, null, notes)
+        }
+        notes += "probe class written: ${probeClass.absolutePath}"
         val cp = classpathDir.absolutePath
         val argv = arrayOf(
             "java",
