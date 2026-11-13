@@ -48,9 +48,9 @@ class ModrinthRepository(
                 throw IOException("Circular required dependency detected for ${nodeProject.title}")
             }
             try {
-                val conflicts = nodeVersion.dependencies.filter {
-                    it.dependencyType == "incompatible" &&
-                        (it.projectId in installedIds || it.projectId in visiting)
+                val conflicts = nodeVersion.dependencies.filter { dependency ->
+                    dependency.dependencyType == "incompatible" &&
+                        dependency.projectId?.let { it in installedIds || it in visiting } == true
                 }
                 if (conflicts.isNotEmpty()) {
                     throw IOException("Incompatible mod dependency is already installed: ${conflicts.first().projectId}")
