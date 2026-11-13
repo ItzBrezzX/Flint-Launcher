@@ -61,6 +61,10 @@ object KnownJreArtifacts {
         val normalized = RuntimeArchitecture.normalize(arch) ?: return emptyList()
         return all.asSequence().filter { it.arch == normalized }.map { it.major }.distinct().sorted().toList()
     }
+
+    /** Lowest published JRE that can satisfy the Java bytecode requirement. */
+    fun compatibleMajor(requiredMajor: Int, arch: String): Int? =
+        majorsFor(arch).firstOrNull { it >= requiredMajor }
 }
 
 class MobileJreManager(
@@ -229,7 +233,7 @@ class MobileJreManager(
             ?.trim()
             ?.trim('"')
             ?: throw IOException("JAVA_VERSION is missing from runtime metadata")
-        val major = parseMajor(version) ?: throw IOException("Cannot parse Java version '" + version + "'")
+        val major = parseMobileJavaMajor(version) ?: throw IOException("Cannot parse Java version '" + version + "'")
         val osArch = lines.firstOrNull { it.startsWith("OS_ARCH=") }
             ?.substringAfter('=')
             ?.trim()
@@ -248,12 +252,6 @@ class MobileJreManager(
             arch = arch,
             verified = jli != null && jvm != null,
         )
-    }
-
-    private fun parseMajor(version: String): Int? {
-        val parts = version.split('.', '_', '+', '-')
-        val first = parts.firstOrNull()?.toIntOrNull() ?: return null
-        return if (first == 1) parts.getOrNull(1)?.toIntOrNull() else first
     }
 
     private fun findLib(home: File, name: String): File? {
@@ -305,4 +303,14 @@ class MobileJreManager(
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
+}
+
+/**
+ * Understands legacy Java 8 release strings (1.8.0_*) as well as modern
+ * semantic versions (17.0.9, 21.0.1, 25.0.0).
+ */
+internal fun parseMobileJavaMajor(version: String): Int? {
+    val parts = version.split('.', '_', '+', '-')
+    val first = parts.firstOrNull()?.toIntOrNull() ?: return null
+    return if (first == 1) parts.getOrNull(1)?.toIntOrNull() else first
 }
