@@ -94,6 +94,10 @@ class MainActivity : ComponentActivity() {
                         onRefresh = { runtimeSettingsViewModel.refresh() },
                         onInstallJava = { runtimeSettingsViewModel.installJava(it) },
                         onDismissMessage = { runtimeSettingsViewModel.dismissMessage() },
+                        onSetInt = { key, value -> runtimeSettingsViewModel.setIntSetting(key, value) },
+                        onSetBoolean = { key, value -> runtimeSettingsViewModel.setBooleanSetting(key, value) },
+                        onSetString = { key, value -> runtimeSettingsViewModel.setStringSetting(key, value) },
+                        onResetSettings = { runtimeSettingsViewModel.resetSettings() },
                     )
                 }
 

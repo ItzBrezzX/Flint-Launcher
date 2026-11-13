@@ -40,6 +40,9 @@ class FlintApplication : Application() {
 
 /** Manual dependency wiring. Replaced by a DI framework only if the graph outgrows this. */
 class AppContainer(private val app: Application) {
+    val launcherSettingsPreferences = app.getSharedPreferences("flint_launcher_settings", Application.MODE_PRIVATE)
+    val gyroscopeAvailable: Boolean = app.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_SENSOR_GYROSCOPE)
+
     val launcherVersion: String = runCatching {
         app.packageManager.getPackageInfo(app.packageName, 0).versionName
     }.getOrNull().orEmpty()
@@ -142,6 +145,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.androidVersion,
                 container.supportedAbis,
                 container.totalMemoryMb,
+                container.launcherSettingsPreferences,
+                container.gyroscopeAvailable,
             )
         else -> throw IllegalArgumentException("Unknown ViewModel $modelClass")
     } as T
