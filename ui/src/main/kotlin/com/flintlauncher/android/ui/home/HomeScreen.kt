@@ -40,7 +40,7 @@ import com.flintlauncher.android.ui.theme.FlintColors
 /**
  * PLAY dashboard. Android-native adaptation of the desktop layout:
  * a single scrolling column on phones, and a main column plus a partners
- * column on landscape and wide screens (>= 720dp). It renders [state] as given; empty,
+ * column on landscape and wide screens (>= 600dp of content width). It renders [state] as given; empty,
  * loading and error states are shown as such, never filled with sample data.
  */
 @Composable
@@ -50,7 +50,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val wide = maxWidth >= 720.dp
+        val wide = maxWidth >= 600.dp
         val compactLandscape = maxHeight < 520.dp
         Column(
             modifier = Modifier
