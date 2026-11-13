@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flintlauncher.android.ui.home.HomeScreen
+import com.flintlauncher.android.ui.home.PartnersScreen
 import com.flintlauncher.android.ui.mods.ModsScreen
 import com.flintlauncher.android.ui.settings.RuntimeSettingsScreen
 import com.flintlauncher.android.ui.nav.Destination
@@ -66,6 +67,9 @@ class MainActivity : ComponentActivity() {
                         onLaunch = { homeViewModel.launchSelected() },
                         onSelectInstallation = { homeViewModel.selectInstallation(it) },
                         onDismissLaunchMessage = { homeViewModel.dismissLaunchMessage() },
+                        onOpenInstances = { destination = Destination.PROFILES },
+                        onOpenLibrary = { destination = Destination.MODS },
+                        onOpenSettings = { destination = Destination.SETTINGS },
                         onRefreshPartners = { homeViewModel.refreshPartners(force = true) },
                         onCopyAddress = { address -> copyAddress(address) },
                         onVisitServer = { url -> openWebsite(url) },
@@ -125,11 +129,19 @@ class MainActivity : ComponentActivity() {
                         destination = it
                         if (it == Destination.PLAY) homeViewModel.refreshInstallations()
                     },
+                    onSearch = { query ->
+                        modsViewModel.setQuery(query)
+                        modsViewModel.search()
+                        destination = Destination.MODS
+                    },
+                    accountName = homeState.account?.username,
+                    instanceLabel = homeState.selected?.summary,
                 ) {
                     when (destination) {
                         Destination.PLAY -> HomeScreen(state = homeState, actions = homeActions)
                         Destination.PROFILES -> InstallationsScreen(state = versionsState, actions = versionsActions)
                         Destination.MODS -> ModsScreen(state = modsState, actions = modsActions)
+                        Destination.PARTNERS -> PartnersScreen(state = homeState, actions = homeActions)
                         Destination.SETTINGS -> RuntimeSettingsScreen(
                             state = runtimeSettingsState,
                             actions = runtimeSettingsActions,
