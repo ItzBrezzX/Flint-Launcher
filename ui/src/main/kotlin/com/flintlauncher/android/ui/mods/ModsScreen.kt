@@ -337,7 +337,7 @@ fun ModsScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("DOWNLOAD QUEUE", color = libraryGreen, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.7.sp)
+                        Text("DOWNLOAD QUEUE", color = libraryGreen, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.9.sp)
                         Spacer(Modifier.weight(1f))
                         val active = state.downloadState == "RUNNING" || state.downloadState == "PAUSED"
                         Text(
