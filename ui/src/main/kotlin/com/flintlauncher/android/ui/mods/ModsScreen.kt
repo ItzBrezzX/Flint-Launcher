@@ -75,204 +75,159 @@ fun ModsScreen(
     modifier: Modifier = Modifier,
 ) {
     var createProfileOpen by remember { mutableStateOf(false) }
-    BoxWithConstraints(modifier.fillMaxSize()) {
-        val wide = maxWidth >= 540.dp
+    val libraryBg = androidx.compose.ui.graphics.Color(0xFF06140B)
+    val libraryPanel = androidx.compose.ui.graphics.Color(0xFF0C2112)
+    val libraryBorder = androidx.compose.ui.graphics.Color(0xFF1B4926)
+    val libraryGreen = androidx.compose.ui.graphics.Color(0xFF35D52D)
+
+    BoxWithConstraints(modifier.fillMaxSize().background(libraryBg)) {
+        val wide = maxWidth >= 760.dp
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = if (wide) 22.dp else 14.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier.fillMaxSize().padding(horizontal = if (wide) 16.dp else 10.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ModSearchBar(state, actions)
+            Surface(
+                modifier = Modifier.fillMaxWidth().height(if (wide) 142.dp else 112.dp),
+                shape = RoundedCornerShape(9.dp),
+                color = libraryPanel,
+                border = BorderStroke(1.dp, libraryBorder),
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Mod Library",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = FlintColors.TextPrimary,
-                    )
-                    Text(
-                        "Discover and install Minecraft mods from Modrinth",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = FlintColors.TextMuted,
-                    )
-                    Text(
-                        "MODRINTH ONLY",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = FlintColors.Ember,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                if (wide) {
-                    ModSearchBar(state, actions, Modifier.weight(1.45f))
-                }
-                OutlinedButton(
-                    onClick = { actions.onRefresh?.invoke() },
-                    enabled = actions.onRefresh != null,
+                Box(
+                    Modifier.fillMaxSize().background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            listOf(
+                                androidx.compose.ui.graphics.Color(0xFF174D22),
+                                androidx.compose.ui.graphics.Color(0xFF09200F),
+                                androidx.compose.ui.graphics.Color(0xFF12391A),
+                            ),
+                        ),
+                    ),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh catalog")
-                    if (!wide) Spacer(Modifier.width(4.dp))
-                    if (!wide) Text("Refresh")
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("MINECRAFT", color = androidx.compose.ui.graphics.Color.White, fontSize = if (wide) 25.sp else 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
+                        Text("MOD MENU", color = libraryGreen, fontSize = if (wide) 23.sp else 18.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
+                        Text("Discover mods, shaders, resource packs and more", color = androidx.compose.ui.graphics.Color(0xFFD5E8D7), fontSize = 9.sp)
+                    }
                 }
             }
 
-            if (!wide) {
-                ModSearchBar(state, actions, Modifier.fillMaxWidth())
-            }
-
-            if (wide) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().height(156.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = FlintColors.Panel,
-                    border = BorderStroke(1.dp, FlintColors.PanelRaised),
-                ) { }
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FilterChip(
+                    selected = state.selectedCategory.isBlank(),
+                    onClick = { actions.onCategoryChange?.invoke("") },
+                    enabled = actions.onCategoryChange != null,
+                    label = { Text("All", fontSize = 10.sp) },
+                )
+                state.categories.take(10).forEach { category ->
+                    FilterChip(
+                        selected = state.selectedCategory == category.value,
+                        onClick = { actions.onCategoryChange?.invoke(category.value) },
+                        enabled = actions.onCategoryChange != null,
+                        label = { Text(category.label, fontSize = 10.sp) },
+                    )
+                }
             }
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = FlintColors.Panel,
-                border = BorderStroke(1.dp, FlintColors.PanelRaised),
+                shape = RoundedCornerShape(8.dp),
+                color = libraryPanel,
+                border = BorderStroke(1.dp, libraryBorder),
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            "FILTER & COMPATIBILITY",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = FlintColors.TextMuted,
-                        )
-                        Text(
-                            "JAVA EDITION",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = FlintColors.Ember,
-                            fontWeight = FontWeight.Bold,
-                        )
+                Column(Modifier.fillMaxWidth().padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("FILTERS", color = FlintColors.TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text("MODRINTH ONLY", color = libraryGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        androidx.compose.material3.IconButton(onClick = { actions.onRefresh?.invoke() }, enabled = actions.onRefresh != null) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh Modrinth catalog", tint = libraryGreen)
+                        }
                     }
                     Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         FilterDropdown(
-                            label = "Feature",
-                            selected = state.categories.firstOrNull { it.value == state.selectedCategory }?.label
-                                ?: "All features",
-                            options = listOf(ModFilterOption("", "All features")) + state.categories,
-                            onSelected = { actions.onCategoryChange?.invoke(it) },
+                            label = "Loader",
+                            selected = state.loaders.firstOrNull { it.value == state.selectedLoader }?.label ?: state.selectedLoader.ifBlank { "All" },
+                            options = listOf(ModFilterOption("", "All")) + state.loaders,
+                            onSelected = { actions.onLoaderChange?.invoke(it) },
                         )
                         FilterDropdown(
-                            label = "Minecraft",
-                            selected = state.gameVersions.firstOrNull { it.value == state.selectedGameVersion }?.label
-                                ?: state.selectedGameVersion.ifBlank { "Any version" },
-                            options = listOf(ModFilterOption("", "Any version")) + state.gameVersions,
+                            label = "Version",
+                            selected = state.gameVersions.firstOrNull { it.value == state.selectedGameVersion }?.label ?: state.selectedGameVersion.ifBlank { "All" },
+                            options = listOf(ModFilterOption("", "All")) + state.gameVersions,
                             onSelected = { actions.onGameVersionChange?.invoke(it) },
                         )
                         FilterDropdown(
-                            label = "Loader",
-                            selected = state.loaders.firstOrNull { it.value == state.selectedLoader }?.label
-                                ?: state.selectedLoader.ifBlank { "Any loader" },
-                            options = listOf(ModFilterOption("", "Any loader")) + state.loaders,
-                            onSelected = { actions.onLoaderChange?.invoke(it) },
-                        )
-                        SideFilter("Client use", state.clientSide, actions.onClientSideChange)
-                        SideFilter("Server use", state.serverSide, actions.onServerSideChange)
-                        FilterDropdown(
                             label = "Sort",
-                            selected = sortOptions().firstOrNull { it.value == state.sortIndex }?.label
-                                ?: "Most downloaded",
+                            selected = sortOptions().firstOrNull { it.value == state.sortIndex }?.label ?: "Most downloaded",
                             options = sortOptions(),
                             onSelected = { actions.onSortChange?.invoke(it) },
                         )
+                        SideFilter("Client", state.clientSide, actions.onClientSideChange)
+                        SideFilter("Server", state.serverSide, actions.onServerSideChange)
                     }
                 }
             }
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = FlintColors.Panel,
-                border = BorderStroke(1.dp, FlintColors.PanelRaised),
+                shape = RoundedCornerShape(8.dp),
+                color = libraryPanel,
+                border = BorderStroke(1.dp, libraryBorder),
             ) {
-                ProfileSelector(
-                    state = state,
-                    onSelect = actions.onSelectProfile,
-                    onCreate = { createProfileOpen = true },
-                )
+                ProfileSelector(state, actions.onSelectProfile) { createProfileOpen = true }
             }
 
             if (state.selectedProfile == null) {
-                MessageCard("Create or select a Fabric, Quilt, Forge, or NeoForge profile before installing a mod.")
+                MessageCard("Select or create a compatible profile before installing projects.")
             } else {
                 InstalledModsSection(state.installed, actions.onUninstall)
             }
-
             state.errorMessage?.let { MessageCard(it) }
             state.notice?.let { MessageCard(it) }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text("DISCOVER MODS", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    "${state.totalHits} results",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = FlintColors.TextMuted,
-                )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("DISCOVER", color = FlintColors.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp)
+                Spacer(Modifier.weight(1f))
+                Text("${state.totalHits} results", color = FlintColors.TextMuted, fontSize = 9.sp)
             }
 
             when (val results = state.results) {
-                Loadable.Loading -> Box(
-                    Modifier.weight(1f).fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = FlintColors.Ember)
+                Loadable.Loading -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = libraryGreen)
                 }
                 is Loadable.Error -> Column(
                     Modifier.weight(1f).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(results.message, color = MaterialTheme.colorScheme.error)
-                    OutlinedButton(
-                        onClick = { actions.onRefresh?.invoke() },
-                        enabled = actions.onRefresh != null,
-                    ) { Text("Retry") }
+                    OutlinedButton(onClick = { actions.onRefresh?.invoke() }, enabled = actions.onRefresh != null) { Text("Retry") }
                 }
                 is Loadable.Content -> {
                     if (results.value.isEmpty()) {
-                        Box(
-                            Modifier.weight(1f).fillMaxWidth(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text("No mods match these filters.", color = FlintColors.TextMuted)
+                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text("No projects match these filters.", color = FlintColors.TextMuted, fontSize = 11.sp)
                         }
                     } else {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(if (wide) 2 else 1),
                             modifier = Modifier.weight(1f).fillMaxWidth(),
-                            contentPadding = PaddingValues(bottom = 14.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 5.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             items(results.value, key = { it.id }) { project ->
-                                ModProjectCard(project) {
-                                    actions.onSelectProject?.invoke(project.id)
-                                }
+                                ModProjectCard(project) { actions.onSelectProject?.invoke(project.id) }
                             }
                             if (state.offset + state.pageLimit < state.totalHits) {
                                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -285,6 +240,25 @@ fun ModsScreen(
                             }
                         }
                     }
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(7.dp),
+                color = libraryPanel,
+                border = BorderStroke(1.dp, libraryBorder),
+            ) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("DOWNLOAD QUEUE", color = libraryGreen, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.7.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        state.busyProjectId?.let { "Installing $it" } ?: "${state.installed.size} installed",
+                        color = FlintColors.TextMuted,
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
