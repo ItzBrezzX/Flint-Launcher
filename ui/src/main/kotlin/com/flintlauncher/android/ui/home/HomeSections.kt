@@ -69,27 +69,9 @@ private val PanelShape = RoundedCornerShape(16.dp)
 internal fun HomeTopBar(state: HomeUiState, actions: HomeActions) {
     Row(
         modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(12.dp).clip(RoundedCornerShape(3.dp)).background(FlintColors.Ember))
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    text = "FLINT",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 2.sp,
-                )
-                Text(
-                    "MINECRAFT JAVA LAUNCHER",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = FlintColors.TextMuted,
-                    letterSpacing = 0.8.sp,
-                    fontSize = 8.sp,
-                )
-            }
-        }
         AccountChip(state, actions)
     }
 }
