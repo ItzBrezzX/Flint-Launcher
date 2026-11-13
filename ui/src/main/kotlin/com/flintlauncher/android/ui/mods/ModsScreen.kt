@@ -83,7 +83,7 @@ fun ModsScreen(
     val featuredProject = (state.results as? Loadable.Content)?.value?.firstOrNull()
 
     BoxWithConstraints(modifier.fillMaxSize().background(libraryBg)) {
-        val wide = maxWidth >= 760.dp
+        val wide = maxWidth >= 600.dp
         Column(
             Modifier.fillMaxSize().padding(horizontal = if (wide) 16.dp else 10.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp),
