@@ -103,6 +103,21 @@ class AppContainer(private val app: Application) {
         )
     }
 
+    val deviceModel: String = Build.MODEL.orEmpty()
+    val androidVersion: String = Build.VERSION.RELEASE.orEmpty()
+    val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList()
+    val totalMemoryMb: Long = runCatching {
+        File("/proc/meminfo").useLines { lines ->
+            lines.firstOrNull { it.startsWith("MemTotal:") }
+                ?.substringAfter(":")
+                ?.trim()
+                ?.substringBefore(" ")
+                ?.toLongOrNull()
+                ?.div(1024)
+                ?: 0L
+        }
+    }.getOrDefault(0L)
+
     val profileRepository = ProfileRepository(File(app.filesDir, "profiles.json"))
     val modrinthRepository = ModrinthRepository(
         api = ModrinthApi(http),
