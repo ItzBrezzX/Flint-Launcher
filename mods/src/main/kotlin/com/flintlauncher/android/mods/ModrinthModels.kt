@@ -30,6 +30,15 @@ data class ModrinthProject(
 )
 
 @Serializable
+data class ModrinthProjectDetails(
+    val id: String,
+    @SerialName("project_type") val projectType: String,
+    val title: String,
+    val description: String = "",
+    val slug: String? = null,
+)
+
+@Serializable
 data class ModrinthVersion(
     val id: String,
     @SerialName("project_id") val projectId: String,
