@@ -106,6 +106,8 @@ data class LaunchRequest(
  */
 sealed class LaunchResult {
     data class Started(val pid: Int?, val logFile: File?) : LaunchResult()
+    /** JLI_Launch returned; this is an exit result, not proof the game is still running. */
+    data class Exited(val exitCode: Int) : LaunchResult()
     data class Failed(val reason: String, val logSnippet: String? = null) : LaunchResult()
     data object BlockedMissingRuntime : LaunchResult()
     data object BlockedMissingRenderer : LaunchResult()
