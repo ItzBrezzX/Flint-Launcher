@@ -96,12 +96,12 @@ fun RuntimeSettingsScreen(
 
 @Composable
 private fun DeviceCard(state: RuntimeSettingsUiState, modifier: Modifier = Modifier) {
-    SettingsCard("DEVICE") {
+    SettingsCard("DEVICE", modifier) {
         SettingLine("Model", state.deviceModel)
         SettingLine("Android", state.androidVersion)
         SettingLine("App process ABI", state.processArch ?: "Unsupported")
         SettingLine("Supported ABIs", state.supportedAbis.joinToString().ifBlank { "Unknown" })
-        SettingLine("Physical memory", if (state.totalMemoryMb > 0) state.totalMemoryMb / 1024.toString() + " GB" else "Unknown")
+        SettingLine("Physical memory", if (state.totalMemoryMb > 0) (state.totalMemoryMb / 1024).toString() + " GB" else "Unknown")
     }
 }
 
@@ -125,7 +125,7 @@ private fun RuntimeCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsA
             state.installedRuntimes.forEach { runtime ->
                 SettingLine(
                     "Java " + runtime.major,
-                    runtime.arch + " · " + runtime.vendor + " · " + if (runtime.verified) "Verified" else "Not verified",
+                    runtime.arch + " · " + runtime.vendor + " · " + (if (runtime.verified) "Verified" else "Not verified"),
                 )
             }
         }
@@ -185,7 +185,7 @@ private fun GraphicsCard() {
 
 @Composable
 private fun PerformanceCard(state: RuntimeSettingsUiState, modifier: Modifier = Modifier) {
-    SettingsCard("PERFORMANCE DEFAULTS") {
+    SettingsCard("PERFORMANCE DEFAULTS", modifier) {
         SettingLine("Suggested Java heap", state.recommendedMemoryMb.toString() + " MB")
         SettingLine("Render distance", "4–6 chunks (starting profile)")
         SettingLine("Graphics", "Fast")
@@ -217,10 +217,11 @@ private fun CompatibilityCard() {
 @Composable
 private fun SettingsCard(
     title: String,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = FlintColors.Panel),
     ) {
         Column(
