@@ -278,9 +278,17 @@ class DownloadManager(
     private fun finish(request: DownloadRequest, part: File, counted: AtomicLong) {
         val size = request.sizeBytes
         if (size != null && part.length() != size) {
-            part.delete()
-            sync(counted, 0)
-            throw RetryableDownloadException("Size mismatch: expected $size bytes, got a different length")
+            val actual = part.length()
+            if (actual > size) {
+                // An oversized partial cannot be safely resumed.
+                part.delete()
+                sync(counted, 0)
+            } else {
+                // Keep a short partial: the next attempt (or a later Retry) resumes
+                // from this exact byte offset using HTTP Range instead of restarting.
+                sync(counted, actual)
+            }
+            throw RetryableDownloadException("Incomplete download: expected $size bytes, received $actual; checkpoint preserved")
         }
         val hash = request.hash
         if (hash != null && !FileHasher.matches(part, hash)) {
