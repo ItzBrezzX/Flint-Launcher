@@ -69,12 +69,12 @@ fun RuntimeSettingsScreen(
                     }
                 }
                 item { RuntimeCard(state, actions) }
-                item { GraphicsCard() }
+                item { GraphicsCard(state) }
                 item { CompatibilityCard() }
             } else {
                 item { DeviceCard(state, Modifier.fillMaxWidth()) }
                 item { RuntimeCard(state, actions) }
-                item { GraphicsCard() }
+                item { GraphicsCard(state) }
                 item { PerformanceCard(state, Modifier.fillMaxWidth()) }
                 item { CompatibilityCard() }
             }
@@ -168,15 +168,19 @@ private fun RuntimeCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsA
 }
 
 @Composable
-private fun GraphicsCard() {
+private fun GraphicsCard(state: RuntimeSettingsUiState) {
     SettingsCard("GRAPHICS & RENDERER") {
         SettingLine("Renderer default", "Auto (not available in this build)")
         SettingLine("Compatibility renderer", "GL4ES · not bundled yet")
-        SettingLine("VSync", "Off (recommended starting point)")
-        SettingLine("FPS limit", "30 (low-power starting point)")
+        SettingLine("Vulkan renderer", "Zink · not bundled yet")
         Text(
-            "Flint currently has an EGL/GLES smoke test, not a Minecraft renderer package. " +
-                "Renderer choices stay unavailable until their native libraries are included and tested on-device.",
+            "System driver probe: ${state.rendererDiagnostics}",
+            color = FlintColors.TextMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            "This probe reports the device's system EGL/GLES driver only. It does not detect or enable GL4ES, Zink, SDL, or LWJGL. " +
+                "Renderer choices stay unavailable until their native libraries and game window bridge are included and tested on-device.",
             color = MaterialTheme.colorScheme.error,
             style = MaterialTheme.typography.bodySmall,
         )
