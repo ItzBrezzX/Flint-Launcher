@@ -188,12 +188,13 @@ class HomeViewModel(
                 }
                 result.getOrElse { error ->
                     _state.update {
-                        it.copy(launchMessage = "Java $targetMajor could not be installed: ${error.message ?: "unknown error"}")
+                        it.copy(launchBusy = false, launchStage = null, launchMessage = "Java $targetMajor could not be installed: ${error.message ?: "unknown error"}")
                     }
                     return@launch
                 }
             }
 
+            _state.update { it.copy(launchStage = "Verifying Java runtime", launchProgressPercent = null) }
             val verified = try {
                 manager.verify(runtime)
             } catch (cancelled: CancellationException) {
