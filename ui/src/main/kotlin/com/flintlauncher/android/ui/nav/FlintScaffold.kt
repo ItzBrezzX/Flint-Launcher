@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -126,7 +127,7 @@ fun FlintScaffold(
                             color = FlintColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.weight(1f))
                         Row(
-                            Modifier.width(250.dp).height(36.dp).clip(RoundedCornerShape(6.dp))
+                            Modifier.weight(1f).widthIn(min = 130.dp, max = 250.dp).height(36.dp).clip(RoundedCornerShape(6.dp))
                                 .background(FlintColors.Charcoal).padding(horizontal = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
