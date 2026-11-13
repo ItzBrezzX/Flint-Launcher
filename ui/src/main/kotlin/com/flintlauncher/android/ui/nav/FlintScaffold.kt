@@ -22,8 +22,6 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -37,26 +35,27 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.flintlauncher.android.ui.theme.FlintColors
 
 /** Top-level launcher destinations. */
 enum class Destination(val label: String, val icon: ImageVector) {
     PLAY("HOME", Icons.Filled.PlayArrow),
-    PROFILES("JAVA EDITION", Icons.Filled.AccountCircle),
-    MODS("LIBRARY", Icons.Filled.Build),
+    PROFILES("INSTANCES", Icons.Filled.AccountCircle),
+    MODS("MOD LIBRARY", Icons.Filled.Build),
     PARTNERS("SERVERS", Icons.Filled.Star),
     SETTINGS("SETTINGS", Icons.Filled.Settings),
 }
 
-private val LauncherBackground = Color(0xFF171615)
-private val LauncherPanel = Color(0xFF252423)
-private val LauncherGreen = Color(0xFF3C8527)
-private val LauncherText = Color(0xFFE8E6E3)
-private val LauncherMuted = Color(0xFFAAA7A2)
+private val LauncherBackground = FlintColors.Charcoal
+private val LauncherPanel = FlintColors.Panel
+private val LauncherGreen = FlintColors.Ember
+private val LauncherText = FlintColors.TextPrimary
+private val LauncherMuted = FlintColors.TextMuted
 
 /**
  * Landscape/tablet launcher shell inspired by the supplied Minecraft Launcher reference:
- * fixed left navigation, account block, top play bar, and a wide content viewport.
- * Portrait phones retain compact bottom navigation.
+ * fixed left navigation, account block and a wide content viewport.
+ * The activity is configured to open in landscape on phones.
  */
 @Composable
 fun FlintScaffold(
@@ -68,7 +67,7 @@ fun FlintScaffold(
     BoxWithConstraints(
         modifier = modifier.fillMaxSize().background(LauncherBackground),
     ) {
-        if (maxWidth >= 600.dp) {
+        if (maxWidth >= 560.dp) {
             Row(Modifier.fillMaxSize()) {
                 Column(
                     Modifier.width(184.dp).fillMaxHeight().background(LauncherPanel),
@@ -93,17 +92,17 @@ fun FlintScaffold(
                             Modifier.fillMaxWidth()
                                 .padding(horizontal = 5.dp, vertical = 2.dp)
                                 .clip(RoundedCornerShape(3.dp))
-                                .background(if (active) Color(0xFF393735) else Color.Transparent)
+                                .background(if (active) LauncherGreen.copy(alpha = 0.14f) else Color.Transparent)
                                 .clickable { onSelect(destination) }
                                 .padding(horizontal = 12.dp, vertical = 15.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(destination.icon, contentDescription = null,
-                                tint = if (active) LauncherText else LauncherMuted)
+                                tint = if (active) LauncherGreen else LauncherMuted)
                             Text(
                                 destination.label,
                                 modifier = Modifier.padding(start = 12.dp),
-                                color = if (active) LauncherText else LauncherMuted,
+                                color = if (active) LauncherGreen else LauncherMuted,
                                 fontSize = 12.sp,
                                 fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                             )
@@ -121,16 +120,9 @@ fun FlintScaffold(
                         Modifier.fillMaxWidth().height(64.dp).background(LauncherPanel).padding(horizontal = 22.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Minecraft Launcher", color = LauncherText, fontSize = 14.sp)
+                        Text("Flint-Launcher", color = LauncherText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        Button(
-                            onClick = { onSelect(Destination.PROFILES) },
-                            colors = ButtonDefaults.buttonColors(containerColor = LauncherGreen, contentColor = Color.White),
-                            shape = RoundedCornerShape(3.dp),
-                        ) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                            Text("PLAY JAVA", fontWeight = FontWeight.Black, modifier = Modifier.padding(start = 6.dp))
-                        }
+                        Text("Minecraft Java · Android", color = LauncherMuted, fontSize = 11.sp)
                     }
                     Box(
                         Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().background(LauncherBackground),
