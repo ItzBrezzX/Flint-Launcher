@@ -25,7 +25,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       # Uses the Gradle version pinned here until a wrapper jar is committed.
       - uses: gradle/actions/setup-gradle@v4
@@ -60,7 +60,8 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    if: github.event_name == 'pull_request'
+    # Enable only after turning on Dependency graph and setting the repository variable.
+    if: github.event_name == 'pull_request' && vars.ENABLE_DEPENDENCY_REVIEW == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
