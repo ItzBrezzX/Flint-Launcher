@@ -167,6 +167,21 @@ class ModrinthApiTest {
     }
 
     @Test
+    fun searchSupportsShaderAndAllProjectTypes() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"hits":[],"offset":0,"limit":20,"total_hits":0}"""))
+        api().search(ModrinthFilters(projectType = "shader"))
+        val shaderFacets = Json.parseToJsonElement(server.takeRequest().requestUrl!!.queryParameter("facets")!!)
+            .jsonArray.flatMap { it.jsonArray }.map { it.jsonPrimitive.content }
+        assertTrue("project_type:shader" in shaderFacets)
+
+        server.enqueue(MockResponse().setBody("""{"hits":[],"offset":0,"limit":20,"total_hits":0}"""))
+        api().search(ModrinthFilters(projectType = "all"))
+        val allFacets = Json.parseToJsonElement(server.takeRequest().requestUrl!!.queryParameter("facets")!!)
+            .jsonArray.flatMap { it.jsonArray }.map { it.jsonPrimitive.content }
+        assertTrue(allFacets.none { it.startsWith("project_type:") })
+    }
+
+    @Test
     fun nonSuccessfulApiResponsesAreReported() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(429).setBody("rate limited"))
 
