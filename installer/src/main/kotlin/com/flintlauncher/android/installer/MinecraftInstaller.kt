@@ -207,21 +207,49 @@ class MinecraftInstaller(
 
     // ------------------------------------------------------------ metadata
 
-    /** Returns the merged version JSON and the id of the vanilla version whose jar it uses. */
+    /**
+     * Resolves the complete inheritance chain, from the root vanilla version to
+     * the selected loader/profile. Some loader metadata can inherit from another
+     * profile, so resolving only one parent silently drops required metadata.
+     */
     private suspend fun resolveVersion(id: String): Pair<VersionJson, String> {
         val manifest = fetchManifest()
-        val entry = manifest.find(id)
-        val local = layout.versionJson(id)
-        val child = when {
-            entry != null -> fetchAndStore(entry)
-            local.isFile -> VersionJsonParser.parse(local.readText()) // a loader profile written by a loader installer
-            else -> throw InstallPlanException("Unknown Minecraft version: $id")
+        val visiting = linkedSetOf<String>()
+
+        suspend fun resolve(currentId: String, depth: Int): Pair<VersionJson, String> {
+            if (depth > MAX_VERSION_INHERITANCE_DEPTH) {
+                throw InstallPlanException(
+                    "Version metadata inheritance is deeper than $MAX_VERSION_INHERITANCE_DEPTH levels",
+                )
+            }
+            if (!visiting.add(currentId)) {
+                throw InstallPlanException(
+                    "Version metadata inheritance cycle: " + (visiting + currentId).joinToString(" -> "),
+                )
+            }
+
+            try {
+                val entry = manifest.find(currentId)
+                val local = layout.versionJson(currentId)
+                val child = when {
+                    entry != null -> fetchAndStore(entry)
+                    local.isFile -> VersionJsonParser.parse(local.readText())
+                    else -> throw InstallPlanException("Unknown Minecraft version: $currentId")
+                }
+
+                val parentId = child.inheritsFrom ?: return child to child.id
+                val (parent, vanillaId) = resolve(parentId, depth + 1)
+                return child.mergedOnto(parent) to vanillaId
+            } finally {
+                visiting.remove(currentId)
+            }
         }
-        val parentId = child.inheritsFrom ?: return child to child.id
-        val parentEntry = manifest.find(parentId)
-            ?: throw InstallPlanException("Parent version $parentId is not in the Mojang manifest")
-        val parent = fetchAndStore(parentEntry)
-        return child.mergedOnto(parent) to parentId
+
+        return resolve(id, 0)
+    }
+
+    private companion object {
+        const val MAX_VERSION_INHERITANCE_DEPTH = 16
     }
 
     private suspend fun fetchAndStore(entry: VersionEntry): VersionJson {
