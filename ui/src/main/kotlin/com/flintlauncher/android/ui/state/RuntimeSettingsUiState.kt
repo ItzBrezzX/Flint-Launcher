@@ -16,6 +16,7 @@ data class RuntimeSettingsUiState(
     val totalMemoryMb: Long = 0,
     val installedRuntimes: List<RuntimeEntryUi> = emptyList(),
     val availableJavaMajors: List<Int> = emptyList(),
+    val rendererDiagnostics: String = "Not checked",
     val loading: Boolean = false,
     val installingMajor: Int? = null,
     val message: String? = null,
