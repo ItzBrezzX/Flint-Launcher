@@ -125,7 +125,7 @@ fun FlintScaffold(
                     ) {
                         Text(selected.label.lowercase().replaceFirstChar { it.uppercase() },
                             color = FlintColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.weight(1f))
+                        Spacer(Modifier.width(12.dp))
                         Row(
                             Modifier.weight(1f).widthIn(min = 130.dp, max = 250.dp).height(36.dp).clip(RoundedCornerShape(6.dp))
                                 .background(FlintColors.Charcoal).padding(horizontal = 10.dp),
