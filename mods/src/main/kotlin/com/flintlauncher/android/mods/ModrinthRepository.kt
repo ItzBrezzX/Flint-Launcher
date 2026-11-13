@@ -14,6 +14,8 @@ class ModrinthRepository(
     private val api: ModrinthApi,
     private val installer: ModrinthModInstaller,
 ) {
+    val downloadProgress get() = installer.downloadProgress
+
     suspend fun search(filters: ModrinthFilters): ModrinthSearchResult = api.search(filters)
 
     suspend fun tags(): ModrinthTags = api.tags()
