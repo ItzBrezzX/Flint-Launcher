@@ -5,7 +5,7 @@ name: Android Build (arm64 native)
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'fix/build-recovery']
   pull_request:
 
 permissions:

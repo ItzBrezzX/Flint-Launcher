@@ -110,8 +110,9 @@ class MinecraftInstaller(
             }
             // Hash check when hash is known (DownloadManager already verified on move, re-check critical client jar)
             val clientReq = toValidate.find { it.id.startsWith("client-") }
-            if (clientReq?.hash != null && clientReq.destination.isFile) {
-                if (!com.flintlauncher.android.download.FileHasher.matches(clientReq.destination, clientReq.hash)) {
+            val clientHash = clientReq?.hash
+            if (clientReq != null && clientHash != null && clientReq.destination.isFile) {
+                if (!com.flintlauncher.android.download.FileHasher.matches(clientReq.destination, clientHash)) {
                     clientReq.destination.delete()
                     return InstallResult.Failed("Client JAR failed integrity check", listOf(FailedDownload(clientReq, "hash mismatch")))
                 }
