@@ -126,6 +126,8 @@ class RuntimeSettingsViewModel(
                     _state.update {
                         it.copy(
                             installingMajor = null,
+                            installStage = null,
+                            installPercent = 100f,
                             message = "Java " + runtime.majorVersion + " (" + runtime.arch + ") installed and verified.",
                         )
                     }
@@ -134,6 +136,7 @@ class RuntimeSettingsViewModel(
                     _state.update {
                         it.copy(
                             installingMajor = null,
+                            installStage = null,
                             message = "Java $major installation failed: " +
                                 (error.message ?: error.javaClass.simpleName),
                         )
