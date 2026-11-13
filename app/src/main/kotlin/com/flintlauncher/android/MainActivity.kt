@@ -59,6 +59,9 @@ class MainActivity : ComponentActivity() {
                 // null, which the UI renders as a disabled control.
                 val homeActions = remember {
                     HomeActions(
+                        onLaunch = { homeViewModel.launchSelected() },
+                        onSelectInstallation = { homeViewModel.selectInstallation(it) },
+                        onDismissLaunchMessage = { homeViewModel.dismissLaunchMessage() },
                         onRefreshPartners = { homeViewModel.refreshPartners(force = true) },
                         onCopyAddress = { address -> copyAddress(address) },
                         onVisitServer = { url -> openWebsite(url) },
@@ -106,7 +109,10 @@ class MainActivity : ComponentActivity() {
 
                 FlintScaffold(
                     selected = destination,
-                    onSelect = { destination = it },
+                    onSelect = {
+                        destination = it
+                        if (it == Destination.PLAY) homeViewModel.refreshInstallations()
+                    },
                 ) {
                     when (destination) {
                         Destination.PLAY -> HomeScreen(state = homeState, actions = homeActions)
