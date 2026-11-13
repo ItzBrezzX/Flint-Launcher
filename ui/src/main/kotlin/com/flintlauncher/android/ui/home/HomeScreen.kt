@@ -478,3 +478,26 @@ private fun PartnerRail(state: HomeUiState, actions: HomeActions, modifier: Modi
         }
     }
 }
+
+
+@Composable
+fun PartnersScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier.fillMaxSize().background(HomePalette.Background)) {
+        Column(
+            Modifier.fillMaxSize().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("PARTNER SERVERS", color = HomePalette.Text, fontSize = 16.sp, fontWeight = FontWeight.Black)
+            Text(
+                "Live status is shown only when the server status service has returned a result.",
+                color = HomePalette.Muted,
+                fontSize = 10.sp,
+            )
+            PartnerRail(
+                state = state,
+                actions = actions,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+        }
+    }
+}
