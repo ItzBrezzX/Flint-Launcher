@@ -35,6 +35,9 @@ object NativeBridge {
     /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
 
+    /** Human-readable state/error from the native JRE loader. */
+    external fun nativeJreStatus(): String
+
     /** Invoke JLI_Launch with the given argv. */
     external fun nativeLaunchJvm(args: Array<String>): Int
 
@@ -51,4 +54,8 @@ object NativeBridge {
     fun safeEglCapabilities(): String =
         if (!loaded) "native-not-loaded: $loadError"
         else runCatching { nativeEglCapabilities() }.getOrElse { "gpu-probe-exception: ${it.message}" }
+
+    fun safeJreStatus(): String =
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeJreStatus() }.getOrElse { "jre-status-exception: ${it.message}" }
 }
