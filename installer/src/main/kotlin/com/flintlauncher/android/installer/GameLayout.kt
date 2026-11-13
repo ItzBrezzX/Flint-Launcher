@@ -23,6 +23,10 @@ class GameLayout(root: File) {
     fun installMarker(id: String): File = safeChild(versionsDir, "$id/.flint-installed")
     fun logConfig(id: String): File = safeChild(assetsDir, "log_configs/$id")
     fun assetObject(hash: String): File = safeChild(assetsDir, "objects/${hash.take(2)}/$hash")
+    /** Pre-1.6 clients load named files from this mirrored tree. */
+    fun legacyVirtualAsset(name: String): File = safeChild(File(assetsDir, "virtual/legacy"), name)
+    /** The early 13w snapshots use the game-root resources directory instead. */
+    fun mappedResource(name: String): File = safeChild(File(root, "resources"), name)
 
     companion object {
         fun safeChild(base: File, relative: String): File {
