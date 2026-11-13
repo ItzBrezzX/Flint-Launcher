@@ -5,7 +5,7 @@ name: Android Build (multi-ABI native)
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'fix/build-recovery']
+    branches: [main, 'fix/build-recovery', 'integration/**']
   pull_request:
 
 permissions:
