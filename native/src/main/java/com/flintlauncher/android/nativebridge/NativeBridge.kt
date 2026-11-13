@@ -1,10 +1,10 @@
 package com.flintlauncher.android.nativebridge
 
 /**
- * JNI surface for Spike 0.
+ * JNI surface for the native runtime and graphics diagnostics.
  *
- * loadLibrary is attempted once; if the .so is missing (no NDK build yet),
- * all methods degrade gracefully and report the failure instead of crashing.
+ * loadLibrary is attempted once; if the .so is missing, methods degrade
+ * gracefully and report the failure instead of crashing the launcher.
  */
 object NativeBridge {
     private var loaded = false
@@ -29,21 +29,26 @@ object NativeBridge {
     /** EGL + GLES2 pbuffer clear test. */
     external fun nativeEglSmoke(): String
 
+    /** Actual EGL/GLES driver strings from a temporary pbuffer context. */
+    external fun nativeEglCapabilities(): String
+
     /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
 
-    /**
-     * Invoke JLI_Launch with the given argv.
-     * Returns process-style exit code, or negative on bridge errors.
-     * Not fully wired until a verified JRE is present.
-     */
+    /** Invoke JLI_Launch with the given argv. */
     external fun nativeLaunchJvm(args: Array<String>): Int
 
     external fun nativeShutdown()
 
     fun safeSmokeTest(): String =
-        if (!loaded) "native-not-loaded: $loadError" else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
 
     fun safeEglSmoke(): String =
-        if (!loaded) "native-not-loaded: $loadError" else runCatching { nativeEglSmoke() }.getOrElse { "egl-exception: ${it.message}" }
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeEglSmoke() }.getOrElse { "egl-exception: ${it.message}" }
+
+    fun safeEglCapabilities(): String =
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeEglCapabilities() }.getOrElse { "gpu-probe-exception: ${it.message}" }
 }
