@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -39,7 +40,7 @@ import com.flintlauncher.android.ui.theme.FlintColors
 /**
  * PLAY dashboard. Android-native adaptation of the desktop layout:
  * a single scrolling column on phones, and a main column plus a partners
- * column on wide screens (>= 840dp). It renders [state] as given; empty,
+ * column on landscape and wide screens (>= 720dp). It renders [state] as given; empty,
  * loading and error states are shown as such, never filled with sample data.
  */
 @Composable
