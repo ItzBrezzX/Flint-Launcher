@@ -74,20 +74,6 @@ class AppContainer(private val app: Application) {
     private val runtimeDownloadManager = DownloadManager(downloadHttp, DownloadConfig(concurrency = 1, maxAttempts = 4))
     private val modDownloadManager = DownloadManager(modDownloadHttp, DownloadConfig(concurrency = 2))
 
-    /** ABI for this app process (different from the set of ABIs supported by the CPU). */
-    val deviceProcessArch: String? = RuntimeArchitecture.fromSupportedAbis(
-        supportedAbis,
-        Process.is64Bit(),
-    )
-    val mobileJreManager: MobileJreManager? = deviceProcessArch?.let { arch ->
-        MobileJreManager(
-            runtimesDir = File(app.filesDir, "runtimes"),
-            downloadDir = File(app.cacheDir, "jre-downloads"),
-            deviceArch = arch,
-            downloads = runtimeDownloadManager,
-        )
-    }
-
     val deviceModel: String = Build.MODEL.orEmpty()
     val androidVersion: String = Build.VERSION.RELEASE.orEmpty()
     val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList()
@@ -102,6 +88,20 @@ class AppContainer(private val app: Application) {
                 ?: 0L
         }
     }.getOrDefault(0L)
+
+    /** ABI for this app process (different from the set of ABIs supported by the CPU). */
+    val deviceProcessArch: String? = RuntimeArchitecture.fromSupportedAbis(
+        supportedAbis,
+        Process.is64Bit(),
+    )
+    val mobileJreManager: MobileJreManager? = deviceProcessArch?.let { arch ->
+        MobileJreManager(
+            runtimesDir = File(app.filesDir, "runtimes"),
+            downloadDir = File(app.cacheDir, "jre-downloads"),
+            deviceArch = arch,
+            downloads = runtimeDownloadManager,
+        )
+    }
 
     val profileRepository = ProfileRepository(File(app.filesDir, "profiles.json"))
     val modrinthRepository = ModrinthRepository(
