@@ -14,13 +14,13 @@ data class ModProjectUi(
     val title: String,
     val description: String,
     val author: String,
-    val projectType: String = "mod",
     val categories: List<String>,
     val clientSide: String,
     val serverSide: String,
     val downloads: Long,
     val installed: Boolean,
     val iconUrl: String? = null,
+    val projectType: String = "mod",
 )
 
 data class ModVersionUi(
