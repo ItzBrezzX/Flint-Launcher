@@ -25,10 +25,10 @@ object RuntimeArchitecture {
 }
 
 /**
- * Describes an on-device Java runtime that can host Minecraft.
+ * Describes an on-device Java runtime candidate.
  *
- * Real implementations will download / extract / verify ARM64 JREs
- * (e.g. Pojav-style or vendor builds). This module only defines the contract.
+ * [verified] means the release metadata and required library files were found.
+ * Native loading is a separate process-global verification step for the selected runtime.
  */
 data class JavaRuntimeInfo(
     val id: String,
