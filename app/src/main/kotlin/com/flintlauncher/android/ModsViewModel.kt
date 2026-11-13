@@ -252,13 +252,19 @@ class ModsViewModel(
         val current = _state.value
         val project = (current.results as? Loadable.Content)?.value?.firstOrNull { it.id == projectId }
         val version = current.selectedVersions.firstOrNull { it.id == versionId }
+        if (project != null && project.projectType != "mod") {
+            _state.value = current.copy(
+                errorMessage = "Direct installation for ${project.projectType} resources is not connected yet.",
+            )
+            return
+        }
         if (profile == null || project == null || version == null) {
             _state.value = current.copy(errorMessage = "Select a profile and compatible mod version first")
             return
         }
         val modProject = ModrinthProject(
             projectId = project.id,
-            projectType = "mod",
+            projectType = project.projectType,
             title = project.title,
             description = project.description,
             author = project.author,
