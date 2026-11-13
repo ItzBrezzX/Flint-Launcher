@@ -248,9 +248,8 @@ class MobileJreManager(
     }
 
     /**
-     * Verify archive metadata and native JLI symbol resolution on this Android process.
-     * This confirms that the mobile JVM entry point is loadable; it does NOT claim that
-     * Minecraft graphics or the game window are ready.
+     * Verify archive metadata, then load libjvm/libjli and resolve JLI_Launch on this
+     * Android process. This does not execute Java bytecode or verify Minecraft graphics.
      */
     override suspend fun verify(runtime: JavaRuntimeInfo): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -261,9 +260,7 @@ class MobileJreManager(
                 detected.homeDir.canonicalFile == runtime.homeDir.canonicalFile
             if (!filesMatch || !NativeBridge.isNativeLoaded) return@runCatching false
 
-            val jliReady = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
-            NativeBridge.nativeShutdown()
-            jliReady
+            NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
         }.getOrDefault(false)
     }
 
