@@ -29,7 +29,7 @@ object RuntimeSmoke {
                 val ok = if (NativeBridge.isNativeLoaded) {
                     NativeBridge.nativeLoadJre(jreHome.absolutePath)
                 } else false
-                if (ok) "jre-symbols-ok" else "jre-load-failed"
+                if (ok) NativeBridge.safeJreStatus() else NativeBridge.safeJreStatus()
             }
         }
         return SmokeReport(
