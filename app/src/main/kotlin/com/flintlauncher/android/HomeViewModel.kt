@@ -3,6 +3,8 @@ package com.flintlauncher.android
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flintlauncher.android.partners.PartnersRepository
+import com.flintlauncher.android.installer.InstallResult
+import com.flintlauncher.android.installer.InstallStage
 import com.flintlauncher.android.installer.MinecraftInstaller
 import com.flintlauncher.android.runtime.KnownJreArtifacts
 import com.flintlauncher.android.runtime.MobileJreManager
@@ -81,16 +83,50 @@ class HomeViewModel(
         }
         launchJob?.cancel()
         launchJob = viewModelScope.launch {
-            _state.update { it.copy(launchMessage = "Checking Minecraft files and Java runtime…") }
-            val complete = withContext(Dispatchers.IO) {
-                installer.isInstalled(selected.minecraftVersion)
+            _state.update {
+                it.copy(
+                    launchBusy = true,
+                    launchStage = InstallStage.RESOLVING_METADATA.label,
+                    launchProgressPercent = null,
+                    launchDownloadedBytes = 0,
+                    launchTotalBytes = null,
+                    launchSpeedBytesPerSecond = 0,
+                    launchMessage = "Preparing Minecraft ${selected.minecraftVersion} environment…",
+                )
             }
-            if (!complete) {
-                refreshInstallations()
-                _state.update {
-                    it.copy(launchMessage = "Minecraft ${selected.minecraftVersion} is incomplete. Repair this instance before playing.")
+            val prepared = installer.install(
+                selected.minecraftVersion,
+                onStage = { stage ->
+                    _state.update { it.copy(launchStage = stage.label) }
+                },
+                onProgress = { progress ->
+                    _state.update {
+                        it.copy(
+                            launchProgressPercent = progress.percent?.toFloat(),
+                            launchDownloadedBytes = progress.downloadedBytes,
+                            launchTotalBytes = progress.totalBytes,
+                            launchSpeedBytesPerSecond = progress.speedBytesPerSecond,
+                        )
+                    }
+                },
+            )
+            when (prepared) {
+                is InstallResult.Failed -> {
+                    refreshInstallations()
+                    _state.update {
+                        it.copy(
+                            launchBusy = false,
+                            launchStage = null,
+                            launchMessage = "Minecraft environment preparation failed: ${prepared.message}",
+                        )
+                    }
+                    return@launch
                 }
-                return@launch
+                InstallResult.Cancelled -> {
+                    _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Minecraft preparation was cancelled.") }
+                    return@launch
+                }
+                is InstallResult.Success -> Unit
             }
 
             val manager = runtimeManager
@@ -107,7 +143,7 @@ class HomeViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                _state.update { it.copy(launchMessage = "Could not check Java runtimes: ${error.message ?: "unknown error"}") }
+                _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Could not check Java runtimes: ${error.message ?: "unknown error"}") }
                 return@launch
             }
 
@@ -117,7 +153,7 @@ class HomeViewModel(
                 val targetMajor = KnownJreArtifacts.compatibleMajor(selected.javaMajor, arch)
                 if (targetMajor == null) {
                     _state.update {
-                        it.copy(launchMessage = "No published mobile Java runtime for ABI $arch satisfies Java ${selected.javaMajor}.")
+                        it.copy(launchBusy = false, launchStage = null, launchMessage = "No published mobile Java runtime for ABI $arch satisfies Java ${selected.javaMajor}.")
                     }
                     return@launch
                 }
@@ -125,11 +161,21 @@ class HomeViewModel(
                     it.copy(launchMessage = "Downloading Java $targetMajor for ${selected.minecraftVersion}…")
                 }
                 val result = try {
-                    manager.install(targetMajor)
+                    manager.install(targetMajor) { stage, progress ->
+                        _state.update {
+                            it.copy(
+                                launchStage = stage,
+                                launchProgressPercent = progress?.percent?.toFloat(),
+                                launchDownloadedBytes = progress?.downloadedBytes ?: it.launchDownloadedBytes,
+                                launchTotalBytes = progress?.totalBytes ?: it.launchTotalBytes,
+                                launchSpeedBytesPerSecond = progress?.speedBytesPerSecond ?: 0,
+                            )
+                        }
+                    }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
-                    _state.update { it.copy(launchMessage = "Java download failed: ${error.message ?: "unknown error"}") }
+                    _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Java download failed: ${error.message ?: "unknown error"}") }
                     return@launch
                 }
                 result.getOrElse { error ->
@@ -148,12 +194,14 @@ class HomeViewModel(
                 false
             }
             if (!verified) {
-                _state.update { it.copy(launchMessage = "Java ${runtime.majorVersion} was installed but failed runtime verification.") }
+                _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Java ${runtime.majorVersion} was installed but failed runtime verification.") }
                 return@launch
             }
 
             _state.update {
                 it.copy(
+                    launchBusy = false,
+                    launchStage = null,
                     launchMessage = "Java ${runtime.majorVersion} (${runtime.arch}) is verified for Minecraft ${selected.minecraftVersion}. Flint still cannot start the game: the GL4ES/OpenGL compatibility renderer and full game window bridge are not bundled yet.",
                 )
             }
