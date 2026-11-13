@@ -188,7 +188,7 @@ private fun InfoChip(text: String) {
 @Composable
 internal fun LaunchButton(state: HomeUiState, actions: HomeActions) {
     val selected = state.selected
-    val canLaunch = selected != null && actions.onLaunch != null
+    val canLaunch = actions.onLaunch != null
     var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
