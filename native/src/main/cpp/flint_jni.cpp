@@ -3,7 +3,6 @@
 #include <dlfcn.h>
 #include <string.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <mutex>
@@ -97,15 +96,6 @@ static void configure_jre_environment(const std::string &home) {
     setenv("LD_LIBRARY_PATH", search_path.c_str(), 1);
 }
 
-static void reset_signal_handlers(void) {
-    struct sigaction sa {};
-    sa.sa_handler = SIG_DFL;
-    sigemptyset(&sa.sa_mask);
-    for (int s = 1; s < 32; ++s) {
-        if (s == SIGKILL || s == SIGSTOP) continue;
-        sigaction(s, &sa, nullptr);
-    }
-}
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
@@ -195,6 +185,19 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     return JNI_TRUE;
 }
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeJreStatus(
+    JNIEnv *env, jclass
+) {
+    std::lock_guard<std::mutex> guard(g_jre_mutex);
+    if (g_jli_launch != nullptr) {
+        const std::string status = "jre-loaded:" + g_jre_home;
+        return env->NewStringUTF(status.c_str());
+    }
+    const std::string status = g_jre_error.empty() ? "jre-not-loaded" : g_jre_error;
+    return env->NewStringUTF(status.c_str());
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     JNIEnv *env, jclass, jobjectArray argsArray
@@ -248,8 +251,6 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     }
 
     LOGI("Calling JLI_Launch with argc=%d argv0=%s", static_cast<int>(argc), argv[0]);
-    reset_signal_handlers();
-
     const int code = g_jli_launch(
         static_cast<int>(argc), argv,
         0, nullptr,
