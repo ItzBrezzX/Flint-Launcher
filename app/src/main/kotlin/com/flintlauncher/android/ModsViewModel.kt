@@ -231,7 +231,7 @@ class ModsViewModel(
         }
         viewModelScope.launch {
             try {
-                val versions = mods.versions(profile, projectId).map {
+                val versions = mods.versions(profile, projectId, project.projectType).map {
                     ModVersionUi(it.id, it.versionNumber, it.gameVersions, it.loaders, it.downloads, it.changelog)
                 }
                 _state.value = _state.value.copy(selectedVersions = versions, detailLoading = false)
@@ -273,7 +273,7 @@ class ModsViewModel(
         _state.value = current.copy(busyProjectId = projectId, notice = null, errorMessage = null)
         viewModelScope.launch {
             try {
-                val actualVersion = mods.versions(profile, projectId).firstOrNull { it.id == versionId }
+                val actualVersion = mods.versions(profile, projectId, project.projectType).firstOrNull { it.id == versionId }
                     ?: throw IllegalStateException("This version is no longer available for the selected profile")
                 val installed = mods.install(profile, modProject, actualVersion)
                 loadInstalled()
