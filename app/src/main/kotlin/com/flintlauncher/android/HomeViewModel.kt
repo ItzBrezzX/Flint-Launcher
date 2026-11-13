@@ -68,7 +68,7 @@ class HomeViewModel(
     fun selectInstallation(id: String) {
         if (_state.value.installations.none { it.id == id }) return
         launchJob?.cancel()
-        _state.update { it.copy(selectedInstallationId = id, launchMessage = null) }
+        _state.update { it.copy(selectedInstallationId = id, launchMessage = null, launchBusy = false, launchStage = null) }
     }
 
     /**
