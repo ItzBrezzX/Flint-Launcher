@@ -20,7 +20,7 @@ android {
         versionCode = (findProperty("flintVersionCode") as String?)?.toInt() ?: 1
         versionName = (findProperty("flintVersionName") as String?) ?: "0.1.0-dev"
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
         }
     }
 
