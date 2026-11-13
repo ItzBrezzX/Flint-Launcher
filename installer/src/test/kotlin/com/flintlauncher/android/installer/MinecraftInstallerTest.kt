@@ -190,6 +190,49 @@ class MinecraftInstallerTest {
     }
 
     @Test
+    fun resolvesMultipleLoaderInheritanceLevelsBackToVanilla() = runBlocking {
+        val baseJar = "base loader".toByteArray()
+        val overlayJar = "overlay loader".toByteArray()
+        fake.blobs["/maven/net/example/base/1.0/base-1.0.jar"] = baseJar
+        fake.blobs["/maven/net/example/overlay/1.0/overlay-1.0.jar"] = overlayJar
+
+        val baseProfile = layout.versionJson("loader-base")
+        baseProfile.parentFile!!.mkdirs()
+        baseProfile.writeText(
+            """{"id":"loader-base","inheritsFrom":"1.0-test","libraries":[
+              {"name":"net.example:base:1.0","url":"$base/maven"}]}""",
+        )
+
+        val overlayProfile = layout.versionJson("loader-overlay")
+        overlayProfile.parentFile!!.mkdirs()
+        overlayProfile.writeText(
+            """{"id":"loader-overlay","inheritsFrom":"loader-base","mainClass":"net.example.OverlayMain",
+              "libraries":[{"name":"net.example:overlay:1.0","url":"$base/maven"}],
+              "arguments":{"game":["--overlay"],"jvm":["-Doverlay=true"]}}""",
+        )
+
+        val installed = success(installer.install("loader-overlay"))
+
+        assertEquals("net.example.OverlayMain", installed.version.mainClass)
+        assertEquals(layout.versionJar("1.0-test"), installed.clientJar)
+        assertEquals(
+            listOf(
+                layout.library("net/example/overlay/1.0/overlay-1.0.jar"),
+                layout.library("net/example/base/1.0/base-1.0.jar"),
+                layout.versionJar("1.0-test"),
+            ),
+            installed.classpath,
+        )
+        assertEquals(21, installed.requiredJavaMajor)
+        assertTrue(installed.version.arguments!!.game.containsAll(
+            listOf(
+                kotlinx.serialization.json.JsonPrimitive("--version"),
+                kotlinx.serialization.json.JsonPrimitive("--overlay"),
+            ),
+        ))
+    }
+
+    @Test
     fun aBadVersionJsonChecksumIsRejectedBeforeAnythingIsDownloaded() = runBlocking {
         publishVersion("1.0-test", manifestHashOverride = "0".repeat(40))
 
