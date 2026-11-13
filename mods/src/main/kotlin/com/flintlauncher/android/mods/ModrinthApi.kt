@@ -56,17 +56,6 @@ class ModrinthApi(
         ModrinthTags(categories, loaders, versions)
     }
 
-    suspend fun project(projectId: String): ModrinthProject = withContext(Dispatchers.IO) {
-        require(projectId.isNotBlank()) { "Project ID is required" }
-        val url = baseUrl.newBuilder()
-            .addPathSegment("project")
-            .addPathSegment(projectId)
-            .build()
-        get(url, ModrinthProject.serializer()).also {
-            if (it.projectType != "mod") throw IOException("Modrinth project is not a mod")
-        }
-    }
-
     suspend fun project(projectId: String): ModrinthProjectDetails = withContext(Dispatchers.IO) {
         require(projectId.isNotBlank()) { "Project ID is required" }
         val url = baseUrl.newBuilder()
