@@ -216,7 +216,7 @@ internal fun LaunchButton(state: HomeUiState, actions: HomeActions) {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    if (state.launchBusy) "PREPARING MINECRAFT" else "PLAY",
+                    if (state.launchBusy) "PREPARING MINECRAFT" else "LAUNCH GAME",
                     color = FlintColors.OnEmber,
                     fontWeight = FontWeight.Black,
                     style = MaterialTheme.typography.titleMedium,
