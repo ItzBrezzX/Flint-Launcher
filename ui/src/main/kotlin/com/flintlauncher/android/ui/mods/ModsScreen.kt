@@ -74,7 +74,7 @@ fun ModsScreen(
 ) {
     var createProfileOpen by remember { mutableStateOf(false) }
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val wide = maxWidth >= 760.dp
+        val wide = maxWidth >= 540.dp
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -120,6 +120,15 @@ fun ModsScreen(
 
             if (!wide) {
                 ModSearchBar(state, actions, Modifier.fillMaxWidth())
+            }
+
+            if (wide) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().height(156.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = FlintColors.Panel,
+                    border = BorderStroke(1.dp, FlintColors.PanelRaised),
+                ) { }
             }
 
             Surface(
