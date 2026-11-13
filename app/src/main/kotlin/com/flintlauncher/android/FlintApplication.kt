@@ -95,7 +95,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(HomeViewModel::class.java) ->
-            HomeViewModel(container.partnersRepository, container.launcherVersion)
+            HomeViewModel(container.partnersRepository, container.installer, container.launcherVersion)
         modelClass.isAssignableFrom(VersionsViewModel::class.java) ->
             VersionsViewModel(container.installer, container.installCoordinator, container::startInstallService)
         modelClass.isAssignableFrom(ModsViewModel::class.java) ->
