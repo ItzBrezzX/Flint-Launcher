@@ -39,6 +39,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -297,16 +298,55 @@ fun ModsScreen(
                 color = libraryPanel,
                 border = BorderStroke(1.dp, libraryBorder),
             ) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("DOWNLOAD QUEUE", color = libraryGreen, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.7.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        state.busyProjectId?.let { "Installing $it" } ?: "${state.installed.size} installed",
-                        color = FlintColors.TextMuted,
-                        fontSize = 9.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("DOWNLOAD QUEUE", color = libraryGreen, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.7.sp)
+                        Spacer(Modifier.weight(1f))
+                        val active = state.downloadState == "RUNNING" || state.downloadState == "PAUSED"
+                        Text(
+                            when {
+                                state.busyProjectId != null -> "Installing ${state.busyProjectId}"
+                                active -> state.downloadState.lowercase().replaceFirstChar { it.uppercase() }
+                                else -> "${state.installed.size} installed"
+                            },
+                            color = FlintColors.TextMuted,
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (state.busyProjectId != null || state.downloadState == "RUNNING" || state.downloadState == "PAUSED") {
+                        val percent = state.downloadPercent
+                        if (percent == null) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        } else {
+                            LinearProgressIndicator(
+                                progress = (percent / 100f).coerceIn(0f, 1f),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        val total = state.downloadTotalBytes
+                        val bytes = state.downloadBytes
+                        val size = if (total != null && total > 0) {
+                            "%.1f / %.1f MB".format(bytes / 1_048_576f, total / 1_048_576f)
+                        } else {
+                            "%.1f MB".format(bytes / 1_048_576f)
+                        }
+                        val speed = if (state.downloadSpeedBytesPerSecond > 0) {
+                            " · %.2f MB/s".format(state.downloadSpeedBytesPerSecond / 1_048_576f)
+                        } else ""
+                        Text(
+                            (percent?.let { "${it.toInt()}% · " } ?: "") + size + speed,
+                            color = FlintColors.TextMuted,
+                            fontSize = 9.sp,
+                        )
+                        state.downloadActiveFiles.firstOrNull()?.let {
+                            Text(it, color = FlintColors.TextMuted, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
                 }
             }
         }
