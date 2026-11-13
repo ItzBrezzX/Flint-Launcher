@@ -171,9 +171,12 @@ class DownloadManagerTest {
     }
 
     @Test
-    fun resumesFromCheckpointWhenServerEndsResponseEarly() = runBlocking {
+    fun resumesFromCheckpointWhenServerReturnsShortRangeSegment() = runBlocking {
         val data = bytes(3_000)
         fileServer.files["/short.bin"] = data
+        // A previous attempt was interrupted after 100 bytes. The first request
+        // therefore correctly starts at byte 100 (a fresh request starts without Range).
+        File(tmp.root, "short.bin.part").writeBytes(data.copyOfRange(0, 100))
         fileServer.truncateNextResponsePath = "/short.bin"
         val manager = newManager()
 
@@ -181,8 +184,8 @@ class DownloadManagerTest {
 
         assertEquals(1, result.completed)
         assertTrue(File(tmp.root, "short.bin").readBytes().contentEquals(data))
-        assertEquals("bytes=0-", fileServer.requests[0].getHeader("Range"))
-        assertEquals("bytes=400-", fileServer.requests[1].getHeader("Range"))
+        assertEquals("bytes=100-", fileServer.requests[0].getHeader("Range"))
+        assertEquals("bytes=500-", fileServer.requests[1].getHeader("Range"))
         assertFalse(File(tmp.root, "short.bin.part").exists())
     }
 
