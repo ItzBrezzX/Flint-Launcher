@@ -608,7 +608,7 @@ private fun ModProjectCard(project: ModProjectUi, onClick: () -> Unit) {
                 Text(
                     project.projectType.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = libraryGreen,
+                    color = FlintColors.Ember,
                     fontWeight = FontWeight.Bold,
                 )
                 Row(
