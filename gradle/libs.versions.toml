@@ -17,6 +17,7 @@ coreKtx = "1.13.1"
 lifecycle = "2.8.7"
 datastore = "1.1.1"
 junit = "4.13.2"
+xz = "1.12"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -41,6 +42,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
 junit = { module = "junit:junit", version.ref = "junit" }
+tukaani-xz = { module = "org.tukaani:xz", version.ref = "xz" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
