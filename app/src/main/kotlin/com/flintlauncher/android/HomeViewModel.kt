@@ -114,7 +114,7 @@ class HomeViewModel(
             val runtime = if (compatible != null) {
                 compatible
             } else {
-                val targetMajor = KnownJreArtifacts.majorsFor(arch).firstOrNull { it >= selected.javaMajor }
+                val targetMajor = KnownJreArtifacts.compatibleMajor(selected.javaMajor, arch)
                 if (targetMajor == null) {
                     _state.update {
                         it.copy(launchMessage = "No published mobile Java runtime for ABI $arch satisfies Java ${selected.javaMajor}.")
