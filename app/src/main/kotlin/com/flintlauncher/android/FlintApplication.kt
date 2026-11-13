@@ -75,21 +75,6 @@ class AppContainer(private val app: Application) {
     private val modDownloadManager = DownloadManager(modDownloadHttp, DownloadConfig(concurrency = 2))
 
     /** ABI for this app process (different from the set of ABIs supported by the CPU). */
-    val deviceModel: String = Build.MODEL.orEmpty()
-    val androidVersion: String = Build.VERSION.RELEASE.orEmpty()
-    val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList()
-    val totalMemoryMb: Long = runCatching {
-        File("/proc/meminfo").useLines { lines ->
-            lines.firstOrNull { it.startsWith("MemTotal:") }
-                ?.substringAfter(":")
-                ?.trim()
-                ?.substringBefore(" ")
-                ?.toLongOrNull()
-                ?.div(1024)
-                ?: 0L
-        }
-    }.getOrDefault(0L)
-
     val deviceProcessArch: String? = RuntimeArchitecture.fromSupportedAbis(
         supportedAbis,
         Process.is64Bit(),
