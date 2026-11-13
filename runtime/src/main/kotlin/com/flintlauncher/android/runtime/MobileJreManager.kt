@@ -97,13 +97,10 @@ class MobileJreManager(
             .sortedWith(compareBy<JavaRuntimeInfo> { it.majorVersion }.thenBy { it.id })
             .toList()
 
-        // Do not expose a runtime as verified until the device's native bridge
-        // can load its actual libjli and resolve JLI_Launch.
-        val verified = mutableListOf<JavaRuntimeInfo>()
-        for (candidate in candidates) {
-            if (verify(candidate)) verified += candidate
-        }
-        verified.toList()
+        // This is a metadata/layout inventory only. Loading HotSpot is process-global,
+        // so probing every installed JRE here would pin the first runtime and prevent
+        // another Java major from being selected in the same app process.
+        candidates
     }
 
     /** Selects the lowest installed Java major that satisfies the game requirement. */
@@ -248,8 +245,9 @@ class MobileJreManager(
     }
 
     /**
-     * Verify archive metadata, then load libjvm/libjli and resolve JLI_Launch on this
-     * Android process. This does not execute Java bytecode or verify Minecraft graphics.
+     * Verify the selected runtime by loading libjvm/libjli and resolving JLI_Launch.
+     * This is process-global and must not be called to enumerate every installed JRE.
+     * It does not execute Java bytecode or verify Minecraft graphics.
      */
     override suspend fun verify(runtime: JavaRuntimeInfo): Boolean = withContext(Dispatchers.IO) {
         runCatching {
