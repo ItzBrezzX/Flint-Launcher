@@ -76,10 +76,11 @@ fun ModsScreen(
     modifier: Modifier = Modifier,
 ) {
     var createProfileOpen by remember { mutableStateOf(false) }
-    val libraryBg = androidx.compose.ui.graphics.Color(0xFF06140B)
-    val libraryPanel = androidx.compose.ui.graphics.Color(0xFF0C2112)
-    val libraryBorder = androidx.compose.ui.graphics.Color(0xFF1B4926)
-    val libraryGreen = androidx.compose.ui.graphics.Color(0xFF35D52D)
+    val libraryBg = FlintColors.Charcoal
+    val libraryPanel = FlintColors.Panel
+    val libraryBorder = FlintColors.PanelRaised
+    val libraryGreen = FlintColors.Ember
+    val featuredProject = (state.results as? Loadable.Content)?.value?.firstOrNull()
 
     BoxWithConstraints(modifier.fillMaxSize().background(libraryBg)) {
         val wide = maxWidth >= 760.dp
@@ -89,27 +90,60 @@ fun ModsScreen(
         ) {
             ModSearchBar(state, actions)
             Surface(
-                modifier = Modifier.fillMaxWidth().height(if (wide) 142.dp else 112.dp),
-                shape = RoundedCornerShape(9.dp),
+                modifier = Modifier.fillMaxWidth().height(if (wide) 148.dp else 116.dp),
+                shape = RoundedCornerShape(10.dp),
                 color = libraryPanel,
                 border = BorderStroke(1.dp, libraryBorder),
             ) {
-                Box(
+                Row(
                     Modifier.fillMaxSize().background(
-                        androidx.compose.ui.graphics.Brush.linearGradient(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
                             listOf(
-                                androidx.compose.ui.graphics.Color(0xFF174D22),
-                                androidx.compose.ui.graphics.Color(0xFF09200F),
-                                androidx.compose.ui.graphics.Color(0xFF12391A),
+                                androidx.compose.ui.graphics.Color(0xFF173D20),
+                                libraryPanel,
+                                androidx.compose.ui.graphics.Color(0xFF0A1710),
                             ),
                         ),
-                    ),
-                    contentAlignment = Alignment.Center,
+                    ).padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("MINECRAFT", color = androidx.compose.ui.graphics.Color.White, fontSize = if (wide) 25.sp else 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
-                        Text("MOD MENU", color = libraryGreen, fontSize = if (wide) 23.sp else 18.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
-                        Text("Discover mods, shaders, resource packs and more", color = androidx.compose.ui.graphics.Color(0xFFD5E8D7), fontSize = 9.sp)
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Text("FLINT  /  COMMUNITY CONTENT", color = libraryGreen, fontSize = 8.sp, fontWeight = FontWeight.Black, letterSpacing = 1.3.sp)
+                        Text("RESOURCE LIBRARY", color = androidx.compose.ui.graphics.Color.White, fontSize = if (wide) 23.sp else 18.sp, fontWeight = FontWeight.Black, letterSpacing = 0.6.sp)
+                        Text("Mods  ·  Shaders  ·  Packs  ·  Worlds", color = FlintColors.TextMuted, fontSize = 10.sp)
+                        Text(
+                            "${state.totalHits} MODRINTH RESULTS  ·  JAVA EDITION",
+                            color = libraryGreen,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    if (featuredProject != null) {
+                        Box(
+                            Modifier.size(if (wide) 104.dp else 78.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(libraryBorder),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            AsyncImage(
+                                model = trustedModrinthIcon(featuredProject.iconUrl),
+                                contentDescription = "${featuredProject.title} preview",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                    } else {
+                        Box(
+                            Modifier.size(if (wide) 104.dp else 78.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(libraryBorder),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("MC", color = libraryGreen, fontSize = 30.sp, fontWeight = FontWeight.Black)
+                        }
                     }
                 }
             }
@@ -170,7 +204,7 @@ fun ModsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("FILTERS", color = FlintColors.TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                         Spacer(Modifier.weight(1f))
-                        Text("MODRINTH ONLY", color = libraryGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        Text("SOURCE  /  MODRINTH", color = libraryGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                         androidx.compose.material3.IconButton(onClick = { actions.onRefresh?.invoke() }, enabled = actions.onRefresh != null) {
                             Icon(Icons.Filled.Refresh, contentDescription = "Refresh Modrinth catalog", tint = libraryGreen)
                         }
@@ -231,7 +265,7 @@ fun ModsScreen(
             state.notice?.let { MessageCard(it) }
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("DISCOVER", color = FlintColors.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp)
+                Text("BROWSE RESOURCES", color = FlintColors.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp)
                 Spacer(Modifier.weight(1f))
                 Text("${state.totalHits} results", color = FlintColors.TextMuted, fontSize = 9.sp)
             }
