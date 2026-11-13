@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
@@ -115,9 +116,55 @@ private fun LaunchMessageCard(message: String, actions: HomeActions) {
 }
 
 @Composable
+private fun LaunchProgressCard(state: HomeUiState) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = FlintColors.Panel,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, FlintColors.PanelRaised),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Text(
+                state.launchStage ?: "Preparing Minecraft environment",
+                color = FlintColors.TextPrimary,
+                style = MaterialTheme.typography.labelLarge,
+            )
+            val percent = state.launchProgressPercent
+            if (percent == null) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            } else {
+                LinearProgressIndicator(
+                    progress = (percent / 100f).coerceIn(0f, 1f),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            val total = state.launchTotalBytes
+            val downloaded = state.launchDownloadedBytes
+            val size = if (total != null && total > 0) {
+                "%.1f / %.1f MB".format(downloaded / 1_048_576f, total / 1_048_576f)
+            } else {
+                "%.1f MB".format(downloaded / 1_048_576f)
+            }
+            val speed = if (state.launchSpeedBytesPerSecond > 0) {
+                " · %.2f MB/s".format(state.launchSpeedBytesPerSecond / 1_048_576f)
+            } else ""
+            Text(
+                (percent?.let { "${it.toInt()}% · " } ?: "") + size + speed,
+                color = FlintColors.TextMuted,
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+    }
+}
+
+@Composable
 private fun MainSections(state: HomeUiState, actions: HomeActions, compactLandscape: Boolean) {
     EmptyHeroBanner(if (compactLandscape) 132.dp else 190.dp)
     LaunchButton(state, actions)
+    if (state.launchBusy) LaunchProgressCard(state)
     state.launchMessage?.let { LaunchMessageCard(it, actions) }
     ProfileSlots(state, actions)
     NewsSection(state.news, actions)
