@@ -125,7 +125,7 @@ object SafeTarXzExtractor {
                 ensureNoSymlinkParents(root, link.path.parent)
                 val target = resolveSafe(root, link.target)
                 if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
-                    throw IOException("JRE hard-link target is missing: \${link.target}")
+                    throw IOException("JRE hard-link target is missing: " + link.target)
                 }
                 Files.createDirectories(link.path.parent)
                 Files.createLink(link.path, target)
