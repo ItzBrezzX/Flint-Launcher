@@ -47,7 +47,7 @@ private class RetryableDownloadException(message: String) : IOException(message)
  *
  * One batch runs at a time. Pause/cancel take effect between buffer reads.
  */
-private val CONTENT_RANGE = Regex("""bytes (\\d+)-(\\d+)/(\\d+|\\*)""", RegexOption.IGNORE_CASE)
+private val CONTENT_RANGE = Regex("""bytes (\d+)-(\d+)/(\d+|\*)""", RegexOption.IGNORE_CASE)
 
 class DownloadManager(
     private val client: OkHttpClient,
