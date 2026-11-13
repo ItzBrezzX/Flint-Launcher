@@ -66,6 +66,9 @@ class MainActivity : ComponentActivity() {
                         onLaunch = { homeViewModel.launchSelected() },
                         onSelectInstallation = { homeViewModel.selectInstallation(it) },
                         onDismissLaunchMessage = { homeViewModel.dismissLaunchMessage() },
+                        onOpenInstances = { destination = Destination.PROFILES },
+                        onOpenLibrary = { destination = Destination.MODS },
+                        onOpenSettings = { destination = Destination.SETTINGS },
                         onRefreshPartners = { homeViewModel.refreshPartners(force = true) },
                         onCopyAddress = { address -> copyAddress(address) },
                         onVisitServer = { url -> openWebsite(url) },
@@ -124,6 +127,11 @@ class MainActivity : ComponentActivity() {
                     onSelect = {
                         destination = it
                         if (it == Destination.PLAY) homeViewModel.refreshInstallations()
+                    },
+                    onSearch = { query ->
+                        modsViewModel.setQuery(query)
+                        modsViewModel.search()
+                        destination = Destination.MODS
                     },
                 ) {
                     when (destination) {
