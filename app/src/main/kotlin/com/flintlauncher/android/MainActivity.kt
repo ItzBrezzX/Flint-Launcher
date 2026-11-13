@@ -103,6 +103,7 @@ class MainActivity : ComponentActivity() {
                         onSearch = { modsViewModel.search() },
                         onRefresh = { modsViewModel.refresh() },
                         onCategoryChange = { modsViewModel.setCategory(it) },
+                        onProjectTypeChange = { modsViewModel.setProjectType(it) },
                         onGameVersionChange = { modsViewModel.setGameVersion(it) },
                         onLoaderChange = { modsViewModel.setLoader(it) },
                         onClientSideChange = { modsViewModel.setClientSide(it) },
