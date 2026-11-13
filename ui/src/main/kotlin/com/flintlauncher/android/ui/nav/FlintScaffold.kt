@@ -77,10 +77,15 @@ fun FlintScaffold(
                         verticalArrangement = Arrangement.Center,
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.AccountCircle, contentDescription = null, tint = LauncherText)
+                            Box(
+                                Modifier.size(38.dp).clip(RoundedCornerShape(9.dp)).background(LauncherGreen),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("F", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                            }
                             Column(Modifier.padding(start = 10.dp)) {
-                                Text("FLINT ACCOUNT", color = LauncherText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Text("Local profile", color = LauncherMuted, fontSize = 11.sp)
+                                Text("FLINT LAUNCHER", color = LauncherText, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                Text("MINECRAFT JAVA", color = LauncherMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
@@ -112,7 +117,7 @@ fun FlintScaffold(
                     Text("WHAT'S NEW", color = LauncherMuted, fontSize = 11.sp,
                         modifier = Modifier.fillMaxWidth().clickable { onSelect(Destination.PLAY) }
                             .padding(horizontal = 16.dp, vertical = 16.dp))
-                    Text("v${BuildConfigPlaceholder.version}", color = LauncherMuted, fontSize = 10.sp,
+                    Text("ANDROID EDITION", color = LauncherMuted, fontSize = 10.sp,
                         modifier = Modifier.padding(start = 14.dp, bottom = 8.dp))
                 }
                 Column(Modifier.weight(1f).fillMaxHeight()) {
