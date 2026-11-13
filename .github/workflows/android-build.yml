@@ -50,7 +50,9 @@ jobs:
             "platforms;android-${ANDROID_API_LEVEL}" \
             "build-tools;${ANDROID_BUILD_TOOLS}" \
             "ndk;${ANDROID_NDK_VERSION}" \
-            "cmake;3.22.1"
+            "cmake;3.22.1" \
+            "emulator" \
+            "system-images;android-${ANDROID_API_LEVEL};google_apis;x86_64"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
           test -d "${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
@@ -134,6 +136,35 @@ jobs:
             echo "OK: ${ENTRY} is present and non-empty"
           done
 
+      - name: Install and launch APK on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            set -euo pipefail
+            APK="app/build/outputs/apk/debug/app-debug.apk"
+            test -s "${APK}"
+            adb install -r "${APK}"
+            adb shell am force-stop com.flintlauncher.android
+            adb shell am start -W -n com.flintlauncher.android/.MainActivity
+            sleep 8
+            if ! adb shell pidof com.flintlauncher.android >/dev/null; then
+              adb logcat -d -t 4000 > "${RUNNER_TEMP}/flint-emulator-logcat.txt"
+              grep -E "FATAL EXCEPTION|Fatal signal" "${RUNNER_TEMP}/flint-emulator-logcat.txt" || true
+              exit 1
+            fi
+            adb shell dumpsys activity activities > "${RUNNER_TEMP}/flint-emulator-activity.txt"
+            adb logcat -d -t 4000 > "${RUNNER_TEMP}/flint-emulator-logcat.txt"
+            if grep -E "FATAL EXCEPTION|Fatal signal" "${RUNNER_TEMP}/flint-emulator-logcat.txt"; then
+              exit 1
+            fi
+            echo "Flint MainActivity started successfully on Android API 35 x86_64 emulator."
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
@@ -154,5 +185,7 @@ jobs:
             ${{ runner.temp }}/sdk-installed.txt
             ${{ runner.temp }}/gradle-version.txt
             ${{ runner.temp }}/so-path.txt
+            ${{ runner.temp }}/flint-emulator-logcat.txt
+            ${{ runner.temp }}/flint-emulator-activity.txt
             **/build/reports/tests/**
           if-no-files-found: ignore
