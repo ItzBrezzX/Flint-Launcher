@@ -27,6 +27,24 @@ data class JvmProbeResult(
 object MinimalJvmProbe {
 
     /**
+     * Writes a tiny Java 8 class file directly. Runtime-only Android JRE packages
+     * do not necessarily ship javac, so the device probe must not depend on it.
+     */
+    fun writeProbeClass(dir: File): File {
+        dir.mkdirs()
+        val target = File(dir, "FlintJvmProbe.class")
+        val bytes = Base64.getDecoder().decode("yv66vgAAADQAHAEADUZsaW50SnZtUHJvYmUHAAEBABBqYXZhL2xhbmcvT2JqZWN0BwADAQAGPGluaXQ+AQADKClWAQAEQ29kZQwABQAGCgAEAAgBAARtYWluAQAWKFtMamF2YS9sYW5nL1N0cmluZzspVgEAEGphdmEvbGFuZy9TeXN0ZW0HAAwBAANvdXQBABVMamF2YS9pby9QcmludFN0cmVhbTsMAA4ADwkADQAQAQATamF2YS9pby9QcmludFN0cmVhbQcAEgEAB3ByaW50bG4BABUoTGphdmEvbGFuZy9TdHJpbmc7KVYMABQAFQoAEwAWAQAMRkxJTlRfSlZNX09LCAAYAQAKU291cmNlRmlsZQEAEkZsaW50SnZtUHJvYmUuamF2YQAhAAIABAAAAAAAAgABAAUABgABAAcAAAARAAEAAQAAAAUqtwAJsQAAAAAACQAKAAsAAQAHAAAAFQACAAEAAAAJsgAREhm2ABexAAAAAAABABoAAAACABs=")
+        require(bytes.size >= 8 &&
+            bytes[0] == 0xCA.toByte() &&
+            bytes[1] == 0xFE.toByte() &&
+            bytes[2] == 0xBA.toByte() &&
+            bytes[3] == 0xBE.toByte()
+        ) { "Embedded Flint JVM probe class is invalid" }
+        target.writeBytes(bytes)
+        return target
+    }
+
+    /**
      * Writes the equivalent Java source for inspection or manual debugging.
      */
     fun writeProbeSource(dir: File): File {
