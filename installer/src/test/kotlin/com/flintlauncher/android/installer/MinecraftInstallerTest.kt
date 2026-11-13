@@ -219,6 +219,7 @@ class MinecraftInstallerTest {
             listOf(
                 layout.library("net/example/overlay/1.0/overlay-1.0.jar"),
                 layout.library("net/example/base/1.0/base-1.0.jar"),
+                layout.library("com/example/lib/1.0/lib-1.0.jar"),
                 layout.versionJar("1.0-test"),
             ),
             installed.classpath,
