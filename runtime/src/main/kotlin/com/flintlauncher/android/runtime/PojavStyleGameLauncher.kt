@@ -36,8 +36,7 @@ class PojavStyleGameLauncher(
         val loaded = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
         if (!loaded) {
             return@withContext LaunchResult.Failed(
-                "Failed to dlopen libjli.so under ${runtime.homeDir}. " +
-                    "Is this a mobile OpenJDK layout with aarch64 libs?",
+                "JRE native loader failed: ${NativeBridge.safeJreStatus()}",
             )
         }
 
