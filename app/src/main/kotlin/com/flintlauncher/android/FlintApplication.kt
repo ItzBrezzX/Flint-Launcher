@@ -16,6 +16,8 @@ import com.flintlauncher.android.mods.ModrinthApi
 import com.flintlauncher.android.mods.ModrinthModInstaller
 import com.flintlauncher.android.mods.ModrinthRepository
 import com.flintlauncher.android.profiles.ProfileRepository
+import com.flintlauncher.android.runtime.MobileJreManager
+import com.flintlauncher.android.runtime.RuntimeArchitecture
 import com.flintlauncher.android.partners.BundledServerFeed
 import com.flintlauncher.android.partners.McStatusClient
 import com.flintlauncher.android.partners.PartnersRepository
