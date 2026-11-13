@@ -206,7 +206,7 @@ internal fun LaunchButton(state: HomeUiState, actions: HomeActions) {
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("LAUNCH GAME", color = FlintColors.OnEmber, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                Text("PLAY", color = FlintColors.OnEmber, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
                 Text(
                     text = selected?.summary ?: "No installation selected",
                     color = FlintColors.OnEmber,
