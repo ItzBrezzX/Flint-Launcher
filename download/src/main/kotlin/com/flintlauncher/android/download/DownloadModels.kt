@@ -60,7 +60,7 @@ data class DownloadConfig(
     val storageMarginBytes: Long = 32L * 1024 * 1024,
 )
 
-internal object FileHasher {
+object FileHasher {
     fun hex(file: File, algorithm: HashAlgorithm): String {
         val digest = MessageDigest.getInstance(algorithm.javaName)
         file.inputStream().use { input ->
