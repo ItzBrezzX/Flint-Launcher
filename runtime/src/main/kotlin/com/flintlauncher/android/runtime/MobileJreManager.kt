@@ -94,7 +94,11 @@ class MobileJreManager(
 
         // Do not expose a runtime as verified until the device's native bridge
         // can load its actual libjli and resolve JLI_Launch.
-        candidates.filter { verify(it) }
+        val verified = mutableListOf<JavaRuntimeInfo>()
+        for (candidate in candidates) {
+            if (verify(candidate)) verified += candidate
+        }
+        verified.toList()
     }
 
     /** Selects the lowest installed Java major that satisfies the game requirement. */
