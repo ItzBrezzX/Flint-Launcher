@@ -165,7 +165,7 @@ private fun MainSections(state: HomeUiState, actions: HomeActions, compactLandsc
     EmptyHeroBanner(if (compactLandscape) 132.dp else 190.dp)
     LaunchButton(state, actions)
     if (state.launchBusy) LaunchProgressCard(state)
-    state.launchMessage?.let { LaunchMessageCard(it, actions) }
+    if (!state.launchBusy) state.launchMessage?.let { LaunchMessageCard(it, actions) }
     ProfileSlots(state, actions)
     NewsSection(state.news, actions)
     FriendsSection(state.friends)
