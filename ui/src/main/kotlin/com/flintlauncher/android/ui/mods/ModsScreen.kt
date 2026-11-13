@@ -638,7 +638,7 @@ private fun ModProjectCard(project: ModProjectUi, onClick: () -> Unit) {
                     } else {
                         Text("Minecraft Java", style = MaterialTheme.typography.labelSmall, color = FlintColors.TextMuted)
                     }
-                    TextButton(onClick = onClick) { Text(if (project.projectType == "mod") "Versions" else "Details") }
+                    TextButton(onClick = onClick) { Text(if (project.projectType == "mod") "Download" else "Details") }
                 }
             }
         }
