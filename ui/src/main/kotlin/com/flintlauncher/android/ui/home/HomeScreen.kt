@@ -21,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -76,7 +75,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize().background(HomePalette.Background)) {
-        val landscape = maxWidth >= 700.dp && maxHeight >= 400.dp
+        val viewportHeight = maxHeight
+        val landscape = maxWidth >= 700.dp && viewportHeight >= 400.dp
         if (landscape) {
             Row(
                 Modifier.fillMaxSize().padding(12.dp),
@@ -89,7 +89,7 @@ fun HomeScreen(
                     MainHero(
                         state = state,
                         actions = actions,
-                        height = (maxHeight - 132.dp).coerceIn(300.dp, 430.dp),
+                        height = (viewportHeight - 132.dp).coerceIn(300.dp, 430.dp),
                     )
                     Row(
                         Modifier.fillMaxWidth(),
@@ -454,7 +454,6 @@ private fun PartnerRail(state: HomeUiState, actions: HomeActions, modifier: Modi
                                             onClick = { actions.onCopyAddress?.invoke(server.address) },
                                             enabled = actions.onCopyAddress != null,
                                         ) {
-                                            Icon(Icons.Filled.ContentCopy, contentDescription = null, tint = HomePalette.Muted)
                                             Text("COPY", color = HomePalette.Muted, fontSize = 8.sp)
                                         }
                                         TextButton(
