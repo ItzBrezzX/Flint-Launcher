@@ -284,7 +284,19 @@ class ModsViewModel(
             author = project.author,
             categories = project.categories,
         )
-        _state.value = current.copy(busyProjectId = projectId, notice = null, errorMessage = null)
+        _state.value = current.copy(
+            busyProjectId = projectId,
+            downloadState = "IDLE",
+            downloadPercent = null,
+            downloadBytes = 0,
+            downloadTotalBytes = null,
+            downloadSpeedBytesPerSecond = 0,
+            downloadActiveFiles = emptyList(),
+            downloadCompletedFiles = 0,
+            downloadTotalFiles = 0,
+            notice = null,
+            errorMessage = null,
+        )
         viewModelScope.launch {
             try {
                 val actualVersion = mods.versions(profile, projectId, project.projectType).firstOrNull { it.id == versionId }
