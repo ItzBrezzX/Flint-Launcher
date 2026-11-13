@@ -74,12 +74,21 @@ internal fun HomeTopBar(state: HomeUiState, actions: HomeActions) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(12.dp).clip(RoundedCornerShape(3.dp)).background(FlintColors.Ember))
-            Text(
-                text = "FLINT",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    text = "FLINT",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp,
+                )
+                Text(
+                    "MINECRAFT JAVA LAUNCHER",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = FlintColors.TextMuted,
+                    letterSpacing = 0.8.sp,
+                    fontSize = 8.sp,
+                )
+            }
         }
         AccountChip(state, actions)
     }
@@ -188,7 +197,7 @@ private fun InfoChip(text: String) {
 @Composable
 internal fun LaunchButton(state: HomeUiState, actions: HomeActions) {
     val selected = state.selected
-    val canLaunch = actions.onLaunch != null
+    val canLaunch = actions.onLaunch != null && !state.launchBusy
     var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
@@ -206,7 +215,12 @@ internal fun LaunchButton(state: HomeUiState, actions: HomeActions) {
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("PLAY", color = FlintColors.OnEmber, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (state.launchBusy) "PREPARING MINECRAFT" else "PLAY",
+                    color = FlintColors.OnEmber,
+                    fontWeight = FontWeight.Black,
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Text(
                     text = selected?.summary ?: "No installation selected",
                     color = FlintColors.OnEmber,
