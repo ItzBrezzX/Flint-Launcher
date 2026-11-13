@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -114,6 +115,41 @@ private fun RuntimeCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsA
             color = FlintColors.TextMuted,
             style = MaterialTheme.typography.bodySmall,
         )
+
+        if (state.installingMajor != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    state.installStage ?: "Preparing Java ${state.installingMajor}",
+                    color = FlintColors.TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                val percent = state.installPercent
+                if (percent == null) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                } else {
+                    LinearProgressIndicator(
+                        progress = (percent / 100f).coerceIn(0f, 1f),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                val total = state.installTotalBytes
+                val downloaded = state.installDownloadedBytes
+                val sizeText = if (total != null && total > 0) {
+                    "%.1f / %.1f MB".format(downloaded / 1_048_576f, total / 1_048_576f)
+                } else {
+                    "%.1f MB".format(downloaded / 1_048_576f)
+                }
+                val speedText = if (state.installSpeedBytesPerSecond > 0) {
+                    " · %.2f MB/s".format(state.installSpeedBytesPerSecond / 1_048_576f)
+                } else ""
+                Text(
+                    (percent?.let { "${it.toInt()}% · " } ?: "") + sizeText + speedText,
+                    color = FlintColors.TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
         if (state.loading) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CircularProgressIndicator(color = FlintColors.Ember)

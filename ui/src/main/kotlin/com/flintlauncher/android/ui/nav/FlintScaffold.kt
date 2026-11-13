@@ -19,10 +19,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -42,9 +42,9 @@ import com.flintlauncher.android.ui.theme.FlintColors
 enum class Destination(val label: String, val icon: ImageVector) {
     PLAY("HOME", Icons.Filled.PlayArrow),
     PROFILES("INSTANCES", Icons.Filled.AccountCircle),
-    MODS("MOD LIBRARY", Icons.Filled.Build),
-    PARTNERS("SERVERS", Icons.Filled.Star),
+    MODS("LIBRARY", Icons.Filled.Build),
     SETTINGS("SETTINGS", Icons.Filled.Settings),
+    ABOUT("ABOUT", Icons.Filled.Info),
 }
 
 private val LauncherBackground = FlintColors.Charcoal
@@ -71,7 +71,7 @@ fun FlintScaffold(
         if (maxWidth >= 560.dp) {
             Row(Modifier.fillMaxSize()) {
                 Column(
-                    Modifier.width(184.dp).fillMaxHeight().background(LauncherPanel),
+                    Modifier.width(164.dp).fillMaxHeight().background(LauncherPanel),
                 ) {
                     Column(
                         Modifier.fillMaxWidth().height(88.dp).padding(horizontal = 14.dp, vertical = 12.dp),
@@ -97,7 +97,7 @@ fun FlintScaffold(
                         Row(
                             Modifier.fillMaxWidth()
                                 .padding(horizontal = 5.dp, vertical = 2.dp)
-                                .clip(RoundedCornerShape(3.dp))
+                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (active) LauncherGreen.copy(alpha = 0.14f) else Color.Transparent)
                                 .clickable { onSelect(destination) }
                                 .padding(horizontal = 12.dp, vertical = 15.dp),
@@ -126,9 +126,9 @@ fun FlintScaffold(
                         Modifier.fillMaxWidth().height(64.dp).background(LauncherPanel).padding(horizontal = 22.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Flint-Launcher", color = LauncherText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text(selected.label, color = LauncherText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        Text("Minecraft Java · Android", color = LauncherMuted, fontSize = 11.sp)
+                        Text("FLINT  /  MINECRAFT JAVA", color = LauncherMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Box(
                         Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().background(LauncherBackground),

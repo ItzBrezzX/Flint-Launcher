@@ -134,7 +134,7 @@ class MinecraftInstallerTest {
     fun fullInstallDownloadsEverythingAndReportsStagesInOrder() = runBlocking {
         val stages = mutableListOf<InstallStage>()
 
-        val installed = success(installer.install("1.0-test") { stages += it })
+        val installed = success(installer.install("1.0-test", onStage = { stage -> stages.add(stage) }))
 
         assertEquals(
             listOf(

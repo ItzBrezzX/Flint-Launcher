@@ -93,9 +93,29 @@ class RuntimeSettingsViewModel(
         if (_state.value.installingMajor != null) return
 
         viewModelScope.launch {
-            _state.update { it.copy(installingMajor = major, message = "Downloading and verifying Java $major…") }
+            _state.update {
+                it.copy(
+                    installingMajor = major,
+                    installStage = "Preparing Java $major download",
+                    installPercent = null,
+                    installDownloadedBytes = 0,
+                    installTotalBytes = null,
+                    installSpeedBytesPerSecond = 0,
+                    message = "Downloading and verifying Java $major…",
+                )
+            }
             val result = try {
-                manager.install(major)
+                manager.install(major) { stage, progress ->
+                    _state.update {
+                        it.copy(
+                            installStage = stage,
+                            installPercent = progress?.percent?.toFloat(),
+                            installDownloadedBytes = progress?.downloadedBytes ?: it.installDownloadedBytes,
+                            installTotalBytes = progress?.totalBytes ?: it.installTotalBytes,
+                            installSpeedBytesPerSecond = progress?.speedBytesPerSecond ?: 0,
+                        )
+                    }
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -106,6 +126,8 @@ class RuntimeSettingsViewModel(
                     _state.update {
                         it.copy(
                             installingMajor = null,
+                            installStage = null,
+                            installPercent = 100f,
                             message = "Java " + runtime.majorVersion + " (" + runtime.arch + ") installed and verified.",
                         )
                     }
@@ -114,6 +136,7 @@ class RuntimeSettingsViewModel(
                     _state.update {
                         it.copy(
                             installingMajor = null,
+                            installStage = null,
                             message = "Java $major installation failed: " +
                                 (error.message ?: error.javaClass.simpleName),
                         )

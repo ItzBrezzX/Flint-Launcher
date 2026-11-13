@@ -5,8 +5,13 @@ import com.flintlauncher.android.download.DownloadRequest
 import com.flintlauncher.android.download.ExpectedHash
 import com.flintlauncher.android.download.HashAlgorithm
 import com.flintlauncher.android.nativebridge.NativeBridge
+import com.flintlauncher.android.download.DownloadProgress
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -110,7 +115,13 @@ class MobileJreManager(
     }
 
     /** Downloads and installs the exact JRE major for this Android app process architecture. */
-    override suspend fun install(major: Int): Result<JavaRuntimeInfo> {
+    override suspend fun install(major: Int): Result<JavaRuntimeInfo> = install(major) { _, _ -> }
+
+    /** Reports real download bytes, then named extraction/verification stages. */
+    suspend fun install(
+        major: Int,
+        onProgress: (stage: String, progress: DownloadProgress?) -> Unit,
+    ): Result<JavaRuntimeInfo> {
         return try {
             withContext(Dispatchers.IO) {
                 val artifact = KnownJreArtifacts.find(major, deviceArch)
@@ -131,7 +142,17 @@ class MobileJreManager(
                     sizeBytes = artifact.sizeBytes,
                     hash = ExpectedHash(HashAlgorithm.SHA256, artifact.sha256),
                 )
-                val batch = downloads.run(listOf(request))
+                onProgress("Downloading OpenJDK $major", downloads.progress.value)
+                val batch = coroutineScope {
+                    val monitor = launch {
+                        downloads.progress.collect { onProgress("Downloading OpenJDK $major", it) }
+                    }
+                    try {
+                        downloads.run(listOf(request))
+                    } finally {
+                        monitor.cancel()
+                    }
+                }
                 if (batch.cancelled) throw CancellationException("Java runtime download was cancelled")
                 batch.failed.firstOrNull()?.let { throw IOException("Java " + major + " download failed: " + it.reason) }
                 if (!archive.isFile || archive.length() != artifact.sizeBytes) {
@@ -146,7 +167,9 @@ class MobileJreManager(
                 staging.mkdirs()
 
                 try {
+                    onProgress("Extracting Java runtime", null)
                     SafeTarXzExtractor.extract(archive, staging)
+                    onProgress("Verifying Java runtime", null)
                     flattenSingleRoot(staging)
                     val stagedInfo = probe(staging)
                     if (!stagedInfo.verified) throw IOException("Extracted runtime is missing libjli.so or libjvm.so")

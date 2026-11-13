@@ -1,7 +1,9 @@
 package com.flintlauncher.android.mods
 
 import com.flintlauncher.android.download.DownloadManager
+import com.flintlauncher.android.download.DownloadProgress
 import com.flintlauncher.android.download.DownloadRequest
+import kotlinx.coroutines.flow.StateFlow
 import com.flintlauncher.android.download.ExpectedHash
 import com.flintlauncher.android.download.HashAlgorithm
 import com.flintlauncher.android.profiles.Profile
@@ -29,6 +31,8 @@ class ModrinthModInstaller(
     private val launcherRoot: File,
 ) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+
+    val downloadProgress: StateFlow<DownloadProgress> get() = downloads.progress
 
     suspend fun install(
         profile: Profile,
