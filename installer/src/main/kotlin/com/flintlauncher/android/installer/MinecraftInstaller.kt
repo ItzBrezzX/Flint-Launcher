@@ -1,6 +1,9 @@
 package com.flintlauncher.android.installer
 
+import com.flintlauncher.android.download.BatchResult
 import com.flintlauncher.android.download.DownloadManager
+import com.flintlauncher.android.download.DownloadProgress
+import com.flintlauncher.android.download.DownloadRequest
 import com.flintlauncher.android.download.FailedDownload
 import com.flintlauncher.android.minecraft.manifest.VersionEntry
 import com.flintlauncher.android.minecraft.manifest.VersionManifest
@@ -10,7 +13,11 @@ import com.flintlauncher.android.minecraft.version.VersionJson
 import com.flintlauncher.android.minecraft.version.VersionJsonParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import okhttp3.OkHttpClient
@@ -90,7 +97,11 @@ class MinecraftInstaller(
 
     suspend fun fetchManifest(): VersionManifest = VersionManifestParser.parse(fetchText(manifestUrl))
 
-    suspend fun install(versionId: String, onStage: (InstallStage) -> Unit = {}): InstallResult {
+    suspend fun install(
+        versionId: String,
+        onStage: (InstallStage) -> Unit = {},
+        onProgress: (DownloadProgress) -> Unit = {},
+    ): InstallResult {
         try {
             onStage(InstallStage.RESOLVING_METADATA)
             val (version, vanillaId) = resolveVersion(versionId)
@@ -101,7 +112,7 @@ class MinecraftInstaller(
 
             val indexRequest = plan.requests.first { it.id.startsWith("assetindex-") }
             onStage(InstallStage.PREPARING_QUEUE)
-            val indexRun = downloads.run(listOf(indexRequest))
+            val indexRun = runWithProgress(listOf(indexRequest), onProgress)
             if (indexRun.cancelled) return InstallResult.Cancelled
             if (indexRun.failed.isNotEmpty()) return InstallResult.Failed("Could not download the asset index", indexRun.failed)
 
@@ -109,7 +120,7 @@ class MinecraftInstaller(
             val everything = plan.requests.filter { it !== indexRequest } + InstallPlanner.planAssets(index, layout, assetBaseUrl)
 
             onStage(InstallStage.DOWNLOADING_ASSETS)
-            val run = downloads.run(everything)
+            val run = runWithProgress(everything, onProgress)
             if (run.cancelled) return InstallResult.Cancelled
             if (run.failed.isNotEmpty()) {
                 return InstallResult.Failed("${run.failed.size} file(s) failed to download", run.failed)
@@ -177,6 +188,20 @@ class MinecraftInstaller(
             return InstallResult.Failed("Received unreadable version data")
         } catch (e: IllegalArgumentException) {
             return InstallResult.Failed("Received unreadable version data")
+        }
+    }
+
+    private suspend fun runWithProgress(
+        requests: List<DownloadRequest>,
+        onProgress: (DownloadProgress) -> Unit,
+    ): BatchResult = coroutineScope {
+        val monitor = launch {
+            downloads.progress.collect(onProgress)
+        }
+        try {
+            downloads.run(requests)
+        } finally {
+            monitor.cancel()
         }
     }
 
