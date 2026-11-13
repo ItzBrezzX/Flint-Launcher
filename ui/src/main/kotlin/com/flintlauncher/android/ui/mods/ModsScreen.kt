@@ -127,8 +127,8 @@ fun ModsScreen(
                     "world" to "Maps",
                 )
                 FilterChip(
-                    selected = state.selectedProjectType.isBlank(),
-                    onClick = { actions.onProjectTypeChange?.invoke("mod") },
+                    selected = state.selectedProjectType == "all",
+                    onClick = { actions.onProjectTypeChange?.invoke("all") },
                     enabled = actions.onProjectTypeChange != null,
                     label = { Text("All", fontSize = 10.sp) },
                 )
@@ -179,10 +179,7 @@ fun ModsScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("Platform: Java Edition", fontSize = 10.sp) },
-                        )
+                        Text("PLATFORM · JAVA EDITION", color = libraryGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         if (state.selectedProjectType == "mod") {
                             FilterDropdown(
                                 label = "Feature",
@@ -190,14 +187,15 @@ fun ModsScreen(
                                 options = listOf(ModFilterOption("", "All")) + state.categories,
                                 onSelected = { actions.onCategoryChange?.invoke(it) },
                             )
+                            FilterDropdown(
+                                label = "Loader",
+                                selected = state.loaders.firstOrNull { it.value == state.selectedLoader }?.label ?: state.selectedLoader.ifBlank { "All" },
+                                options = listOf(ModFilterOption("", "All")) + state.loaders,
+                                onSelected = { actions.onLoaderChange?.invoke(it) },
+                            )
+                            SideFilter("Client", state.clientSide, actions.onClientSideChange)
+                            SideFilter("Server", state.serverSide, actions.onServerSideChange)
                         }
-                        if (state.selectedProjectType == "mod") {
-                        FilterDropdown(
-                            label = "Loader",
-                            selected = state.loaders.firstOrNull { it.value == state.selectedLoader }?.label ?: state.selectedLoader.ifBlank { "All" },
-                            options = listOf(ModFilterOption("", "All")) + state.loaders,
-                            onSelected = { actions.onLoaderChange?.invoke(it) },
-                        )
                         FilterDropdown(
                             label = "Version",
                             selected = state.gameVersions.firstOrNull { it.value == state.selectedGameVersion }?.label ?: state.selectedGameVersion.ifBlank { "All" },
@@ -210,9 +208,6 @@ fun ModsScreen(
                             options = sortOptions(),
                             onSelected = { actions.onSortChange?.invoke(it) },
                         )
-                        SideFilter("Client", state.clientSide, actions.onClientSideChange)
-                        SideFilter("Server", state.serverSide, actions.onServerSideChange)
-                        }
                     }
                 }
             }
