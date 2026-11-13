@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
                         onLoaderChange = { modsViewModel.setLoader(it) },
                         onClientSideChange = { modsViewModel.setClientSide(it) },
                         onServerSideChange = { modsViewModel.setServerSide(it) },
+                        onSortChange = { modsViewModel.setSort(it) },
                         onSelectProfile = { modsViewModel.selectProfile(it) },
                         onCreateProfile = { name, version, loader -> modsViewModel.createProfile(name, version, loader) },
                         onSelectProject = { modsViewModel.selectProject(it) },
