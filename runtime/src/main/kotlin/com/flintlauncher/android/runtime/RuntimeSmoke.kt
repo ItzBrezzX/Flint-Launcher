@@ -3,15 +3,15 @@ package com.flintlauncher.android.runtime
 import com.flintlauncher.android.nativebridge.NativeBridge
 
 /**
- * Device-side smoke checklist for Spike 0.
- * Call from a debug screen or instrumented test.
- * Every result is a real string from native or a clear failure — never mocked success.
+ * Device-side smoke checks. Results come from the native library or an explicit
+ * failure string; EGL/GLES availability is not treated as renderer availability.
  */
 data class SmokeReport(
     val nativeLoaded: Boolean,
     val nativeLoadError: String?,
     val jniSmoke: String,
     val eglSmoke: String,
+    val eglCapabilities: String,
     val jreProbe: String,
 ) {
     val allCriticalPassed: Boolean
@@ -37,6 +37,7 @@ object RuntimeSmoke {
             nativeLoadError = NativeBridge.nativeLoadError,
             jniSmoke = NativeBridge.safeSmokeTest(),
             eglSmoke = NativeBridge.safeEglSmoke(),
+            eglCapabilities = NativeBridge.safeEglCapabilities(),
             jreProbe = jreProbe,
         )
     }
