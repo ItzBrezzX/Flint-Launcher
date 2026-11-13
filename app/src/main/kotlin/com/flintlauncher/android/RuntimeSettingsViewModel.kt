@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flintlauncher.android.runtime.KnownJreArtifacts
 import com.flintlauncher.android.runtime.MobileJreManager
+import com.flintlauncher.android.runtime.RuntimeSmoke
 import com.flintlauncher.android.ui.state.RuntimeEntryUi
 import com.flintlauncher.android.ui.state.RuntimeSettingsUiState
 import kotlinx.coroutines.CancellationException
@@ -45,7 +46,7 @@ class RuntimeSettingsViewModel(
             _state.update { it.copy(loading = true, message = null) }
             val result = try {
                 withContext(Dispatchers.IO) {
-                    runtimeManager?.listInstalled().orEmpty().map { runtime ->
+                    val runtimes = runtimeManager?.listInstalled().orEmpty().map { runtime ->
                         RuntimeEntryUi(
                             id = runtime.id,
                             major = runtime.majorVersion,
@@ -54,6 +55,8 @@ class RuntimeSettingsViewModel(
                             verified = runtime.verified,
                         )
                     }
+                    val gpuProbe = RuntimeSmoke.run().eglCapabilities
+                    runtimes to gpuProbe
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -61,13 +64,19 @@ class RuntimeSettingsViewModel(
                 _state.update {
                     it.copy(
                         loading = false,
-                        message = "Could not read installed Java runtimes: " +
+                        message = "Could not refresh runtime diagnostics: " +
                             (error.message ?: error.javaClass.simpleName),
                     )
                 }
                 return@launch
             }
-            _state.update { it.copy(installedRuntimes = result, loading = false) }
+            _state.update {
+                it.copy(
+                    installedRuntimes = result.first,
+                    rendererDiagnostics = result.second,
+                    loading = false,
+                )
+            }
         }
     }
 
