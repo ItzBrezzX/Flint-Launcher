@@ -10,6 +10,10 @@ import com.flintlauncher.android.download.DownloadManager
 import com.flintlauncher.android.installer.GameLayout
 import com.flintlauncher.android.installer.MinecraftInstaller
 import com.flintlauncher.android.network.FlintHttp
+import com.flintlauncher.android.mods.ModrinthApi
+import com.flintlauncher.android.mods.ModrinthModInstaller
+import com.flintlauncher.android.mods.ModrinthRepository
+import com.flintlauncher.android.profiles.ProfileRepository
 import com.flintlauncher.android.partners.BundledServerFeed
 import com.flintlauncher.android.partners.McStatusClient
 import com.flintlauncher.android.partners.PartnersRepository
@@ -18,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import okhttp3.Cache
 import java.io.File
+import java.io.IOException
 
 class FlintApplication : Application() {
     lateinit var container: AppContainer
@@ -43,6 +48,18 @@ class AppContainer(private val app: Application) {
     // Large downloads must not pass through the response cache.
     private val downloadHttp = http.newBuilder().cache(null).build()
 
+    // Mod artifacts must stay on Modrinth's official CDN, including every redirected exchange.
+    private val modDownloadHttp = http.newBuilder()
+        .cache(null)
+        .addNetworkInterceptor { chain ->
+            val url = chain.request().url
+            if (url.scheme != "https" || url.host != "cdn.modrinth.com") {
+                throw IOException("Blocked mod download outside cdn.modrinth.com")
+            }
+            chain.proceed(chain.request())
+        }
+        .build()
+
     val partnersRepository = PartnersRepository(
         feed = BundledServerFeed,
         statusClient = McStatusClient(http),
@@ -52,6 +69,13 @@ class AppContainer(private val app: Application) {
     private val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
     private val layout = GameLayout(gameRoot)
     private val downloadManager = DownloadManager(downloadHttp, DownloadConfig(concurrency = 4))
+    private val modDownloadManager = DownloadManager(modDownloadHttp, DownloadConfig(concurrency = 2))
+
+    val profileRepository = ProfileRepository(File(app.filesDir, "profiles.json"))
+    val modrinthRepository = ModrinthRepository(
+        api = ModrinthApi(http),
+        installer = ModrinthModInstaller(modDownloadManager, gameRoot),
+    )
 
     val installer = MinecraftInstaller(http = http, layout = layout, downloads = downloadManager)
 
@@ -74,6 +98,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             HomeViewModel(container.partnersRepository, container.launcherVersion)
         modelClass.isAssignableFrom(VersionsViewModel::class.java) ->
             VersionsViewModel(container.installer, container.installCoordinator, container::startInstallService)
+        modelClass.isAssignableFrom(ModsViewModel::class.java) ->
+            ModsViewModel(container.modrinthRepository, container.profileRepository)
         else -> throw IllegalArgumentException("Unknown ViewModel $modelClass")
     } as T
 }
