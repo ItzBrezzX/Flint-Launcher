@@ -25,8 +25,8 @@ data class ModrinthProject(
     val follows: Long = 0,
     @SerialName("icon_url") val iconUrl: String? = null,
     val slug: String? = null,
-    val environment: List<String> = emptyList(),
-    @SerialName("latest_version") val latestVersion: String? = null,
+    @SerialName("client_side") val clientSide: String = "unknown",
+    @SerialName("server_side") val serverSide: String = "unknown",
 )
 
 @Serializable
@@ -83,24 +83,21 @@ data class ModrinthGameVersion(
     val major: Boolean = false,
 )
 
-/** Modrinth's environment facet describes where a mod is intended to run. */
-enum class ModrinthEnvironment(val facetValue: String, val label: String) {
-    CLIENT_AND_SERVER("client_and_server", "Client + Server"),
-    CLIENT_ONLY("client_only", "Client only"),
-    CLIENT_OPTIONAL_SERVER("client_only_server_optional", "Client (server optional)"),
-    SINGLEPLAYER_ONLY("singleplayer_only", "Single-player"),
-    SERVER_ONLY("server_only", "Server only"),
-    SERVER_OPTIONAL_CLIENT("server_only_client_optional", "Server (client optional)"),
-    DEDICATED_SERVER_ONLY("dedicated_server_only", "Dedicated server"),
-    CLIENT_OR_SERVER("client_or_server", "Client or server"),
-    ANY("unknown", "Not specified"),
+enum class ModrinthSideSupport(val facetValue: String, val label: String) {
+    REQUIRED("required", "Required"),
+    OPTIONAL("optional", "Optional"),
+    UNSUPPORTED("unsupported", "Unsupported"),
+    UNKNOWN("unknown", "Any / unknown"),
 }
 
 data class ModrinthFilters(
     val query: String = "",
+    /** A Modrinth category, for example technology, adventure, optimization, or utility. */
     val category: String? = null,
-    val environment: ModrinthEnvironment? = null,
+    val clientSide: ModrinthSideSupport? = null,
+    val serverSide: ModrinthSideSupport? = null,
     val gameVersion: String? = null,
+    /** A Modrinth loader category, for example fabric, forge, neoforge, or quilt. */
     val loader: String? = null,
     val index: String = "relevance",
     val offset: Int = 0,
