@@ -118,19 +118,44 @@ fun ModsScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val resourceTypes = listOf(
+                    "mod" to "Mods",
+                    "shader" to "Shaders",
+                    "resourcepack" to "Resource Packs",
+                    "modpack" to "Add-ons",
+                    "datapack" to "Data Packs",
+                    "world" to "Maps",
+                )
                 FilterChip(
-                    selected = state.selectedCategory.isBlank(),
-                    onClick = { actions.onCategoryChange?.invoke("") },
-                    enabled = actions.onCategoryChange != null,
+                    selected = state.selectedProjectType.isBlank(),
+                    onClick = { actions.onProjectTypeChange?.invoke("mod") },
+                    enabled = actions.onProjectTypeChange != null,
                     label = { Text("All", fontSize = 10.sp) },
                 )
-                state.categories.take(10).forEach { category ->
+                resourceTypes.forEach { (type, label) ->
                     FilterChip(
-                        selected = state.selectedCategory == category.value,
-                        onClick = { actions.onCategoryChange?.invoke(category.value) },
-                        enabled = actions.onCategoryChange != null,
-                        label = { Text(category.label, fontSize = 10.sp) },
+                        selected = state.selectedProjectType == type,
+                        onClick = { actions.onProjectTypeChange?.invoke(type) },
+                        enabled = actions.onProjectTypeChange != null,
+                        label = { Text(label, fontSize = 10.sp) },
                     )
+                }
+                var moreExpanded by remember { mutableStateOf(false) }
+                Box {
+                    FilterChip(
+                        selected = state.selectedProjectType == "plugin",
+                        onClick = { moreExpanded = true },
+                        label = { Text("More ▾", fontSize = 10.sp) },
+                    )
+                    DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Plugins") },
+                            onClick = {
+                                moreExpanded = false
+                                actions.onProjectTypeChange?.invoke("plugin")
+                            },
+                        )
+                    }
                 }
             }
 
@@ -154,6 +179,19 @@ fun ModsScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("Platform: Java Edition", fontSize = 10.sp) },
+                        )
+                        if (state.selectedProjectType == "mod") {
+                            FilterDropdown(
+                                label = "Feature",
+                                selected = state.categories.firstOrNull { it.value == state.selectedCategory }?.label ?: "All",
+                                options = listOf(ModFilterOption("", "All")) + state.categories,
+                                onSelected = { actions.onCategoryChange?.invoke(it) },
+                            )
+                        }
+                        if (state.selectedProjectType == "mod") {
                         FilterDropdown(
                             label = "Loader",
                             selected = state.loaders.firstOrNull { it.value == state.selectedLoader }?.label ?: state.selectedLoader.ifBlank { "All" },
@@ -174,6 +212,7 @@ fun ModsScreen(
                         )
                         SideFilter("Client", state.clientSide, actions.onClientSideChange)
                         SideFilter("Server", state.serverSide, actions.onServerSideChange)
+                        }
                     }
                 }
             }
@@ -287,7 +326,7 @@ fun ModsScreen(
             onDismiss = { actions.onCloseProject?.invoke() },
             onInstall = { versionId -> actions.onInstallVersion?.invoke(project.id, versionId) },
             onUninstall = { actions.onUninstall?.invoke(project.id) },
-            canInstall = actions.onInstallVersion != null && state.selectedProfile != null,
+            canInstall = actions.onInstallVersion != null && state.selectedProfile != null && project.projectType == "mod",
             canUninstall = actions.onUninstall != null,
         )
     }
@@ -627,6 +666,18 @@ private fun ModDetailDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(project.description, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Type: ${project.projectType}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (project.projectType != "mod") {
+                    Text(
+                        "Browsing is available from Modrinth. Direct installation for this resource type is not connected yet.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 Text(
                     "Client: ${project.clientSide} · Server: ${project.serverSide}",
                     style = MaterialTheme.typography.labelSmall,
