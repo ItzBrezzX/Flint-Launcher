@@ -6,17 +6,24 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.flintlauncher.android.ui.state.HomeActions
 import com.flintlauncher.android.ui.state.HomeUiState
+import com.flintlauncher.android.ui.theme.FlintColors
 
 /**
  * PLAY dashboard. Android-native adaptation of the desktop layout:
@@ -31,7 +38,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val wide = maxWidth >= 840.dp
+        val wide = maxWidth >= 540.dp
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -71,9 +78,46 @@ fun HomeScreen(
 }
 
 @Composable
+private fun EmptyHeroBanner() {
+    Surface(
+        modifier = Modifier.fillMaxWidth().height(190.dp),
+        color = FlintColors.Panel,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, FlintColors.PanelRaised),
+    ) { }
+}
+
+@Composable
+private fun LaunchMessageCard(message: String, actions: HomeActions) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = FlintColors.Panel,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, FlintColors.PanelRaised),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                message,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                color = FlintColors.TextMuted,
+            )
+            TextButton(
+                onClick = { actions.onDismissLaunchMessage?.invoke() },
+                enabled = actions.onDismissLaunchMessage != null,
+            ) { Text("Dismiss") }
+        }
+    }
+}
+
+@Composable
 private fun MainSections(state: HomeUiState, actions: HomeActions) {
-    PlayerShowcase(state)
+    EmptyHeroBanner()
     LaunchButton(state, actions)
+    state.launchMessage?.let { LaunchMessageCard(it, actions) }
     ProfileSlots(state, actions)
     NewsSection(state.news, actions)
     FriendsSection(state.friends)

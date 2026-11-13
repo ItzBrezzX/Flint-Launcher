@@ -21,6 +21,11 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
+data class InstalledVersionSummary(
+    val versionId: String,
+    val requiredJavaMajor: Int,
+)
+
 data class InstalledVersion(
     val versionId: String,
     val version: VersionJson,
@@ -60,7 +65,28 @@ class MinecraftInstaller(
 ) {
     /** True only if a previous install of [versionId] ran to completion. */
     fun isInstalled(versionId: String): Boolean =
-        try { layout.installMarker(versionId).isFile } catch (e: InstallPlanException) { false }
+        try {
+            layout.installMarker(versionId).isFile &&
+                layout.versionJar(versionId).isFile &&
+                layout.versionJson(versionId).isFile
+        } catch (e: InstallPlanException) { false }
+
+    /** Returns fully installed versions only; partial or failed installs are excluded. */
+    fun installedVersions(): List<InstalledVersionSummary> =
+        layout.versionsDir.listFiles()
+            .orEmpty()
+            .asSequence()
+            .filter { it.isDirectory }
+            .mapNotNull { directory ->
+                val id = directory.name
+                if (!isInstalled(id)) return@mapNotNull null
+                runCatching {
+                    val metadata = VersionJsonParser.parse(layout.versionJson(id).readText())
+                    InstalledVersionSummary(id, metadata.javaVersion?.majorVersion ?: 8)
+                }.getOrNull()
+            }
+            .sortedByDescending { it.versionId }
+            .toList()
 
     suspend fun fetchManifest(): VersionManifest = VersionManifestParser.parse(fetchText(manifestUrl))
 
@@ -119,6 +145,9 @@ class MinecraftInstaller(
             }
 
             onStage(InstallStage.GENERATING_METADATA)
+            // Legacy versions do not read the content-addressed object store directly.
+            // Materialize their old path-based assets before marking the version installed.
+            LegacyAssetMaterializer.materialize(index, layout)
             layout.installMarker(versionId).apply { parentFile?.mkdirs() }.writeText(vanillaId)
             onStage(InstallStage.FINAL_VERIFICATION)
             // Marker is written only after existence + size (+ client hash) checks pass

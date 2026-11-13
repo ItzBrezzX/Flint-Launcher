@@ -57,6 +57,7 @@ data class HomeUiState(
     val account: AccountUi? = null,
     val installations: List<InstallationUi> = emptyList(),
     val selectedInstallationId: String? = null,
+    val launchMessage: String? = null,
     val news: Loadable<List<NewsCardUi>> = Loadable.Content(emptyList()),
     val partners: Loadable<List<PartnerServerUi>> = Loadable.Content(emptyList()),
     val friends: FriendsUi = FriendsUi.Unavailable,
@@ -73,6 +74,7 @@ data class HomeUiState(
 data class HomeActions(
     val onLaunch: (() -> Unit)? = null,
     val onSelectInstallation: ((String) -> Unit)? = null,
+    val onDismissLaunchMessage: (() -> Unit)? = null,
     val onAddProfile: (() -> Unit)? = null,
     val onEditProfile: ((String) -> Unit)? = null,
     val onDeleteProfile: ((String) -> Unit)? = null,
