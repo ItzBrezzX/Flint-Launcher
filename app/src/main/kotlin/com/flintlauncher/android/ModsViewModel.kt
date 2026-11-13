@@ -17,6 +17,7 @@ import com.flintlauncher.android.ui.state.ModVersionUi
 import com.flintlauncher.android.ui.state.ModsProfileUi
 import com.flintlauncher.android.ui.state.ModsUiState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +29,7 @@ class ModsViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(ModsUiState())
     val state: StateFlow<ModsUiState> = _state.asStateFlow()
+    private var searchJob: Job? = null
 
     init {
         load()
@@ -99,9 +101,16 @@ class ModsViewModel(
         search()
     }
 
+    fun setSort(value: String) {
+        if (value !in setOf("relevance", "downloads", "follows", "newest", "updated")) return
+        _state.value = _state.value.copy(sortIndex = value)
+        search()
+    }
+
     fun search() {
-        viewModelScope.launch {
-            val current = _state.value
+        val current = _state.value
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             _state.value = current.copy(loading = true, errorMessage = null, offset = 0, results = Loadable.Loading)
             try {
                 val response = mods.search(current.toFilters(offset = 0))
@@ -325,6 +334,7 @@ class ModsViewModel(
         serverSide = serverSide.toSideSupport(),
         gameVersion = selectedGameVersion.takeIf { it.isNotBlank() },
         loader = selectedLoader.takeIf { it.isNotBlank() && it != Loaders.VANILLA },
+        index = sortIndex,
         offset = offset,
         limit = pageLimit,
     )
