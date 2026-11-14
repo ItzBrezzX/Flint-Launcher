@@ -40,9 +40,13 @@ endif()
 function(flint_replace_glfw_source relative_path old_text new_text)
     set(source_file "${glfw_SOURCE_DIR}/${relative_path}")
     file(READ "${source_file}" source_text)
-    string(FIND "${source_text}" "${old_text}" match_position)
-    if(match_position EQUAL -1)
-        message(FATAL_ERROR "Flint GLFW patch no longer matches ${relative_path}: ${old_text}")
+    string(FIND "${source_text}" "${old_text}" old_position)
+    if(old_position EQUAL -1)
+        string(FIND "${source_text}" "${new_text}" new_position)
+        if(new_position EQUAL -1)
+            message(FATAL_ERROR "Flint GLFW patch no longer matches ${relative_path}: expected old or patched source anchor")
+        endif()
+        return()
     endif()
     string(REPLACE "${old_text}" "${new_text}" source_text "${source_text}")
     file(WRITE "${source_file}" "${source_text}")
@@ -83,7 +87,7 @@ flint_replace_glfw_source("src/egl_context.c"
     "acquired client handle through mojoexec" "acquired EGL client handle through Flint")
 flint_replace_glfw_source("src/egl_context.c"
     "#if defined(_GLFW_ANDROID)\n        mojoexec_make_bigcore_affine();\n#endif"
-    "")
+    "/* Flint leaves CPU affinity policy to Android. */")
 
 flint_replace_glfw_source("src/CMakeLists.txt"
     [=[
