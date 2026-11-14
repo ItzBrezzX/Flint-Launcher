@@ -145,4 +145,45 @@ class LibraryResolverTest {
         assertEquals("p.Main", merged.mainClass)
         assertNull(merged.inheritsFrom)
     }
+    
+    @Test
+    fun reportsMissingNativeClassifierEvenWhenRegularArtifactExists() {
+        val requiredNative = VersionJsonParser.parse(
+            """{"id":"native-test","libraries":[{
+                "name":"com.example:native-required:1.0",
+                "natives":{"linux":"natives-linux-64"},
+                "downloads":{
+                    "artifact":{"path":"com/example/native-required/1.0/native-required-1.0.jar","url":"https://example.invalid/library.jar"},
+                    "classifiers":{}
+                }
+            }]}""",
+        ).libraries.single()
+
+        val result = LibraryResolver.resolve(listOf(requiredNative), linux)
+
+        assertTrue(result.files.any { !it.isNative })
+        assertEquals(
+            listOf("com.example:native-required:1.0 (missing native classifier natives-linux-64)"),
+            result.unresolved,
+        )
+    }
+
+    @Test
+    fun doesNotRequireNativeClassifiersForOtherOperatingSystems() {
+        val windowsOnlyNative = VersionJsonParser.parse(
+            """{"id":"native-test","libraries":[{
+                "name":"com.example:windows-native:1.0",
+                "natives":{"windows":"natives-windows"},
+                "downloads":{"classifiers":{
+                    "natives-windows":{"url":"https://example.invalid/windows.jar"}
+                }}
+            }]}""",
+        ).libraries.single()
+
+        val result = LibraryResolver.resolve(listOf(windowsOnlyNative), linux)
+
+        assertTrue(result.files.isEmpty())
+        assertTrue(result.unresolved.isEmpty())
+    }
+
 }
