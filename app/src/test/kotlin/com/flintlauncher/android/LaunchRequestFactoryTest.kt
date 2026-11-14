@@ -126,6 +126,20 @@ class LaunchRequestFactoryTest {
     }
 
     @Test
+    fun prefersTheNativeDirectoryPreparedByTheInstaller() {
+        val original = fixture()
+        val extractedNatives = temporary.newFolder("extracted-natives")
+        val updated = original.copy(
+            installed = original.installed.copy(nativesDirectory = extractedNatives),
+        )
+
+        val request = create(updated)
+
+        assertEquals(extractedNatives.canonicalFile, request.nativeDir.canonicalFile)
+        assertTrue(request.jvmArgs.contains("-Djava.library.path=${extractedNatives.absolutePath}"))
+    }
+
+    @Test
     fun rejectsUnverifiedRendererBeforeProducingRequest() {
         val unavailable = renderer.copy(available = false)
         try {

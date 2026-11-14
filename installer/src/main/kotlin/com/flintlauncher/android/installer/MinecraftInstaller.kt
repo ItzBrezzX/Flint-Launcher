@@ -170,7 +170,9 @@ class MinecraftInstaller(
                 return InstallResult.Failed("Could not clear the previous native libraries for $versionId")
             }
             try {
-                NativesExtractor.extract(plan.nativeJars, nativesDirectory)
+                withContext(Dispatchers.IO) {
+                    NativesExtractor.extract(plan.nativeJars, nativesDirectory)
+                }
             } catch (nativeError: Exception) {
                 nativesDirectory.deleteRecursively()
                 return InstallResult.Failed("Could not extract native libraries for $versionId: ${nativeError.message ?: nativeError.javaClass.simpleName}")
