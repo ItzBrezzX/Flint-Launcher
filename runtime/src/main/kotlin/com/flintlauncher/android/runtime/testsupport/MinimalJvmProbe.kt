@@ -26,6 +26,8 @@ data class JvmProbeResult(
 }
 
 object MinimalJvmProbe {
+    private const val TAG = "FlintJvmProbe"
+
 
     /**
      * Writes a tiny Java 8 class file directly. Runtime-only Android JRE packages
