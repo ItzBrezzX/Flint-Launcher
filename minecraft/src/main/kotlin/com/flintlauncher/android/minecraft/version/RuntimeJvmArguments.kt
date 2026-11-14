@@ -15,7 +15,7 @@ object RuntimeJvmArguments {
         if (heapMb !in 256..16_384) {
             throw LaunchConfigurationException("Java heap must be between 256 MB and 16384 MB")
         }
-        return listOf("-Xmx${heapMb}M") + parseCustomArguments(customArguments)
+        return parseCustomArguments(customArguments) + "-Xmx${heapMb}M"
     }
 
     fun parseCustomArguments(customArguments: String): List<String> {
