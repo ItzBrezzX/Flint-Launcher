@@ -333,7 +333,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
             }
 
             JavaVMInitArgs init_args {};
-            init_args.version = JNI_VERSION_1_8;
+            init_args.version = JNI_VERSION_1_6;
             init_args.nOptions = static_cast<jint>(options.size());
             init_args.options = options.empty() ? nullptr : options.data();
             init_args.ignoreUnrecognized = JNI_FALSE;
@@ -361,7 +361,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     JNIEnv *jvm_env = nullptr;
     void *current_env = nullptr;
     bool attached_here = false;
-    const jint current_status = vm->GetEnv(&current_env, JNI_VERSION_1_8);
+    const jint current_status = vm->GetEnv(&current_env, JNI_VERSION_1_6);
     if (current_status == JNI_EDETACHED) {
         JNIEnv *attached_env = nullptr;
         if (vm->AttachCurrentThread(&attached_env, nullptr) != JNI_OK || attached_env == nullptr) {
