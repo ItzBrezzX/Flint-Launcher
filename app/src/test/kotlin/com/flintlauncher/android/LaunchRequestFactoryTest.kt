@@ -71,7 +71,11 @@ class LaunchRequestFactoryTest {
             writeBytes(byteArrayOf(4, 5, 6))
         }
         val version = VersionJsonParser.parse(
-            """{"id":"test","type":"release","mainClass":"net.example.Main","libraries":[{"name":"org.lwjgl.lwjgl:lwjgl:2.9.4"}],"minecraftArguments":"--username ${'
+        val playerPlaceholder = "$" + "{auth_player_name}"
+        val gameDirPlaceholder = "$" + "{game_directory}"
+        val version = VersionJsonParser.parse(
+            """{"id":"test","type":"release","mainClass":"net.example.Main","libraries":[{"name":"org.lwjgl.lwjgl:lwjgl:2.9.4"}],"minecraftArguments":"--username $playerPlaceholder --gameDir $gameDirPlaceholder"}""",
+        )
         )
         return Fixture(
             installed = InstalledVersion(
