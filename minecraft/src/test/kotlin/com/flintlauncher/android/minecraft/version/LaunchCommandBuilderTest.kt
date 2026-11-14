@@ -210,4 +210,30 @@ class LaunchCommandBuilderTest {
         }
     }
 
+
+    @Test
+    fun b173LegacyMetadataBuildsQuotedLaunchArguments() {
+        val beta = VersionJsonParser.parse(
+            """{"id":"b1.7.3","type":"old_beta","mainClass":"net.minecraft.client.Minecraft",
+                "minecraftArguments":"--username \\\"${'$'}{auth_player_name}\\\" --session \\\"${'$'}{auth_session}\\\" --gameDir \\\"${'$'}{game_directory}\\\" --assetsDir \\\"${'$'}{game_assets}\\\""}""",
+        )
+
+        val command = LaunchCommandBuilder.build(
+            beta,
+            context.copy(versionName = "b1.7.3", versionType = "old_beta"),
+        )
+
+        assertEquals("net.minecraft.client.Minecraft", command.mainClass)
+        assertEquals(
+            listOf(
+                "--username", "Steve",
+                "--session", "token:token:00000000-0000-0000-0000-000000000001",
+                "--gameDir", "/g",
+                "--assetsDir", "/a",
+            ),
+            command.gameArguments,
+        )
+    }
+
+
 }
