@@ -12,7 +12,7 @@ enum class InstallStage(val label: String) {
     DOWNLOADING_CLIENT("Downloading Minecraft client"),
     DOWNLOADING_LIBRARIES("Downloading libraries"),
     DOWNLOADING_NATIVES("Downloading native libraries"),
-    DOWNLOADING_ASSETS("Downloading assets"),
+    DOWNLOADING_ASSETS("Downloading client, libraries, native libraries & assets"),
     EXTRACTING("Extracting / preparing files"),
     VALIDATING_INTEGRITY("Validating file integrity"),
     GENERATING_METADATA("Generating installation metadata"),

@@ -6,11 +6,12 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Game launcher following the PojavLauncher in-process JVM model:
- * load mobile OpenJDK via dlopen → set env → call JLI_Launch through JNI.
+ * Flint in-process JVM bootstrap:
+ * load mobile OpenJDK libraries → configure runtime paths → call JLI_Launch through JNI.
  *
- * Until a real ARM64 JRE is installed and the native library is built,
- * every launch attempt returns a precise failure instead of pretending success.
+ * The native bridge reports a completed JLI invocation as Exited, never as
+ * Started: JLI_Launch is synchronous here and returns after the Java main
+ * method exits. A persistent game-session/window lifecycle is a later milestone.
  */
 class PojavStyleGameLauncher(
     private val runtimeManager: JavaRuntimeManager,
@@ -35,17 +36,16 @@ class PojavStyleGameLauncher(
         val loaded = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
         if (!loaded) {
             return@withContext LaunchResult.Failed(
-                "Failed to dlopen libjli.so under ${runtime.homeDir}. " +
-                    "Is this a mobile OpenJDK layout with aarch64 libs?",
+                "JRE native loader failed: ${NativeBridge.safeJreStatus()}",
             )
         }
 
         // Build argv the way JLI_Launch expects (program name first)
         val args = mutableListOf<String>()
         args += "java"
+        // LaunchCommandBuilder has already normalized the metadata classpath
+        // to exactly one -cp entry; appending another here corrupts modern argv.
         args += request.jvmArgs
-        args += "-cp"
-        args += request.classpath.joinToString(File.pathSeparator) { it.absolutePath }
         args += request.mainClass
         args += request.gameArgs
 
@@ -68,25 +68,17 @@ class PojavStyleGameLauncher(
         running = false
         NativeBridge.nativeShutdown()
 
-        if (code == -2) {
-            // Expected until full JLI path is enabled
-            return@withContext LaunchResult.Failed(
-                "JLI_Launch path not fully enabled in this Spike 0 build. " +
-                    "Native load of libjli succeeded; complete argv/signal handling next. " +
-                    "Exit code=$code",
-                logBuffer.toString(),
-            )
-        }
         if (code != 0) {
-            return@withContext LaunchResult.Failed("JVM exited with code $code", logBuffer.toString())
+            return@withContext LaunchResult.Failed("JLI_Launch exited with code $code", logBuffer.toString())
         }
-        LaunchResult.Started(pid = null, logFile = null)
+        LaunchResult.Exited(exitCode = code)
     }
 
     override suspend fun isRunning(): Boolean = running
     override suspend fun stop() {
-        running = false
-        NativeBridge.nativeShutdown()
+        if (running) {
+            logBuffer.appendLine("Stop requested, but an in-process JLI invocation cannot be safely interrupted yet.")
+        }
     }
 
     override fun stdout(): String = logBuffer.toString()

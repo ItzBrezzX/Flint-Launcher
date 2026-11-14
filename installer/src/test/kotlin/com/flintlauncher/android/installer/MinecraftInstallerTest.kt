@@ -134,7 +134,7 @@ class MinecraftInstallerTest {
     fun fullInstallDownloadsEverythingAndReportsStagesInOrder() = runBlocking {
         val stages = mutableListOf<InstallStage>()
 
-        val installed = success(installer.install("1.0-test") { stages += it })
+        val installed = success(installer.install("1.0-test", onStage = { stage -> stages.add(stage) }))
 
         assertEquals(
             listOf(
@@ -166,6 +166,47 @@ class MinecraftInstallerTest {
         assertEquals(1, fake.count("/assets/objects/${hash1.take(2)}/$hash1")) // shared asset fetched once
     }
 
+
+    @Test
+    fun installsLegacyBetaAndMaterializesVirtualAssets() = runBlocking {
+        val versionId = "b1.7.3"
+        val legacyAsset = "legacy sound asset".toByteArray()
+        val legacyAssetHash = sha1(legacyAsset)
+        val assetIndex = """{"virtual":true,"objects":{
+            "sound/test.ogg":{"hash":"${legacyAssetHash}","size":${legacyAsset.size}}}}""".toByteArray()
+        val legacyClient = "legacy beta client".toByteArray()
+        val lwjglLibrary = "legacy lwjgl library".toByteArray()
+        val libraryPath = "org/lwjgl/lwjgl/lwjgl/2.9.0/lwjgl-2.9.0.jar"
+
+        fake.blobs["/legacy/client.jar"] = legacyClient
+        fake.blobs["/legacy/lwjgl.jar"] = lwjglLibrary
+        fake.blobs["/legacy/assets/index.json"] = assetIndex
+        fake.blobs["/assets/objects/${legacyAssetHash.take(2)}/$legacyAssetHash"] = legacyAsset
+
+        val versionJson = """{
+          "id":"$versionId","type":"old_beta","mainClass":"net.minecraft.client.Minecraft",
+          "assets":"pre-1.6",
+          "downloads":{"client":{"sha1":"${sha1(legacyClient)}","size":${legacyClient.size},"url":"$base/legacy/client.jar"}},
+          "assetIndex":{"id":"pre-1.6","sha1":"${sha1(assetIndex)}","size":${assetIndex.size},"url":"$base/legacy/assets/index.json"},
+          "libraries":[{"name":"org.lwjgl.lwjgl:lwjgl:2.9.0","downloads":{"artifact":{
+            "path":"$libraryPath","sha1":"${sha1(lwjglLibrary)}","size":${lwjglLibrary.size},"url":"$base/legacy/lwjgl.jar"}}}],
+          "minecraftArguments":"--demo"
+        }"""
+        fake.blobs["/meta/$versionId.json"] = versionJson.toByteArray()
+        fake.blobs["/manifest.json"] = """{"latest":{"release":"1.0-test","snapshot":"1.0-test"},"versions":[
+            {"id":"$versionId","type":"old_beta","url":"$base/meta/$versionId.json",
+             "time":"2011-07-08T00:00:00+00:00","releaseTime":"2011-07-08T00:00:00+00:00"}]}""".toByteArray()
+
+        val installed = success(installer.install(versionId))
+
+        assertEquals(versionId, installed.versionId)
+        assertEquals(8, installed.requiredJavaMajor)
+        assertEquals("pre-1.6", installed.assetIndexId)
+        assertEquals(listOf(layout.library(libraryPath), layout.versionJar(versionId)), installed.classpath)
+        assertTrue(layout.legacyVirtualAsset("sound/test.ogg").readBytes().contentEquals(legacyAsset))
+        assertTrue(installer.isInstalled(versionId))
+    }
+
     @Test
     fun runningAgainDownloadsNoGameFiles() = runBlocking {
         success(installer.install("1.0-test"))
@@ -187,6 +228,50 @@ class MinecraftInstallerTest {
 
         assertTrue(lib.readBytes().contentEquals(libJar))
         assertEquals(listOf("/files/lib.jar"), fake.requested.filter { it.startsWith("/files/") })
+    }
+
+    @Test
+    fun resolvesMultipleLoaderInheritanceLevelsBackToVanilla() = runBlocking {
+        val baseJar = "base loader".toByteArray()
+        val overlayJar = "overlay loader".toByteArray()
+        fake.blobs["/maven/net/example/base/1.0/base-1.0.jar"] = baseJar
+        fake.blobs["/maven/net/example/overlay/1.0/overlay-1.0.jar"] = overlayJar
+
+        val baseProfile = layout.versionJson("loader-base")
+        baseProfile.parentFile!!.mkdirs()
+        baseProfile.writeText(
+            """{"id":"loader-base","inheritsFrom":"1.0-test","libraries":[
+              {"name":"net.example:base:1.0","url":"$base/maven"}]}""",
+        )
+
+        val overlayProfile = layout.versionJson("loader-overlay")
+        overlayProfile.parentFile!!.mkdirs()
+        overlayProfile.writeText(
+            """{"id":"loader-overlay","inheritsFrom":"loader-base","mainClass":"net.example.OverlayMain",
+              "libraries":[{"name":"net.example:overlay:1.0","url":"$base/maven"}],
+              "arguments":{"game":["--overlay"],"jvm":["-Doverlay=true"]}}""",
+        )
+
+        val installed = success(installer.install("loader-overlay"))
+
+        assertEquals("net.example.OverlayMain", installed.version.mainClass)
+        assertEquals(layout.versionJar("1.0-test"), installed.clientJar)
+        assertEquals(
+            listOf(
+                layout.library("net/example/overlay/1.0/overlay-1.0.jar"),
+                layout.library("net/example/base/1.0/base-1.0.jar"),
+                layout.library("com/example/lib/1.0/lib-1.0.jar"),
+                layout.versionJar("1.0-test"),
+            ),
+            installed.classpath,
+        )
+        assertEquals(21, installed.requiredJavaMajor)
+        assertTrue(installed.version.arguments!!.game.containsAll(
+            listOf(
+                kotlinx.serialization.json.JsonPrimitive("--version"),
+                kotlinx.serialization.json.JsonPrimitive("--overlay"),
+            ),
+        ))
     }
 
     @Test
@@ -282,6 +367,29 @@ class NativesExtractorTest {
         assertEquals(setOf("libfoo.so", "libbar.so"), extracted.map { it.name }.toSet())
         assertTrue(File(target, "libfoo.so").isFile)
         assertTrue(!File(target, "META-INF").exists())
+    }
+
+    @Test
+    fun createsTheNativeDirectoryEvenWhenNoNativeJarsAreRequired() {
+        val target = File(tmp.root, "empty-natives")
+
+        val extracted = NativesExtractor.extract(emptyList(), target)
+
+        assertTrue(target.isDirectory)
+        assertTrue(extracted.isEmpty())
+    }
+
+    @Test
+    fun failsWhenTheNativeOutputDirectoryCannotBeCreated() {
+        val blockingFile = File(tmp.root, "not-a-directory").apply { writeText("block") }
+        val target = File(blockingFile, "natives")
+
+        try {
+            NativesExtractor.extract(emptyList(), target)
+            fail("expected InstallPlanException")
+        } catch (error: InstallPlanException) {
+            assertTrue(error.message!!.contains("native library directory"))
+        }
     }
 
     @Test

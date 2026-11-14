@@ -101,6 +101,8 @@ enum class ModrinthSideSupport(val facetValue: String, val label: String) {
 
 data class ModrinthFilters(
     val query: String = "",
+    /** Official Modrinth project type: mod, shader, resourcepack, modpack, datapack, world, or plugin. */
+    val projectType: String = "mod",
     /** A Modrinth category, for example technology, adventure, optimization, or utility. */
     val category: String? = null,
     val clientSide: ModrinthSideSupport? = null,

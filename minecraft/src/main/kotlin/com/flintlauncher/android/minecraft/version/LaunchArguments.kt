@@ -60,6 +60,8 @@ object LaunchCommandBuilder {
         environment: Environment = Environment(),
         extraJvmArguments: List<String> = emptyList(),
         extraGameArguments: List<String> = emptyList(),
+        runtimeHeapMb: Int? = null,
+        customJvmArguments: String = "",
     ): LaunchCommand {
         val mainClass = version.mainClass
             ?: throw LaunchConfigurationException("Version ${version.id} has no main class")
@@ -73,10 +75,16 @@ object LaunchCommandBuilder {
 
         val rawJvm = version.arguments?.jvm?.takeIf { it.isNotEmpty() }?.let { resolve(it, env) } ?: legacyJvm
         val rawGame = version.arguments?.game?.takeIf { it.isNotEmpty() }?.let { resolve(it, env) }
-            ?: version.minecraftArguments?.split(' ')?.filter { it.isNotEmpty() }
+            ?: version.minecraftArguments?.let(LegacyArgumentTokenizer::tokenize)
             ?: throw LaunchConfigurationException("Version ${version.id} has no game arguments")
 
-        val jvm = extraJvmArguments + rawJvm.map { substitute(it, values) }
+        val runtimeSettingsArguments = if (runtimeHeapMb != null) {
+            RuntimeJvmArguments.build(runtimeHeapMb, customJvmArguments)
+        } else {
+            RuntimeJvmArguments.parseCustomArguments(customJvmArguments)
+        }
+        val resolvedJvm = rawJvm.map { substitute(it, values) }
+        val jvm = extraJvmArguments + ensureManagedClasspath(resolvedJvm, context.classpath) + runtimeSettingsArguments
         val game = rawGame.map { substitute(it, values) } + extraGameArguments
 
         val unresolved = (jvm + game).flatMap { placeholder.findAll(it).map { m -> m.groupValues[1] }.toList() }.distinct()
@@ -113,6 +121,47 @@ object LaunchCommandBuilder {
 
     internal fun substitute(text: String, values: Map<String, String>): String =
         placeholder.replace(text) { match -> values[match.groupValues[1]] ?: match.value }
+
+    /**
+     * Minecraft metadata normally supplies a classpath flag, but older metadata
+     * may omit it. Normalize alternate spellings to one launcher-managed -cp so
+     * the native bootstrap must not append a second, conflicting classpath.
+     */
+    private fun ensureManagedClasspath(arguments: List<String>, classpath: String): List<String> {
+        val result = mutableListOf<String>()
+        var found = false
+        var index = 0
+        while (index < arguments.size) {
+            when (val argument = arguments[index]) {
+                "-cp", "-classpath", "--class-path" -> {
+                    if (found) throw LaunchConfigurationException("Version metadata declares more than one JVM classpath")
+                    if (index + 1 >= arguments.size) {
+                        throw LaunchConfigurationException("Version metadata has a JVM classpath flag without a value")
+                    }
+                    result += "-cp"
+                    result += classpath
+                    found = true
+                    index += 2
+                }
+                else -> {
+                    if (argument.startsWith("--class-path=")) {
+                        if (found) throw LaunchConfigurationException("Version metadata declares more than one JVM classpath")
+                        result += "-cp"
+                        result += classpath
+                        found = true
+                    } else {
+                        result += argument
+                    }
+                    index += 1
+                }
+            }
+        }
+        if (!found) {
+            result += "-cp"
+            result += classpath
+        }
+        return result
+    }
 
     private fun resolve(entries: List<JsonElement>, env: Environment): List<String> =
         entries.flatMap { element ->

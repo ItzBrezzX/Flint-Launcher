@@ -3,6 +3,8 @@ package com.flintlauncher.android
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flintlauncher.android.partners.PartnersRepository
+import com.flintlauncher.android.installer.InstallResult
+import com.flintlauncher.android.installer.InstallStage
 import com.flintlauncher.android.installer.MinecraftInstaller
 import com.flintlauncher.android.runtime.KnownJreArtifacts
 import com.flintlauncher.android.runtime.MobileJreManager
@@ -66,7 +68,7 @@ class HomeViewModel(
     fun selectInstallation(id: String) {
         if (_state.value.installations.none { it.id == id }) return
         launchJob?.cancel()
-        _state.update { it.copy(selectedInstallationId = id, launchMessage = null) }
+        _state.update { it.copy(selectedInstallationId = id, launchMessage = null, launchBusy = false, launchStage = null) }
     }
 
     /**
@@ -74,6 +76,7 @@ class HomeViewModel(
      * refuses to launch the JVM until a real Minecraft renderer is bundled.
      */
     fun launchSelected() {
+        CrashDiagnostics.record("INFO", "Play tapped; selected installation=${_state.value.selectedInstallationId ?: "none"}")
         val selected = _state.value.selected
         if (selected == null) {
             _state.update { it.copy(launchMessage = "Install a Minecraft version first.") }
@@ -81,23 +84,67 @@ class HomeViewModel(
         }
         launchJob?.cancel()
         launchJob = viewModelScope.launch {
-            _state.update { it.copy(launchMessage = "Checking Minecraft files and Java runtime…") }
-            val complete = withContext(Dispatchers.IO) {
-                installer.isInstalled(selected.minecraftVersion)
+            _state.update {
+                it.copy(
+                    launchBusy = true,
+                    launchStage = InstallStage.RESOLVING_METADATA.label,
+                    launchProgressPercent = null,
+                    launchDownloadedBytes = 0,
+                    launchTotalBytes = null,
+                    launchSpeedBytesPerSecond = 0,
+                    launchMessage = "Preparing Minecraft ${selected.minecraftVersion} environment…",
+                )
             }
-            if (!complete) {
-                refreshInstallations()
-                _state.update {
-                    it.copy(launchMessage = "Minecraft ${selected.minecraftVersion} is incomplete. Repair this instance before playing.")
+            val prepared = installer.install(
+                selected.minecraftVersion,
+                onStage = { stage ->
+                    _state.update {
+                        it.copy(
+                            launchStage = stage.label,
+                            launchProgressPercent = null,
+                            launchDownloadedBytes = 0,
+                            launchTotalBytes = null,
+                            launchSpeedBytesPerSecond = 0,
+                        )
+                    }
+                },
+                onProgress = { progress ->
+                    _state.update {
+                        it.copy(
+                            launchProgressPercent = progress.percent?.toFloat(),
+                            launchDownloadedBytes = progress.downloadedBytes,
+                            launchTotalBytes = progress.totalBytes,
+                            launchSpeedBytesPerSecond = progress.speedBytesPerSecond,
+                        )
+                    }
+                },
+            )
+            when (prepared) {
+                is InstallResult.Failed -> {
+                    CrashDiagnostics.record("ERROR", "Minecraft preparation failed: ${prepared.message}")
+                    refreshInstallations()
+                    _state.update {
+                        it.copy(
+                            launchBusy = false,
+                            launchStage = null,
+                            launchMessage = "Minecraft environment preparation failed: ${prepared.message}",
+                        )
+                    }
+                    return@launch
                 }
-                return@launch
+                InstallResult.Cancelled -> {
+                    _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Minecraft preparation was cancelled.") }
+                    return@launch
+                }
+                is InstallResult.Success -> Unit
             }
 
             val manager = runtimeManager
             val arch = deviceArch
             if (manager == null || arch == null) {
+                CrashDiagnostics.record("ERROR", "No compatible mobile JRE manager; process ABI=${arch ?: "unknown"}")
                 _state.update {
-                    it.copy(launchMessage = "This APK process ABI is not supported by Flint's mobile Java runtime catalog.")
+                    it.copy(launchBusy = false, launchStage = null, launchMessage = "This APK process ABI is not supported by Flint's mobile Java runtime catalog.")
                 }
                 return@launch
             }
@@ -107,7 +154,8 @@ class HomeViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                _state.update { it.copy(launchMessage = "Could not check Java runtimes: ${error.message ?: "unknown error"}") }
+                CrashDiagnostics.recordThrowable("ERROR", "Could not check Java runtimes", error)
+                _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Could not check Java runtimes: ${error.message ?: "unknown error"}") }
                 return@launch
             }
 
@@ -117,7 +165,7 @@ class HomeViewModel(
                 val targetMajor = KnownJreArtifacts.compatibleMajor(selected.javaMajor, arch)
                 if (targetMajor == null) {
                     _state.update {
-                        it.copy(launchMessage = "No published mobile Java runtime for ABI $arch satisfies Java ${selected.javaMajor}.")
+                        it.copy(launchBusy = false, launchStage = null, launchMessage = "No published mobile Java runtime for ABI $arch satisfies Java ${selected.javaMajor}.")
                     }
                     return@launch
                 }
@@ -125,36 +173,49 @@ class HomeViewModel(
                     it.copy(launchMessage = "Downloading Java $targetMajor for ${selected.minecraftVersion}…")
                 }
                 val result = try {
-                    manager.install(targetMajor)
+                    manager.install(targetMajor) { stage, progress ->
+                        _state.update {
+                            it.copy(
+                                launchStage = stage,
+                                launchProgressPercent = progress?.percent?.toFloat(),
+                                launchDownloadedBytes = progress?.downloadedBytes ?: it.launchDownloadedBytes,
+                                launchTotalBytes = progress?.totalBytes ?: it.launchTotalBytes,
+                                launchSpeedBytesPerSecond = progress?.speedBytesPerSecond ?: 0,
+                            )
+                        }
+                    }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
-                    _state.update { it.copy(launchMessage = "Java download failed: ${error.message ?: "unknown error"}") }
+                    CrashDiagnostics.recordThrowable("ERROR", "Java download failed", error)
+                    _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Java download failed: ${error.message ?: "unknown error"}") }
                     return@launch
                 }
                 result.getOrElse { error ->
                     _state.update {
-                        it.copy(launchMessage = "Java $targetMajor could not be installed: ${error.message ?: "unknown error"}")
+                        it.copy(launchBusy = false, launchStage = null, launchMessage = "Java $targetMajor could not be installed: ${error.message ?: "unknown error"}")
                     }
                     return@launch
                 }
             }
 
-            val verified = try {
-                manager.verify(runtime)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                false
-            }
-            if (!verified) {
-                _state.update { it.copy(launchMessage = "Java ${runtime.majorVersion} was installed but failed runtime verification.") }
-                return@launch
-            }
-
+            /*
+             * Do not execute JLI_Launch from the launcher process here.
+             * The current native probe starts a process-global HotSpot VM
+             * synchronously in this same Android process. On unsupported
+             * Android/JRE combinations that can terminate the whole app
+             * with a native signal, which Kotlin try/catch cannot intercept.
+             *
+             * Game launch is intentionally gated until the renderer + game
+             * window backend exists and JVM probing can run in an isolated
+             * process. Installing Java is not equivalent to launching MC.
+             */
+            CrashDiagnostics.record("WARN", "Launch blocked after Java preparation: renderer/game-window backend is not integrated; Java=${runtime.majorVersion} ABI=${runtime.arch}")
             _state.update {
                 it.copy(
-                    launchMessage = "Java ${runtime.majorVersion} (${runtime.arch}) is verified for Minecraft ${selected.minecraftVersion}. Flint still cannot start the game: the GL4ES/OpenGL compatibility renderer and full game window bridge are not bundled yet.",
+                    launchBusy = false,
+                    launchStage = null,
+                    launchMessage = "Java ${runtime.majorVersion} (${runtime.arch}) is installed. Minecraft launch is not available yet: Flint's GL4ES/OpenGL renderer and game-window backend are not integrated. JVM execution is paused here to prevent a native JVM crash in the launcher process.",
                 )
             }
         }

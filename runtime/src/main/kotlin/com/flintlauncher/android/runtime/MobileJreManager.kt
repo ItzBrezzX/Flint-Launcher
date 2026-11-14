@@ -5,8 +5,13 @@ import com.flintlauncher.android.download.DownloadRequest
 import com.flintlauncher.android.download.ExpectedHash
 import com.flintlauncher.android.download.HashAlgorithm
 import com.flintlauncher.android.nativebridge.NativeBridge
+import com.flintlauncher.android.download.DownloadProgress
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -75,6 +80,14 @@ class MobileJreManager(
     private val downloads: DownloadManager,
 ) : JavaRuntimeManager {
 
+    @Volatile
+    private var verifiedRuntimeCanonicalPath: String? = null
+
+    /** Last detailed failure from the real JNI/JLI probe; null after success. */
+    @Volatile
+    var lastVerificationError: String? = null
+        private set
+
     init {
         require(RuntimeArchitecture.normalize(deviceArch) != null) {
             "Unsupported Android process architecture: " + deviceArch
@@ -92,13 +105,10 @@ class MobileJreManager(
             .sortedWith(compareBy<JavaRuntimeInfo> { it.majorVersion }.thenBy { it.id })
             .toList()
 
-        // Do not expose a runtime as verified until the device's native bridge
-        // can load its actual libjli and resolve JLI_Launch.
-        val verified = mutableListOf<JavaRuntimeInfo>()
-        for (candidate in candidates) {
-            if (verify(candidate)) verified += candidate
-        }
-        verified.toList()
+        // This is a metadata/layout inventory only. Loading HotSpot is process-global,
+        // so probing every installed JRE here would pin the first runtime and prevent
+        // another Java major from being selected in the same app process.
+        candidates
     }
 
     /** Selects the lowest installed Java major that satisfies the game requirement. */
@@ -110,7 +120,13 @@ class MobileJreManager(
     }
 
     /** Downloads and installs the exact JRE major for this Android app process architecture. */
-    override suspend fun install(major: Int): Result<JavaRuntimeInfo> {
+    override suspend fun install(major: Int): Result<JavaRuntimeInfo> = install(major) { _, _ -> }
+
+    /** Reports real download bytes, then named extraction/verification stages. */
+    suspend fun install(
+        major: Int,
+        onProgress: (stage: String, progress: DownloadProgress?) -> Unit,
+    ): Result<JavaRuntimeInfo> {
         return try {
             withContext(Dispatchers.IO) {
                 val artifact = KnownJreArtifacts.find(major, deviceArch)
@@ -131,7 +147,17 @@ class MobileJreManager(
                     sizeBytes = artifact.sizeBytes,
                     hash = ExpectedHash(HashAlgorithm.SHA256, artifact.sha256),
                 )
-                val batch = downloads.run(listOf(request))
+                onProgress("Downloading OpenJDK $major", downloads.progress.value)
+                val batch = coroutineScope {
+                    val monitor = launch {
+                        downloads.progress.collect { onProgress("Downloading OpenJDK $major", it) }
+                    }
+                    try {
+                        downloads.run(listOf(request))
+                    } finally {
+                        monitor.cancel()
+                    }
+                }
                 if (batch.cancelled) throw CancellationException("Java runtime download was cancelled")
                 batch.failed.firstOrNull()?.let { throw IOException("Java " + major + " download failed: " + it.reason) }
                 if (!archive.isFile || archive.length() != artifact.sizeBytes) {
@@ -146,7 +172,9 @@ class MobileJreManager(
                 staging.mkdirs()
 
                 try {
+                    onProgress("Extracting Java runtime", null)
                     SafeTarXzExtractor.extract(archive, staging)
+                    onProgress("Verifying Java runtime", null)
                     flattenSingleRoot(staging)
                     val stagedInfo = probe(staging)
                     if (!stagedInfo.verified) throw IOException("Extracted runtime is missing libjli.so or libjvm.so")
@@ -225,23 +253,73 @@ class MobileJreManager(
     }
 
     /**
-     * Verify archive metadata and native JLI symbol resolution on this Android process.
-     * This confirms that the mobile JVM entry point is loadable; it does NOT claim that
-     * Minecraft graphics or the game window are ready.
+     * Verify the selected runtime by loading its native libraries and executing
+     * a real Java 8-compatible class through JLI_Launch. This is process-global;
+     * never call it while enumerating all installed runtimes.
      */
     override suspend fun verify(runtime: JavaRuntimeInfo): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            val detected = probe(runtime.homeDir)
+        lastVerificationError = null
+        try {
+            val detected = try {
+                probe(runtime.homeDir)
+            } catch (error: Exception) {
+                lastVerificationError = "Runtime metadata check failed: " +
+                    (error.message ?: error.javaClass.simpleName)
+                return@withContext false
+            }
             val filesMatch = detected.verified &&
                 detected.majorVersion == runtime.majorVersion &&
                 detected.arch == deviceArch &&
                 detected.homeDir.canonicalFile == runtime.homeDir.canonicalFile
-            if (!filesMatch || !NativeBridge.isNativeLoaded) return@runCatching false
+            if (!filesMatch) {
+                lastVerificationError = "Runtime metadata does not match the selected Java version or app ABI."
+                return@withContext false
+            }
+            if (!NativeBridge.isNativeLoaded) {
+                lastVerificationError = "Flint native bridge failed to load: " +
+                    (NativeBridge.nativeLoadError ?: "unknown linker error")
+                return@withContext false
+            }
 
-            val jliReady = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
-            NativeBridge.nativeShutdown()
-            jliReady
-        }.getOrDefault(false)
+            val canonicalPath = runtime.homeDir.canonicalPath
+            if (verifiedRuntimeCanonicalPath == canonicalPath) return@withContext true
+
+            // HotSpot cannot be safely unloaded. If another runtime was already
+            // loaded in this process, do not try to start a second VM.
+            val nativeStatus = NativeBridge.safeJreStatus()
+            if (nativeStatus.startsWith("jre-loaded:")) {
+                lastVerificationError =
+                    "A JVM is already loaded in this Flint process. Restart Flint before verifying another runtime."
+                return@withContext false
+            }
+
+            val probeDir = File(
+                runtimesDir,
+                ".flint-jvm-probe-" + runtime.id.replace(Regex("[^A-Za-z0-9._-]"), "_"),
+            )
+            val result = com.flintlauncher.android.runtime.testsupport.MinimalJvmProbe.run(
+                runtime = detected,
+                classpathDir = probeDir,
+                workingDir = probeDir,
+            )
+            if (result.passed) {
+                verifiedRuntimeCanonicalPath = canonicalPath
+                lastVerificationError = null
+                true
+            } else {
+                lastVerificationError = (result.notes + listOfNotNull(result.nativeLoadError))
+                    .filter { it.isNotBlank() }
+                    .joinToString("; ")
+                    .ifBlank { "JVM probe failed without a native diagnostic." }
+                false
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Throwable) {
+            lastVerificationError = "JVM runtime verification crashed: " +
+                (error.message ?: error.javaClass.simpleName)
+            false
+        }
     }
 
     private fun probe(home: File): JavaRuntimeInfo {

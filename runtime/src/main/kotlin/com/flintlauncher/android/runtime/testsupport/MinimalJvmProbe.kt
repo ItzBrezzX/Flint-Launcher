@@ -4,6 +4,7 @@ import com.flintlauncher.android.nativebridge.NativeBridge
 import com.flintlauncher.android.runtime.JavaRuntimeInfo
 import com.flintlauncher.android.runtime.MobileJreManager
 import java.io.File
+import java.util.Base64
 
 /**
  * Host-side driver for Spike 0.3: load a mobile JRE and run a minimal Java main
@@ -26,9 +27,25 @@ data class JvmProbeResult(
 object MinimalJvmProbe {
 
     /**
-     * Writes a tiny standalone .java source that prints FLINT_JVM_OK and exits 0.
-     * The caller (or a device-side script) must compile it with the mobile javac
-     * or ship a prebuilt classes.jar built against the same major.
+     * Writes a tiny Java 8 class file directly. Runtime-only Android JRE packages
+     * do not necessarily ship javac, so the device probe must not depend on it.
+     */
+    fun writeProbeClass(dir: File): File {
+        dir.mkdirs()
+        val target = File(dir, "FlintJvmProbe.class")
+        val bytes = Base64.getDecoder().decode("yv66vgAAADQAHAEADUZsaW50SnZtUHJvYmUHAAEBABBqYXZhL2xhbmcvT2JqZWN0BwADAQAGPGluaXQ+AQADKClWAQAEQ29kZQwABQAGCgAEAAgBAARtYWluAQAWKFtMamF2YS9sYW5nL1N0cmluZzspVgEAEGphdmEvbGFuZy9TeXN0ZW0HAAwBAANvdXQBABVMamF2YS9pby9QcmludFN0cmVhbTsMAA4ADwkADQAQAQATamF2YS9pby9QcmludFN0cmVhbQcAEgEAB3ByaW50bG4BABUoTGphdmEvbGFuZy9TdHJpbmc7KVYMABQAFQoAEwAWAQAMRkxJTlRfSlZNX09LCAAYAQAKU291cmNlRmlsZQEAEkZsaW50SnZtUHJvYmUuamF2YQAhAAIABAAAAAAAAgABAAUABgABAAcAAAARAAEAAQAAAAUqtwAJsQAAAAAACQAKAAsAAQAHAAAAFQACAAEAAAAJsgAREhm2ABexAAAAAAABABoAAAACABs=")
+        require(bytes.size >= 8 &&
+            bytes[0] == 0xCA.toByte() &&
+            bytes[1] == 0xFE.toByte() &&
+            bytes[2] == 0xBA.toByte() &&
+            bytes[3] == 0xBE.toByte()
+        ) { "Embedded Flint JVM probe class is invalid" }
+        target.writeBytes(bytes)
+        return target
+    }
+
+    /**
+     * Writes the equivalent Java source for inspection or manual debugging.
      */
     fun writeProbeSource(dir: File): File {
         dir.mkdirs()
@@ -51,8 +68,10 @@ object MinimalJvmProbe {
 
     /**
      * Attempt: nativeLoadJre(runtime) then nativeLaunchJvm(argv for FlintJvmProbe).
+     * The probe class is generated into [classpathDir], so javac is not needed.
      *
-     * [classpathDir] must contain FlintJvmProbe.class (or a jar listed in classpath).
+     * This starts a process-global HotSpot VM. Run it in a disposable process;
+     * after it returns, restart Flint before attempting a real game launch.
      */
     fun run(
         runtime: JavaRuntimeInfo,
@@ -78,10 +97,18 @@ object MinimalJvmProbe {
 
         val jreOk = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
         notes += if (jreOk) "nativeLoadJre=true" else "nativeLoadJre=false"
+        notes += "native JRE status: ${NativeBridge.safeJreStatus()}"
         if (!jreOk) {
             return JvmProbeResult(true, null, false, null, notes)
         }
 
+        val probeClass = try {
+            writeProbeClass(classpathDir)
+        } catch (error: Exception) {
+            notes += "could not write probe class: ${error.message}"
+            return JvmProbeResult(true, null, false, null, notes)
+        }
+        notes += "probe class written: ${probeClass.absolutePath}"
         val cp = classpathDir.absolutePath
         val argv = arrayOf(
             "java",

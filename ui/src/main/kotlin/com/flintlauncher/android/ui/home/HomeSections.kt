@@ -69,18 +69,9 @@ private val PanelShape = RoundedCornerShape(16.dp)
 internal fun HomeTopBar(state: HomeUiState, actions: HomeActions) {
     Row(
         modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(12.dp).clip(RoundedCornerShape(3.dp)).background(FlintColors.Ember))
-            Text(
-                text = "FLINT",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp,
-            )
-        }
         AccountChip(state, actions)
     }
 }
@@ -188,7 +179,7 @@ private fun InfoChip(text: String) {
 @Composable
 internal fun LaunchButton(state: HomeUiState, actions: HomeActions) {
     val selected = state.selected
-    val canLaunch = actions.onLaunch != null
+    val canLaunch = actions.onLaunch != null && !state.launchBusy
     var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
@@ -206,7 +197,12 @@ internal fun LaunchButton(state: HomeUiState, actions: HomeActions) {
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("PLAY", color = FlintColors.OnEmber, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (state.launchBusy) "PREPARING MINECRAFT" else "LAUNCH GAME",
+                    color = FlintColors.OnEmber,
+                    fontWeight = FontWeight.Black,
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Text(
                     text = selected?.summary ?: "No installation selected",
                     color = FlintColors.OnEmber,

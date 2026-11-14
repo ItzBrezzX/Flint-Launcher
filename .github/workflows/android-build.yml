@@ -1,11 +1,11 @@
 # Spike 0.4 — reproducible ARM64 debug APK with native library verification.
-# Fails the job if libflint_native.so is missing from the APK.
+# Fails the job if either libflint_native.so or GL4ES libGL.so is missing from the APK.
 name: Android Build (multi-ABI native)
 
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'fix/build-recovery']
+    branches: [main, 'fix/build-recovery', 'integration/**']
   pull_request:
 
 permissions:
@@ -50,7 +50,9 @@ jobs:
             "platforms;android-${ANDROID_API_LEVEL}" \
             "build-tools;${ANDROID_BUILD_TOOLS}" \
             "ndk;${ANDROID_NDK_VERSION}" \
-            "cmake;3.22.1"
+            "cmake;3.22.1" \
+            "emulator" \
+            "system-images;android-${ANDROID_API_LEVEL};google_apis;x86_64"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
           test -d "${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
@@ -80,7 +82,7 @@ jobs:
       - name: Compile native module (arm64-v8a)
         run: |
           set -euo pipefail
-          gradle :native:assembleDebug --stacktrace --info | tee "${RUNNER_TEMP}/native-build.log"
+          gradle :native:assembleDebug --stacktrace 2>&1 | tee "${RUNNER_TEMP}/native-build.log"
 
       - name: Verify native library for every packaged ABI
         run: |
@@ -97,6 +99,16 @@ jobs:
             ls -la "${SO}"
             file "${SO}" || true
             echo "${ABI}: ${SO}" >> "${RUNNER_TEMP}/so-path.txt"
+
+            GL_SO=$(find native/build -name 'libGL.so' -path "*/${ABI}/*" | head -n1 || true)
+            if [ -z "${GL_SO}" ]; then
+              echo "::error::GL4ES libGL.so not found under native/build for ${ABI}"
+              find native/build -type f -name '*.so' -print || true
+              exit 1
+            fi
+            echo "Found GL4ES ${ABI}: ${GL_SO}"
+            file "${GL_SO}" || true
+            echo "${ABI} GL4ES: ${GL_SO}" >> "${RUNNER_TEMP}/so-path.txt"
           done
 
       - name: Unit tests (host JVM)
@@ -132,6 +144,15 @@ jobs:
             unzip -o -d "${TMP}" "${APK}" "${ENTRY}"
             test -s "${TMP}/${ENTRY}"
             echo "OK: ${ENTRY} is present and non-empty"
+
+            GL_ENTRY="lib/${ABI}/libGL.so"
+            if ! unzip -l "${APK}" | grep -F "${GL_ENTRY}"; then
+              echo "::error::APK is missing GL4ES backend ${GL_ENTRY}"
+              exit 1
+            fi
+            unzip -o -d "${TMP}" "${APK}" "${GL_ENTRY}"
+            test -s "${TMP}/${GL_ENTRY}"
+            echo "OK: ${GL_ENTRY} is present and non-empty"
           done
 
       - name: Upload debug APK
@@ -141,6 +162,53 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
+      # GitHub-hosted Linux runners need KVM permissions for reliable x86_64
+      # emulator acceleration. Without this, the emulator can remain ADB-offline
+      # until the boot timeout even though the QEMU process is running.
+      - name: Enable KVM for Android emulator
+        run: |
+          set -euo pipefail
+          if [ ! -e /dev/kvm ]; then
+            echo "::warning::/dev/kvm is unavailable on this runner; emulator may boot slowly."
+          else
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+            ls -l /dev/kvm
+          fi
+
+      - name: Install and launch APK on Android emulator
+        id: emulator-smoke
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 4096M
+          emulator-boot-timeout: 600
+          disable-animations: true
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          # The action executes script lines in separate shells. Keep every
+          # stateful command inside this one inner shell invocation.
+          script: |
+            sh -c 'set -eu; WORKSPACE="${{ github.workspace }}"; TEMP_DIR="${{ runner.temp }}"; APK_DIR="$WORKSPACE/app/build/outputs/apk/debug"; APK="$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -print -quit)"; LOGCAT="$TEMP_DIR/flint-emulator-logcat.txt"; SURFACE_LOG="$TEMP_DIR/flint-emulator-surface-logcat.txt"; ACTIVITY="$TEMP_DIR/flint-emulator-activity.txt"; MARKER="$TEMP_DIR/flint-emulator-launched"; if [ -z "$APK" ] || [ ! -s "$APK" ]; then echo "Debug APK not found under $APK_DIR" >&2; find "$WORKSPACE/app/build/outputs" -maxdepth 5 -type f -name "*.apk" -print >&2 || true; exit 1; fi; echo "Installing APK: $APK"; adb wait-for-device; adb install -r "$APK"; adb shell am force-stop com.flintlauncher.android; adb shell am start -W -n com.flintlauncher.android/.MainActivity; sleep 8; adb shell pidof com.flintlauncher.android >/dev/null; adb shell dumpsys activity activities > "$ACTIVITY"; adb logcat -d -t 4000 > "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal" "$LOGCAT"; then exit 1; fi; adb logcat -c; adb shell am start -W -n com.flintlauncher.android/.GameSurfaceActivity; sleep 3; adb shell pidof com.flintlauncher.android:game >/dev/null; adb logcat -d -s FlintGameSurface:I > "$SURFACE_LOG"; if ! grep -Eq "create=egl-window-ok:[0-9]+x[0-9]+" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; if ! grep -Fq "gl4es-window-ok:" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; if ! grep -Fq "frame=egl-window-frame-ok|gl4es-window-frame-ok" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; adb logcat -c; adb shell am start -W -n com.flintlauncher.android/.JvmProbeActivity --ei java-major 17; JVM_OK=0; i=0; while [ "$i" -lt 180 ]; do JVM_LOG="$(adb logcat -d -s FlintJvmProbe:I FlintNative:E)"; if printf "%s" "$JVM_LOG" | grep -Fq "FLINT_JVM_OK"; then JVM_OK=1; break; fi; if printf "%s" "$JVM_LOG" | grep -Fq "FLINT_JVM_FAILED"; then printf "%s\n" "$JVM_LOG"; exit 1; fi; sleep 5; i=$((i+1)); done; if [ "$JVM_OK" -ne 1 ]; then echo "Timed out waiting for real Java 17 execution probe." >&2; adb logcat -d -s FlintJvmProbe:I FlintNative:E; exit 1; fi; adb logcat -d -t 4000 >> "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal" "$LOGCAT"; then exit 1; fi; touch "$MARKER"; echo "Flint MainActivity, isolated EGL/GL4ES frame, and real Java 17 class execution passed on Android API 34 x86_64 emulator."'
+
+      - name: Verify emulator launch evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ ! -f "${{ runner.temp }}/flint-emulator-launched" ]; then
+            if [ -f "${{ runner.temp }}/flint-emulator-booted" ]; then
+              echo "::error::Emulator booted, but APK install/start validation did not complete."
+            else
+              echo "::error::Emulator did not reach the booted state; Android launch was not tested."
+            fi
+            exit 1
+          fi
+          echo "Verified: launcher Activity, isolated :game EGL/GL4ES frame, and real Java 17 class execution all passed."
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v7
@@ -154,5 +222,8 @@ jobs:
             ${{ runner.temp }}/sdk-installed.txt
             ${{ runner.temp }}/gradle-version.txt
             ${{ runner.temp }}/so-path.txt
+            ${{ runner.temp }}/flint-emulator-logcat.txt
+            ${{ runner.temp }}/flint-emulator-surface-logcat.txt
+            ${{ runner.temp }}/flint-emulator-activity.txt
             **/build/reports/tests/**
           if-no-files-found: ignore

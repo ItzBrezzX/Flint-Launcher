@@ -26,10 +26,10 @@ object RuntimeSmoke {
             jreHome == null -> "no-jre-provided"
             !jreHome.isDirectory -> "jre-home-missing"
             else -> {
-                val ok = if (NativeBridge.isNativeLoaded) {
+                if (NativeBridge.isNativeLoaded) {
                     NativeBridge.nativeLoadJre(jreHome.absolutePath)
-                } else false
-                if (ok) "jre-symbols-ok" else "jre-load-failed"
+                }
+                NativeBridge.safeJreStatus()
             }
         }
         return SmokeReport(

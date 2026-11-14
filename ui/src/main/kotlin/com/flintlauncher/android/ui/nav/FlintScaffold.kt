@@ -20,12 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,28 +34,23 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.flintlauncher.android.ui.theme.FlintColors
 
-/** Top-level launcher destinations. */
+/** Top-level launcher destinations matching the supplied Flint GUI layout. */
 enum class Destination(val label: String, val icon: ImageVector) {
-    PLAY("HOME", Icons.Filled.PlayArrow),
-    PROFILES("INSTANCES", Icons.Filled.AccountCircle),
-    MODS("MOD LIBRARY", Icons.Filled.Build),
-    PARTNERS("SERVERS", Icons.Filled.Star),
-    SETTINGS("SETTINGS", Icons.Filled.Settings),
+    PLAY("Home", Icons.Filled.PlayArrow),
+    PROFILES("Instances", Icons.Filled.AccountCircle),
+    MODS("Mod Menu", Icons.Filled.Build),
+    SETTINGS("Settings", Icons.Filled.Settings),
+    ABOUT("About", Icons.Filled.Info),
 }
 
-private val LauncherBackground = FlintColors.Charcoal
-private val LauncherPanel = FlintColors.Panel
-private val LauncherGreen = FlintColors.Ember
-private val LauncherText = FlintColors.TextPrimary
-private val LauncherMuted = FlintColors.TextMuted
+private val SidebarBg = Color(0xFF0B1410)
+private val ContentBg = Color(0xFF07110B)
+private val AccentGreen = Color(0xFF35D12C)
+private val TextPrimary = Color(0xFFE8F0E8)
+private val TextMuted = Color(0xFF8A9A8E)
+private val CardBg = Color(0xFF101B14)
 
-/**
- * Landscape/tablet launcher shell inspired by the supplied Minecraft Launcher reference:
- * fixed left navigation, account block and a wide content viewport.
- * The activity is configured to open in landscape on phones.
- */
 @Composable
 fun FlintScaffold(
     selected: Destination,
@@ -66,99 +59,114 @@ fun FlintScaffold(
     content: @Composable () -> Unit,
 ) {
     BoxWithConstraints(
-        modifier = modifier.fillMaxSize().background(LauncherBackground),
+        modifier = modifier.fillMaxSize().background(ContentBg),
     ) {
         if (maxWidth >= 560.dp) {
             Row(Modifier.fillMaxSize()) {
                 Column(
-                    Modifier.width(184.dp).fillMaxHeight().background(LauncherPanel),
+                    Modifier.width(220.dp).fillMaxHeight()
+                        .background(SidebarBg)
+                        .padding(vertical = 10.dp),
                 ) {
-                    Column(
-                        Modifier.fillMaxWidth().height(88.dp).padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.Center,
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                Modifier.size(38.dp).clip(RoundedCornerShape(9.dp)).background(LauncherGreen),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text("F", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
-                            }
-                            Column(Modifier.padding(start = 10.dp)) {
-                                Text("FLINT LAUNCHER", color = LauncherText, fontSize = 12.sp, fontWeight = FontWeight.Black)
-                                Text("MINECRAFT JAVA", color = LauncherMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                            }
+                        Box(
+                            Modifier.size(38.dp).clip(RoundedCornerShape(9.dp)).background(AccentGreen),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("F", color = Color(0xFF07110B), fontSize = 21.sp, fontWeight = FontWeight.Black)
+                        }
+                        Column(Modifier.padding(start = 11.dp)) {
+                            Text("Flint-Launcher", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Play • Mod • Explore", color = TextMuted, fontSize = 10.sp)
                         }
                     }
-                    Surface(color = Color(0xFF10100F), modifier = Modifier.fillMaxWidth().height(1.dp)) {}
-                    Spacer(Modifier.height(8.dp))
+
+                    Spacer(Modifier.height(12.dp))
                     Destination.entries.forEach { destination ->
                         val active = selected == destination
                         Row(
                             Modifier.fillMaxWidth()
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(if (active) LauncherGreen.copy(alpha = 0.14f) else Color.Transparent)
+                                .padding(horizontal = 10.dp, vertical = 2.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (active) AccentGreen.copy(alpha = 0.16f) else Color.Transparent)
                                 .clickable { onSelect(destination) }
-                                .padding(horizontal = 12.dp, vertical = 15.dp),
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(destination.icon, contentDescription = null,
-                                tint = if (active) LauncherGreen else LauncherMuted)
+                            Icon(
+                                imageVector = destination.icon,
+                                contentDescription = destination.label,
+                                tint = if (active) AccentGreen else TextMuted,
+                                modifier = Modifier.size(20.dp),
+                            )
                             Text(
-                                destination.label,
+                                text = destination.label,
+                                color = if (active) AccentGreen else TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                                 modifier = Modifier.padding(start = 12.dp),
-                                color = if (active) LauncherGreen else LauncherMuted,
-                                fontSize = 12.sp,
-                                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                             )
                         }
                     }
+
                     Spacer(Modifier.weight(1f))
-                    Text("WHAT'S NEW", color = LauncherMuted, fontSize = 11.sp,
-                        modifier = Modifier.fillMaxWidth().clickable { onSelect(Destination.PLAY) }
-                            .padding(horizontal = 16.dp, vertical = 16.dp))
-                    Text("ANDROID EDITION", color = LauncherMuted, fontSize = 10.sp,
-                        modifier = Modifier.padding(start = 14.dp, bottom = 8.dp))
-                }
-                Column(Modifier.weight(1f).fillMaxHeight()) {
-                    Row(
-                        Modifier.fillMaxWidth().height(64.dp).background(LauncherPanel).padding(horizontal = 22.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp)
+                            .clip(RoundedCornerShape(12.dp)).background(CardBg).padding(12.dp),
                     ) {
-                        Text("Flint-Launcher", color = LauncherText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.weight(1f))
-                        Text("Minecraft Java · Android", color = LauncherMuted, fontSize = 11.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier.size(30.dp).clip(RoundedCornerShape(7.dp))
+                                    .background(Color(0xFF1E2E24)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("MC", color = AccentGreen, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                            }
+                            Column(Modifier.padding(start = 10.dp)) {
+                                Text("Minecraft Java", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Selected installation", color = TextMuted, fontSize = 11.sp)
+                            }
+                        }
                     }
-                    Box(
-                        Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().background(LauncherBackground),
-                    ) { content() }
+                }
+
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().background(ContentBg),
+                ) {
+                    content()
                 }
             }
         } else {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxWidth()) { content() }
                 Row(
-                    Modifier.fillMaxWidth().background(LauncherPanel).padding(vertical = 6.dp),
+                    Modifier.fillMaxWidth().background(SidebarBg)
+                        .navigationBarsPadding().padding(vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
                     Destination.entries.forEach { destination ->
                         Column(
-                            Modifier.weight(1f).clickable { onSelect(destination) }.padding(vertical = 5.dp),
+                            Modifier.weight(1f).clickable { onSelect(destination) }.padding(vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Icon(destination.icon, contentDescription = null,
-                                tint = if (selected == destination) LauncherText else LauncherMuted)
-                            Text(destination.label, color = if (selected == destination) LauncherText else LauncherMuted,
-                                fontSize = 9.sp)
+                            Icon(
+                                destination.icon,
+                                contentDescription = null,
+                                tint = if (selected == destination) AccentGreen else TextMuted,
+                                modifier = Modifier.size(22.dp),
+                            )
+                            Text(
+                                destination.label,
+                                color = if (selected == destination) AccentGreen else TextMuted,
+                                fontSize = 10.sp,
+                            )
                         }
                     }
                 }
             }
         }
     }
-}
-
-private object BuildConfigPlaceholder {
-    const val version = "Flint"
 }

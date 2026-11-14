@@ -12,6 +12,7 @@ import com.flintlauncher.android.download.DownloadManager
 import com.flintlauncher.android.installer.GameLayout
 import com.flintlauncher.android.installer.MinecraftInstaller
 import com.flintlauncher.android.network.FlintHttp
+import com.flintlauncher.android.minecraft.version.Environment
 import com.flintlauncher.android.mods.ModrinthApi
 import com.flintlauncher.android.mods.ModrinthModInstaller
 import com.flintlauncher.android.mods.ModrinthRepository
@@ -34,12 +35,16 @@ class FlintApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashDiagnostics.initialize(this)
         container = AppContainer(this)
     }
 }
 
 /** Manual dependency wiring. Replaced by a DI framework only if the graph outgrows this. */
 class AppContainer(private val app: Application) {
+    val launcherSettingsPreferences = app.getSharedPreferences("flint_launcher_settings", Application.MODE_PRIVATE)
+    val gyroscopeAvailable: Boolean = app.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_SENSOR_GYROSCOPE)
+
     val launcherVersion: String = runCatching {
         app.packageManager.getPackageInfo(app.packageName, 0).versionName
     }.getOrNull().orEmpty()
@@ -111,7 +116,13 @@ class AppContainer(private val app: Application) {
         installer = ModrinthModInstaller(modDownloadManager, gameRoot),
     )
 
-    val installer = MinecraftInstaller(http = http, layout = layout, downloads = downloadManager)
+    private val installEnvironment = Environment.android(deviceProcessArch ?: "arm64")
+    val installer = MinecraftInstaller(
+        http = http,
+        layout = layout,
+        downloads = downloadManager,
+        environment = installEnvironment,
+    )
 
     val installCoordinator = InstallCoordinator(
         runner = MinecraftInstallRunner(installer),
@@ -142,6 +153,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.androidVersion,
                 container.supportedAbis,
                 container.totalMemoryMb,
+                container.launcherSettingsPreferences,
+                container.gyroscopeAvailable,
             )
         else -> throw IllegalArgumentException("Unknown ViewModel $modelClass")
     } as T

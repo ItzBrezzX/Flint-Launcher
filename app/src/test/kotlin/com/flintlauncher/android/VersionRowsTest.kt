@@ -78,7 +78,7 @@ class InstallPanelMapperTest {
         )
         assertNotNull(panel)
         assertEquals(InstallPhase.RUNNING, panel!!.phase)
-        assertEquals("Downloading assets", panel.stageLabel)
+        assertEquals("Downloading client, libraries, native libraries & assets", panel.stageLabel)
         assertEquals(1000L, panel.downloadedBytes)
         assertEquals(25.0, panel.percent!!, 0.001)
         assertEquals(128, panel.completedFiles)

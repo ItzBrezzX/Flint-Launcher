@@ -25,10 +25,10 @@ object RuntimeArchitecture {
 }
 
 /**
- * Describes an on-device Java runtime that can host Minecraft.
+ * Describes an on-device Java runtime candidate.
  *
- * Real implementations will download / extract / verify ARM64 JREs
- * (e.g. Pojav-style or vendor builds). This module only defines the contract.
+ * [verified] means the release metadata and required library files were found.
+ * Native loading is a separate process-global verification step for the selected runtime.
  */
 data class JavaRuntimeInfo(
     val id: String,
@@ -97,15 +97,19 @@ data class LaunchRequest(
     val userType: String,
     val runtime: JavaRuntimeInfo,
     val renderer: RendererInfo,
+    /** Metadata-resolved LWJGL API generation; backend selection must not infer this again. */
+    val lwjglLine: LwjglCompatibilityLine,
 )
 
 /**
- * Result of attempting to start the game process.
- * SUCCESS means the process was started and is believed to be running —
- * not that the user reached the main menu.
+ * Result of a game launch attempt. [Started] is reserved for an asynchronous
+ * backend that can track a live session; the current synchronous JLI bridge
+ * returns [Exited] when the Java main method has finished.
  */
 sealed class LaunchResult {
     data class Started(val pid: Int?, val logFile: File?) : LaunchResult()
+    /** JLI_Launch returned; this is an exit result, not proof the game is still running. */
+    data class Exited(val exitCode: Int) : LaunchResult()
     data class Failed(val reason: String, val logSnippet: String? = null) : LaunchResult()
     data object BlockedMissingRuntime : LaunchResult()
     data object BlockedMissingRenderer : LaunchResult()

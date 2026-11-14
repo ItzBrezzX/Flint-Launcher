@@ -9,7 +9,9 @@ import java.util.zip.ZipFile
  */
 object NativesExtractor {
     fun extract(jars: List<File>, target: File, excludePrefixes: List<String> = listOf("META-INF/")): List<File> {
-        target.mkdirs()
+        if ((!target.exists() && !target.mkdirs()) || !target.isDirectory || !target.canWrite()) {
+            throw InstallPlanException("Could not prepare writable native library directory: ${target.path}")
+        }
         val extracted = mutableListOf<File>()
         for (jar in jars) {
             ZipFile(jar).use { zip ->

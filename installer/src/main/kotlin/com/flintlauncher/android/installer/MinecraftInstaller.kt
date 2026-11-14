@@ -1,6 +1,9 @@
 package com.flintlauncher.android.installer
 
+import com.flintlauncher.android.download.BatchResult
 import com.flintlauncher.android.download.DownloadManager
+import com.flintlauncher.android.download.DownloadProgress
+import com.flintlauncher.android.download.DownloadRequest
 import com.flintlauncher.android.download.FailedDownload
 import com.flintlauncher.android.minecraft.manifest.VersionEntry
 import com.flintlauncher.android.minecraft.manifest.VersionManifest
@@ -10,7 +13,11 @@ import com.flintlauncher.android.minecraft.version.VersionJson
 import com.flintlauncher.android.minecraft.version.VersionJsonParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import okhttp3.OkHttpClient
@@ -37,6 +44,8 @@ data class InstalledVersion(
     /** `-Dlog4j.configurationFile=...`, or null for versions without a log config. Must be passed to the game. */
     val loggingJvmArgument: String?,
     val requiredJavaMajor: Int,
+    /** Extracted Android/Linux .so files for java.library.path. */
+    val nativesDirectory: File? = null,
 )
 
 sealed interface InstallResult {
@@ -90,7 +99,11 @@ class MinecraftInstaller(
 
     suspend fun fetchManifest(): VersionManifest = VersionManifestParser.parse(fetchText(manifestUrl))
 
-    suspend fun install(versionId: String, onStage: (InstallStage) -> Unit = {}): InstallResult {
+    suspend fun install(
+        versionId: String,
+        onStage: (InstallStage) -> Unit = {},
+        onProgress: (DownloadProgress) -> Unit = {},
+    ): InstallResult {
         try {
             onStage(InstallStage.RESOLVING_METADATA)
             val (version, vanillaId) = resolveVersion(versionId)
@@ -101,7 +114,7 @@ class MinecraftInstaller(
 
             val indexRequest = plan.requests.first { it.id.startsWith("assetindex-") }
             onStage(InstallStage.PREPARING_QUEUE)
-            val indexRun = downloads.run(listOf(indexRequest))
+            val indexRun = runWithProgress(listOf(indexRequest), onProgress)
             if (indexRun.cancelled) return InstallResult.Cancelled
             if (indexRun.failed.isNotEmpty()) return InstallResult.Failed("Could not download the asset index", indexRun.failed)
 
@@ -109,7 +122,7 @@ class MinecraftInstaller(
             val everything = plan.requests.filter { it !== indexRequest } + InstallPlanner.planAssets(index, layout, assetBaseUrl)
 
             onStage(InstallStage.DOWNLOADING_ASSETS)
-            val run = downloads.run(everything)
+            val run = runWithProgress(everything, onProgress)
             if (run.cancelled) return InstallResult.Cancelled
             if (run.failed.isNotEmpty()) {
                 return InstallResult.Failed("${run.failed.size} file(s) failed to download", run.failed)
@@ -148,6 +161,25 @@ class MinecraftInstaller(
             // Legacy versions do not read the content-addressed object store directly.
             // Materialize their old path-based assets before marking the version installed.
             LegacyAssetMaterializer.materialize(index, layout)
+            // Native classifier JARs are separate from the Java classpath. Extract
+            // them before writing the install marker so an installed version always
+            // has a complete java.library.path directory.
+            val nativesDirectory = layout.nativesDirectory(versionId)
+            layout.installMarker(versionId).delete()
+            if (nativesDirectory.exists() && !nativesDirectory.deleteRecursively()) {
+                return InstallResult.Failed("Could not clear the previous native libraries for $versionId")
+            }
+            try {
+                withContext(Dispatchers.IO) {
+                    NativesExtractor.extract(plan.nativeJars, nativesDirectory)
+                }
+            } catch (cancelled: CancellationException) {
+                nativesDirectory.deleteRecursively()
+                throw cancelled
+            } catch (nativeError: Exception) {
+                nativesDirectory.deleteRecursively()
+                return InstallResult.Failed("Could not extract native libraries for $versionId: ${nativeError.message ?: nativeError.javaClass.simpleName}")
+            }
             layout.installMarker(versionId).apply { parentFile?.mkdirs() }.writeText(vanillaId)
             onStage(InstallStage.FINAL_VERIFICATION)
             // Marker is written only after existence + size (+ client hash) checks pass
@@ -163,6 +195,7 @@ class MinecraftInstaller(
                     assetIndexId = version.assetIndex?.id ?: "",
                     loggingJvmArgument = plan.logConfig?.jvmArgument,
                     requiredJavaMajor = version.javaVersion?.majorVersion ?: 8,
+                    nativesDirectory = nativesDirectory,
                 ),
             )
         } catch (e: CancellationException) {
@@ -180,23 +213,61 @@ class MinecraftInstaller(
         }
     }
 
+    private suspend fun runWithProgress(
+        requests: List<DownloadRequest>,
+        onProgress: (DownloadProgress) -> Unit,
+    ): BatchResult = coroutineScope {
+        val monitor = launch {
+            downloads.progress.collect(onProgress)
+        }
+        try {
+            downloads.run(requests)
+        } finally {
+            monitor.cancel()
+        }
+    }
+
     // ------------------------------------------------------------ metadata
 
-    /** Returns the merged version JSON and the id of the vanilla version whose jar it uses. */
+    /**
+     * Resolves the complete inheritance chain, from the root vanilla version to
+     * the selected loader/profile. Some loader metadata can inherit from another
+     * profile, so resolving only one parent silently drops required metadata.
+     */
     private suspend fun resolveVersion(id: String): Pair<VersionJson, String> {
         val manifest = fetchManifest()
-        val entry = manifest.find(id)
-        val local = layout.versionJson(id)
-        val child = when {
-            entry != null -> fetchAndStore(entry)
-            local.isFile -> VersionJsonParser.parse(local.readText()) // a loader profile written by a loader installer
-            else -> throw InstallPlanException("Unknown Minecraft version: $id")
+        val visiting = linkedSetOf<String>()
+
+        suspend fun resolve(currentId: String, depth: Int): Pair<VersionJson, String> {
+            if (depth > MAX_VERSION_INHERITANCE_DEPTH) {
+                throw InstallPlanException(
+                    "Version metadata inheritance is deeper than $MAX_VERSION_INHERITANCE_DEPTH levels",
+                )
+            }
+            if (!visiting.add(currentId)) {
+                throw InstallPlanException(
+                    "Version metadata inheritance cycle: " + (visiting + currentId).joinToString(" -> "),
+                )
+            }
+
+            try {
+                val entry = manifest.find(currentId)
+                val local = layout.versionJson(currentId)
+                val child = when {
+                    entry != null -> fetchAndStore(entry)
+                    local.isFile -> VersionJsonParser.parse(local.readText())
+                    else -> throw InstallPlanException("Unknown Minecraft version: $currentId")
+                }
+
+                val parentId = child.inheritsFrom ?: return child to child.id
+                val (parent, vanillaId) = resolve(parentId, depth + 1)
+                return child.mergedOnto(parent) to vanillaId
+            } finally {
+                visiting.remove(currentId)
+            }
         }
-        val parentId = child.inheritsFrom ?: return child to child.id
-        val parentEntry = manifest.find(parentId)
-            ?: throw InstallPlanException("Parent version $parentId is not in the Mojang manifest")
-        val parent = fetchAndStore(parentEntry)
-        return child.mergedOnto(parent) to parentId
+
+        return resolve(id, 0)
     }
 
     private suspend fun fetchAndStore(entry: VersionEntry): VersionJson {
@@ -239,6 +310,7 @@ class MinecraftInstaller(
         MessageDigest.getInstance("SHA-1").digest(bytes).joinToString("") { "%02x".format(it) }
 
     companion object {
+        const val MAX_VERSION_INHERITANCE_DEPTH = 16
         const val DEFAULT_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
     }
 }

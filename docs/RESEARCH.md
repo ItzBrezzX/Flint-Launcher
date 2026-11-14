@@ -9,14 +9,21 @@ Nothing here was tested on a device.
 
 ## 1. Android runtime landscape
 
-- **PojavLauncher is archived.** The upstream repository was archived in September 2025 and is read-only. It is licensed LGPL-3.0. Its community successor is Amethyst-Android (AngelAuraMC). [searched]
-  - https://github.com/PojavLauncherTeam/PojavLauncher
+- **PojavLauncher and Amethyst are active upstream references as checked on 14 Nov 2026.** The current repositories report recent commits and expose Android source. Both identify LGPL-3.0 at the launcher-project level; every bundled dependency still needs its own licence review.
+  - https://github.com/TeamPojavLauncher/PojavLauncher
   - https://github.com/AngelAuraMC/Amethyst-Android
-- **Zalith Launcher 2** is an active Kotlin/Compose launcher built on a Pojav-derived engine, reported as GPL-3.0. The original Zalith Launcher was reported as archived in 2026. [searched, third-party sources only, so verify the repos directly]
+- **MojoLauncher is the preferred engine integration reference for Flint.** The inspected snapshot is `MojoLauncher/MojoLauncher@1b8d90424c1cb791321d45f60ac62c54f4b013fa`, licensed LGPL-3.0. Its README describes support from rd-132211 through 26.x snapshots and Forge/Fabric; recent release notes describe 26.2+ support and separate LWJGL2-on-GLFW and LWJGL3/GLFW paths. This is much closer to Flint's all-version target than implementing a single-version renderer path.
+  - https://github.com/MojoLauncher/MojoLauncher
+  - Native submodules pinned by that snapshot: GLFW `7a6c6ceb51f20cd0db84dec2914ac1a0237051f6`, mojoexec `9ec4b836e93900135bad823eaac16ebc81cf6b98`, SDL `c63845bd49c5a7667d1de0f6134f85ed1ccc8889`, NoBlocklist `f4209d4755d6af6a19fedbe578313e29ebfc45ff`.
+  - It is not a drop-in dependency: `:app_mojo` is an Android application module with its own app identity, UI, Activities, resources, services and settings. Flint should extract the engine behind its own UI and interfaces. See [FLINT_NATIVE_BACKEND.md](FLINT_NATIVE_BACKEND.md).
+- **Zalith Launcher 2** is an active Kotlin/Compose launcher built on a Pojav-derived engine; its repository identifies GPL-3.0. This is a useful architectural reference, not a drop-in runtime dependency.
   - https://github.com/ZalithLauncher/ZalithLauncher2
-- Other launchers (for example Cubiq Launcher's release notes) report running current Minecraft with Java 25 and LWJGL 3.4.x on Android, using renderers such as MobileGlues and LTW. [searched]
-- A Modrinth mod page FAQ suggests some 26.x rendering paths depend on Vulkan features (for example dynamic rendering), so support is device-dependent. [searched, weak source]
-- Typical Pojav-lineage components and their licences: GL4ES (MIT), LWJGL 3 (BSD-3), OpenJDK builds (GPLv2 + Classpath Exception), bhook (MIT). [recalled, verify each in `THIRD_PARTY` before shipping]
+- **Legacy LWJGL2 path:** MojoLauncher maintains an LWJGL2-on-GLFW port whose README reports local tests with Minecraft 1.2.5, 1.12.2 and Forge 1.12.2. Its Android build requires a compatible Android GLFW library and matching native builds; the repository is a reference until the exact source and redistribution terms are audited.
+  - https://github.com/MojoLauncher/lwjgl2-glfw
+  - https://github.com/MojoLauncher/glfw
+- **Modern LWJGL3 path:** Amethyst/Pojav use Android-specific GLFW/LWJGL integration and a game Surface/input bridge. The complete upstream app also depends on multiple native submodules and app-level classes; copying one Java or C file is not a complete backend.
+- Renderers such as GL4ES, MobileGlues and LTW are separate compatibility choices. A renderer's presence in settings or a successful system GLES pbuffer test does not prove the selected Minecraft path can create a window or render frames.
+- Java runtime selection must follow version metadata. Flint's catalogue currently includes Android mobile JRE artifacts for Java 8, 17, 21 and 25, but archive presence/layout is not proof that the VM executes on a particular Android device.
 
 **Conclusion.** Running Minecraft on Android needs an ARM64 JRE built for Android, an LWJGL fork, a GL translation layer and input/windowing glue. Rebuilding this from scratch is a multi-person-year effort and is not realistic. Flint should reuse maintained, licence-compatible components and own the launcher shell around them (see ARCHITECTURE.md §3).
 

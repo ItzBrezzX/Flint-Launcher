@@ -6,12 +6,28 @@ package com.flintlauncher.android.minecraft.version
  */
 data class Environment(
     val osName: String = "linux",
+    /** Launcher rule token matching Android launcher architecture names (arm64, arm, x86, x86_64). */
     val osArch: String = "arm64",
     val osVersion: String? = null,
     val features: Map<String, Boolean> = emptyMap(),
 ) {
     /** Value substituted for `${arch}` in native classifier names. */
     val bitness: String get() = if (osArch.contains("64")) "64" else "32"
+
+    companion object {
+        /** Convert the app-process ABI to the architecture naming used in Mojang rules. */
+        fun android(processArch: String): Environment {
+            val normalized = processArch.trim().lowercase().replace('-', '_')
+            val javaArch = when (normalized) {
+                "arm64", "arm64_v8a", "aarch64" -> "arm64"
+                "arm", "armeabi_v7a", "armv7", "armv7l" -> "arm"
+                "x86" -> "x86"
+                "x86_64", "amd64" -> "x86_64"
+                else -> throw IllegalArgumentException("Unsupported Android process architecture: $processArch")
+            }
+            return Environment(osName = "linux", osArch = javaArch)
+        }
+    }
 }
 
 object RuleEvaluator {
