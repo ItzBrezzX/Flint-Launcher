@@ -156,7 +156,7 @@ class LaunchRequestFactoryTest {
             assertTrue(error.message!!.contains("blocked"))
         }
     }
-}
+
     @Test
     fun rejectsProfileArgumentsThatOverrideManagedHeapOrClasspath() {
         try {
@@ -167,3 +167,4 @@ class LaunchRequestFactoryTest {
         }
     }
 
+}
