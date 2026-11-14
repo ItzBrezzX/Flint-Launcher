@@ -31,9 +31,9 @@ internal object LegacyArgumentTokenizer {
                     quote = null
                     tokenStarted = true
                 }
-                quote != null && char == '\\\\' &&
+                quote != null && char == '\\' &&
                     index + 1 < input.length &&
-                    (input[index + 1] == quote || input[index + 1] == '\\\\') -> {
+                    (input[index + 1] == quote || input[index + 1] == '\\') -> {
                     token.append(input[index + 1])
                     tokenStarted = true
                     index++
@@ -43,10 +43,10 @@ internal object LegacyArgumentTokenizer {
                     tokenStarted = true
                 }
                 quote == null && char.isWhitespace() -> finishToken()
-                quote == null && char == '\\\\' &&
+                quote == null && char == '\\' &&
                     index + 1 < input.length &&
                     (input[index + 1].isWhitespace() || input[index + 1] == '"' ||
-                        input[index + 1] == '\\'' || input[index + 1] == '\\\\') -> {
+                        input[index + 1] == '\\'' || input[index + 1] == '\\') -> {
                     token.append(input[index + 1])
                     tokenStarted = true
                     index++
