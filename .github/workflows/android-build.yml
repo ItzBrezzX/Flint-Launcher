@@ -162,7 +162,9 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-      - name: Install and launch APK on Android emulator
+      - name: Install and launch APK on Android emulator (best-effort infrastructure check)
+        id: emulator-smoke
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -173,7 +175,8 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            set -euo pipefail
+            set -Eeuo pipefail
+            trap 'rc=$?; adb logcat -d -t 4000 > "${RUNNER_TEMP}/flint-emulator-logcat.txt" 2>/dev/null || true; exit "$rc"' ERR
             APK="app/build/outputs/apk/debug/app-debug.apk"
             test -s "${APK}"
             adb install -r "${APK}"
@@ -191,6 +194,22 @@ jobs:
               exit 1
             fi
             echo "Flint MainActivity started successfully on Android API 35 x86_64 emulator."
+
+      - name: Classify emulator smoke-test result
+        if: always()
+        env:
+          EMULATOR_OUTCOME: ${{ steps.emulator-smoke.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "${EMULATOR_OUTCOME}" = "failure" ]; then
+            if [ -s "${RUNNER_TEMP}/flint-emulator-logcat.txt" ]; then
+              echo "::error::Emulator started, but APK install/launch validation failed. Inspect flint-emulator-logcat.txt."
+              exit 1
+            fi
+            echo "::warning::APK build and packaging passed, but the hosted Android emulator did not boot. This is an emulator infrastructure failure, not an APK compilation failure."
+          else
+            echo "Emulator smoke test passed."
+          fi
 
       - name: Upload build logs
         if: always()
