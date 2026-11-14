@@ -272,7 +272,7 @@ private fun RuntimeCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsA
             state.installedRuntimes.forEach { runtime ->
                 SettingLine(
                     "Java " + runtime.major,
-                    runtime.arch + " · " + runtime.vendor + " · " + if (runtime.verified) "Verified" else "Not verified",
+                    runtime.arch + " · " + runtime.vendor + " · " + if (runtime.verified) "Files OK · JVM probe required" else "Incomplete",
                 )
             }
         }
@@ -291,7 +291,7 @@ private fun RuntimeCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsA
                     Column(Modifier.weight(1f)) {
                         Text("OpenJDK " + major, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (installed) "Installed and runtime-probed" else "Mobile runtime · verified download",
+                            if (installed) "Installed · JVM execution is checked at launch" else "Mobile runtime · SHA-256 checked download",
                             color = FlintColors.TextMuted,
                             style = MaterialTheme.typography.labelSmall,
                         )
