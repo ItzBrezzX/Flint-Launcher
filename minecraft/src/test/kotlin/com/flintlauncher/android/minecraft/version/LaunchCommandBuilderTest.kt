@@ -176,7 +176,7 @@ class LaunchCommandBuilderTest {
             id = "1.2.5",
             mainClass = "net.minecraft.client.Minecraft",
             minecraftArguments =
-                "--username \"Player One\" --gameDir \"\${game_directory}\" --title \"A \"quoted\" title\"",
+                "--username \"Player One\" --gameDir \"\${game_directory}\" --title \"A \\\"quoted\\\" title\"",
         )
 
         val command = LaunchCommandBuilder.build(
