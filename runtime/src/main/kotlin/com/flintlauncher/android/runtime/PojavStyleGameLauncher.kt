@@ -7,10 +7,11 @@ import java.io.File
 
 /**
  * Game launcher following the PojavLauncher in-process JVM model:
- * load mobile OpenJDK via dlopen → set env → call JLI_Launch through JNI.
+ * load mobile OpenJDK via dlopen → call JLI_Launch through JNI.
  *
- * Until a real ARM64 JRE is installed and the native library is built,
- * every launch attempt returns a precise failure instead of pretending success.
+ * JLI_Launch is synchronous: it returns after the Java main class exits.
+ * Therefore a zero exit code is a completed game process, not proof that a
+ * playable session is still running. Renderer/window integration is separate.
  */
 class PojavStyleGameLauncher(
     private val runtimeManager: JavaRuntimeManager,
@@ -20,6 +21,8 @@ class PojavStyleGameLauncher(
     private val logBuffer = StringBuilder()
 
     override suspend fun launch(request: LaunchRequest): LaunchResult = withContext(Dispatchers.IO) {
+        logBuffer.setLength(0)
+
         if (!NativeBridge.isNativeLoaded) {
             return@withContext LaunchResult.Failed(
                 "Native library flint_native not loaded: ${NativeBridge.nativeLoadError}. " +
@@ -32,15 +35,41 @@ class PojavStyleGameLauncher(
             return@withContext LaunchResult.BlockedMissingRuntime
         }
 
-        val loaded = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
-        if (!loaded) {
+        // Re-check the runtime at launch time. A stale metadata flag must not
+        // authorize a launch after files have been moved or corrupted.
+        if (!runtimeManager.verify(runtime)) {
             return@withContext LaunchResult.Failed(
-                "Failed to dlopen libjli.so under ${runtime.homeDir}. " +
-                    "Is this a mobile OpenJDK layout with aarch64 libs?",
+                "Java runtime verification failed immediately before launch: ${runtime.homeDir}",
             )
         }
 
-        // Build argv the way JLI_Launch expects (program name first)
+        if (!request.gameDir.isDirectory || !request.gameDir.canWrite()) {
+            return@withContext LaunchResult.Failed("Minecraft game directory is missing or not writable.")
+        }
+        if (!request.assetsDir.isDirectory) {
+            return@withContext LaunchResult.Failed("Minecraft assets directory is missing.")
+        }
+        if (request.mainClass.isBlank()) {
+            return@withContext LaunchResult.Failed("Minecraft main class is empty.")
+        }
+        val missingClasspath = request.classpath.filterNot { it.isFile }
+        if (request.classpath.isEmpty() || missingClasspath.isNotEmpty()) {
+            return@withContext LaunchResult.Failed(
+                "Minecraft classpath is incomplete: ${missingClasspath.size} missing entries.",
+                missingClasspath.take(8).joinToString("\n") { it.absolutePath },
+            )
+        }
+
+        val loaded = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
+        if (!loaded) {
+            return@withContext LaunchResult.Failed(
+                "Failed to load libjli.so under ${runtime.homeDir}. " +
+                    "Check the Android mobile OpenJDK layout and ABI.",
+            )
+        }
+
+        // JLI argv starts with the program name. Account arguments are supplied
+        // by the caller through gameArgs / jvmArgs.
         val args = mutableListOf<String>()
         args += "java"
         args += request.jvmArgs
@@ -48,9 +77,6 @@ class PojavStyleGameLauncher(
         args += request.classpath.joinToString(File.pathSeparator) { it.absolutePath }
         args += request.mainClass
         args += request.gameArgs
-
-        // Account identity (offline or Microsoft)
-        // Already expected to be present in gameArgs / jvmArgs from the caller.
 
         logBuffer.appendLine("Launch argv (${args.size} entries):")
         args.take(12).forEach { logBuffer.appendLine("  $it") }
@@ -62,28 +88,30 @@ class PojavStyleGameLauncher(
         } catch (t: Throwable) {
             running = false
             NativeBridge.nativeShutdown()
-            return@withContext LaunchResult.Failed("JNI launch threw: ${t.message}", logBuffer.toString())
-        }
-
-        running = false
-        NativeBridge.nativeShutdown()
-
-        if (code == -2) {
-            // Expected until full JLI path is enabled
             return@withContext LaunchResult.Failed(
-                "JLI_Launch path not fully enabled in this Spike 0 build. " +
-                    "Native load of libjli succeeded; complete argv/signal handling next. " +
-                    "Exit code=$code",
+                "JNI launch threw: ${t.message}",
                 logBuffer.toString(),
             )
         }
-        if (code != 0) {
-            return@withContext LaunchResult.Failed("JVM exited with code $code", logBuffer.toString())
-        }
-        LaunchResult.Started(pid = null, logFile = null)
+
+        // JLI_Launch has returned, so the in-process Java main method has exited.
+        // Do not report Started: that would make PLAY appear successful without
+        // a live Minecraft session or an attached game surface.
+        running = false
+        NativeBridge.nativeShutdown()
+        LaunchResult.Failed(
+            if (code == 0) {
+                "Minecraft JVM exited normally (exit code 0); no live game session remains. " +
+                    "The Android window/input bridge is not yet integrated."
+            } else {
+                "Minecraft JVM exited with code $code."
+            },
+            logBuffer.toString(),
+        )
     }
 
     override suspend fun isRunning(): Boolean = running
+
     override suspend fun stop() {
         running = false
         NativeBridge.nativeShutdown()
