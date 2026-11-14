@@ -38,16 +38,17 @@ class ModrinthApi(
         get(url, ModrinthSearchResult.serializer())
     }
 
-    suspend fun tags(): ModrinthTags = withContext(Dispatchers.IO) {
+    suspend fun tags(projectType: String = "mod"): ModrinthTags = withContext(Dispatchers.IO) {
+        require(projectType in PROJECT_TYPES) { "Unsupported Modrinth project type" }
         val categories = getArray(
             baseUrl.newBuilder().addPathSegments("tag/category").build(),
             ModrinthCategory.serializer(),
-        ).filter { it.projectType == "mod" }.sortedWith(compareBy({ it.header }, { it.name }))
+        ).filter { it.projectType == projectType }.sortedWith(compareBy({ it.header }, { it.name }))
 
         val loaders = getArray(
             baseUrl.newBuilder().addPathSegments("tag/loader").build(),
             ModrinthLoader.serializer(),
-        ).filter { "mod" in it.supportedProjectTypes }.sortedBy { it.name }
+        ).filter { projectType in it.supportedProjectTypes }.sortedBy { it.name }
 
         val versions = getArray(
             baseUrl.newBuilder().addPathSegments("tag/game_version").build(),
@@ -63,7 +64,7 @@ class ModrinthApi(
             .addPathSegment(projectId)
             .build()
         get(url, ModrinthProjectDetails.serializer()).also {
-            if (it.projectType != "mod") throw IOException("Modrinth project is not a mod")
+            if (it.projectType !in PROJECT_TYPES) throw IOException("Unsupported Modrinth project type")
         }
     }
 
@@ -99,7 +100,7 @@ class ModrinthApi(
     }
 
     private fun buildFacets(filters: ModrinthFilters): List<List<String>> = buildList {
-        add(listOf("project_type:mod"))
+        add(listOf("project_type:${filters.projectType}"))
         filters.category?.takeIf { it.isNotBlank() }?.let { add(listOf("categories:$it")) }
         filters.loader?.takeIf { it.isNotBlank() }?.let { add(listOf("categories:$it")) }
         filters.gameVersion?.takeIf { it.isNotBlank() }?.let { add(listOf("versions:$it")) }
@@ -149,6 +150,7 @@ class ModrinthApi(
 
     companion object {
         private val SORTS = setOf("relevance", "downloads", "follows", "newest", "updated")
+        private val PROJECT_TYPES = setOf("mod", "shader", "resourcepack", "modpack")
         val DEFAULT_BASE_URL: HttpUrl = HttpUrl.Builder().scheme("https").host("api.modrinth.com").addPathSegment("v2").build()
     }
 }
