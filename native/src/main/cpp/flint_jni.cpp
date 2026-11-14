@@ -153,7 +153,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     std::lock_guard<std::mutex> guard(g_jre_mutex);
 
     if (g_libjvm != nullptr) {
-        if (home == g_jre_home && g_jli_launch != nullptr) return JNI_TRUE;
+        if (home == g_jre_home && g_create_java_vm != nullptr) return JNI_TRUE;
         if (home != g_jre_home) {
             g_jre_error = "A different JVM is already loaded in this app process; restart Flint before changing Java runtime.";
             LOGE("%s", g_jre_error.c_str());
@@ -175,6 +175,29 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
         "/lib/x86_64/libjvm.so",
         nullptr
     };
+
+    const std::string jvm_path = find_jre_library(home, jvm_suffixes, "libjvm.so");
+    if (jvm_path.empty()) {
+        g_jre_error = "JRE layout incomplete: libjvm.so not found";
+        LOGE("%s under %s", g_jre_error.c_str(), home.c_str());
+        return JNI_FALSE;
+    }
+
+    configure_jre_environment(home);
+
+    if (g_libjvm == nullptr) {
+        g_libjvm = dlopen(jvm_path.c_str(), RTLD_NOW | RTLD_GLOBAL);
+    }
+    if (!g_libjvm) {
+        const char *error = dlerror();
+        g_jre_error = std::string("dlopen libjvm.so failed: ") +
+            (error ? error : "unknown linker error");
+        LOGE("%s", g_jre_error.c_str());
+        return JNI_FALSE;
+    }
+    g_jre_home = home;
+
+    dlerror();
     g_create_java_vm = reinterpret_cast<JNI_CreateJavaVM_func>(
         dlsym(g_libjvm, "JNI_CreateJavaVM")
     );
@@ -242,7 +265,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     std::vector<std::string> vm_option_strings;
     std::vector<std::string> app_arguments;
     std::string class_path;
-    std::string main_class;
+    std::string requested_main_class;
 
     for (size_t i = 1; i < argv.size();) {
         const std::string &arg = argv[i];
@@ -264,13 +287,13 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
             ++i;
             continue;
         }
-        main_class = arg;
+        requested_main_class = arg;
         ++i;
         for (; i < argv.size(); ++i) app_arguments.push_back(argv[i]);
         break;
     }
 
-    if (main_class.empty()) {
+    if (requested_main_class.empty()) {
         LOGE("nativeLaunchJvm: no Java main class was supplied");
         return -8;
     }
@@ -279,7 +302,6 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     }
 
     JavaVM *vm = nullptr;
-    JNIEnv *jvm_env = nullptr;
     {
         std::unique_lock<std::mutex> guard(g_jre_mutex);
         if (!g_create_java_vm || g_libjvm == nullptr) {
@@ -319,55 +341,31 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
             JavaVM *created_vm = nullptr;
             void *created_env = nullptr;
             LOGI("Creating embedded Java VM with %d option(s)", init_args.nOptions);
-            const jint create_status = g_create_java_vm(
-                &created_vm,
-                &created_env,
-                &init_args
-            );
+            const jint create_status = g_create_java_vm(&created_vm, &created_env, &init_args);
             if (create_status != JNI_OK || created_vm == nullptr || created_env == nullptr) {
                 g_jre_error = "JNI_CreateJavaVM failed with status " + std::to_string(create_status);
                 LOGE("%s", g_jre_error.c_str());
                 return -9;
             }
             g_embedded_vm = created_vm;
-            jvm_env = static_cast<JNIEnv *>(created_env);
             LOGI("JNI_CreateJavaVM succeeded");
-        } else {
-            vm = g_embedded_vm;
-        }
-
-        if (g_embedded_vm != nullptr && jvm_env == nullptr) {
-            vm = g_embedded_vm;
-            void *current_env = nullptr;
-            const jint env_status = vm->GetEnv(&current_env, JNI_VERSION_1_8);
-            if (env_status == JNI_OK && current_env != nullptr) {
-                jvm_env = static_cast<JNIEnv *>(current_env);
-            } else if (env_status == JNI_EDETACHED) {
-                if (vm->AttachCurrentThread(&current_env, nullptr) != JNI_OK || current_env == nullptr) {
-                    LOGE("nativeLaunchJvm: could not attach current thread to embedded VM");
-                    return -10;
-                }
-                jvm_env = static_cast<JNIEnv *>(current_env);
-            } else {
-                LOGE("nativeLaunchJvm: embedded VM GetEnv failed with status %d", env_status);
-                return -11;
-            }
         }
         vm = g_embedded_vm;
     }
 
-    if (vm == nullptr || jvm_env == nullptr) {
-        LOGE("nativeLaunchJvm: embedded VM environment is unavailable");
-        return -12;
+    if (vm == nullptr) {
+        LOGE("nativeLaunchJvm: embedded VM is unavailable");
+        return -10;
     }
 
-    bool attached_here = false;
+    JNIEnv *jvm_env = nullptr;
     void *current_env = nullptr;
+    bool attached_here = false;
     const jint current_status = vm->GetEnv(&current_env, JNI_VERSION_1_8);
     if (current_status == JNI_EDETACHED) {
         if (vm->AttachCurrentThread(&current_env, nullptr) != JNI_OK || current_env == nullptr) {
             LOGE("nativeLaunchJvm: could not attach launch thread to embedded VM");
-            return -13;
+            return -11;
         }
         jvm_env = static_cast<JNIEnv *>(current_env);
         attached_here = true;
@@ -375,7 +373,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
         jvm_env = static_cast<JNIEnv *>(current_env);
     } else {
         LOGE("nativeLaunchJvm: GetEnv failed with status %d", current_status);
-        return -14;
+        return -12;
     }
 
     jint result = 0;
@@ -386,13 +384,12 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
             jvm_env->ExceptionDescribe();
             jvm_env->ExceptionClear();
         }
-        result = -15;
+        result = -13;
     }
 
     jobject system_loader = nullptr;
-    jmethodID get_system_loader = nullptr;
     if (result == 0) {
-        get_system_loader = jvm_env->GetStaticMethodID(
+        jmethodID get_system_loader = jvm_env->GetStaticMethodID(
             class_loader_class,
             "getSystemClassLoader",
             "()Ljava/lang/ClassLoader;"
@@ -403,7 +400,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
                 jvm_env->ExceptionDescribe();
                 jvm_env->ExceptionClear();
             }
-            result = -16;
+            result = -14;
         } else {
             system_loader = jvm_env->CallStaticObjectMethod(class_loader_class, get_system_loader);
             if (jvm_env->ExceptionCheck() || system_loader == nullptr) {
@@ -412,44 +409,48 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
                     jvm_env->ExceptionDescribe();
                     jvm_env->ExceptionClear();
                 }
-                result = -17;
+                result = -15;
             }
         }
     }
 
-    jclass main_class = nullptr;
+    jclass main_class_object = nullptr;
     if (result == 0) {
         jmethodID load_class = jvm_env->GetMethodID(
             class_loader_class,
             "loadClass",
             "(Ljava/lang/String;)Ljava/lang/Class;"
         );
-        jstring class_name = jvm_env->NewStringUTF(main_class.c_str());
+        jstring class_name = jvm_env->NewStringUTF(requested_main_class.c_str());
         if (load_class == nullptr || class_name == nullptr) {
             LOGE("nativeLaunchJvm: could not resolve ClassLoader.loadClass");
             if (jvm_env->ExceptionCheck()) {
                 jvm_env->ExceptionDescribe();
                 jvm_env->ExceptionClear();
             }
-            result = -18;
+            result = -16;
         } else {
             jobject loaded = jvm_env->CallObjectMethod(system_loader, load_class, class_name);
             if (jvm_env->ExceptionCheck() || loaded == nullptr) {
-                LOGE("nativeLaunchJvm: could not load Java main class %s", main_class.c_str());
+                LOGE("nativeLaunchJvm: could not load Java main class %s", requested_main_class.c_str());
                 if (jvm_env->ExceptionCheck()) {
                     jvm_env->ExceptionDescribe();
                     jvm_env->ExceptionClear();
                 }
-                result = -19;
+                result = -17;
             } else {
-                main_class = static_cast<jclass>(loaded);
+                main_class_object = static_cast<jclass>(loaded);
             }
         }
         if (class_name != nullptr) jvm_env->DeleteLocalRef(class_name);
     }
 
     if (result == 0) {
-        jmethodID main_method = jvm_env->GetStaticMethodID(main_class, "main", "([Ljava/lang/String;)V");
+        jmethodID main_method = jvm_env->GetStaticMethodID(
+            main_class_object,
+            "main",
+            "([Ljava/lang/String;)V"
+        );
         jclass string_class = jvm_env->FindClass("java/lang/String");
         if (main_method == nullptr || string_class == nullptr) {
             LOGE("nativeLaunchJvm: Java main(String[]) method or String class is missing");
@@ -457,7 +458,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
                 jvm_env->ExceptionDescribe();
                 jvm_env->ExceptionClear();
             }
-            result = -20;
+            result = -18;
         } else {
             jobjectArray java_args = jvm_env->NewObjectArray(
                 static_cast<jsize>(app_arguments.size()),
@@ -466,29 +467,30 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
             );
             if (java_args == nullptr) {
                 LOGE("nativeLaunchJvm: could not allocate Java argument array");
-                result = -21;
+                result = -19;
             } else {
                 for (size_t i = 0; i < app_arguments.size(); ++i) {
                     jstring argument = jvm_env->NewStringUTF(app_arguments[i].c_str());
                     if (argument == nullptr) {
-                        result = -22;
+                        result = -20;
                         break;
                     }
                     jvm_env->SetObjectArrayElement(java_args, static_cast<jsize>(i), argument);
                     jvm_env->DeleteLocalRef(argument);
                     if (jvm_env->ExceptionCheck()) {
-                        result = -23;
+                        result = -21;
                         break;
                     }
                 }
                 if (result == 0) {
-                    LOGI("Invoking embedded Java main class %s with %zu argument(s)", main_class.c_str(), app_arguments.size());
-                    jvm_env->CallStaticVoidMethod(main_class, main_method, java_args);
+                    LOGI("Invoking embedded Java main class %s with %zu argument(s)",
+                         requested_main_class.c_str(), app_arguments.size());
+                    jvm_env->CallStaticVoidMethod(main_class_object, main_method, java_args);
                     if (jvm_env->ExceptionCheck()) {
                         LOGE("nativeLaunchJvm: Java main method threw an exception");
                         jvm_env->ExceptionDescribe();
                         jvm_env->ExceptionClear();
-                        result = -24;
+                        result = -22;
                     }
                 }
                 jvm_env->DeleteLocalRef(java_args);
@@ -498,7 +500,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     }
 
     if (system_loader != nullptr) jvm_env->DeleteLocalRef(system_loader);
-    if (main_class != nullptr) jvm_env->DeleteLocalRef(main_class);
+    if (main_class_object != nullptr) jvm_env->DeleteLocalRef(main_class_object);
     if (class_loader_class != nullptr) jvm_env->DeleteLocalRef(class_loader_class);
 
     if (attached_here) {
