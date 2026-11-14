@@ -11,6 +11,7 @@ data class ModsProfileUi(
 
 data class ModProjectUi(
     val id: String,
+    val projectType: String = "mod",
     val title: String,
     val description: String,
     val author: String,
@@ -44,6 +45,7 @@ data class ModsUiState(
     val categories: List<ModFilterOption> = emptyList(),
     val gameVersions: List<ModFilterOption> = emptyList(),
     val loaders: List<ModFilterOption> = emptyList(),
+    val projectType: String = "mod",
     val selectedCategory: String = "",
     val selectedGameVersion: String = "",
     val selectedLoader: String = "",
@@ -73,6 +75,7 @@ data class ModsActions(
     val onSearch: (() -> Unit)? = null,
     val onRefresh: (() -> Unit)? = null,
     val onCategoryChange: ((String) -> Unit)? = null,
+    val onProjectTypeChange: ((String) -> Unit)? = null,
     val onGameVersionChange: ((String) -> Unit)? = null,
     val onLoaderChange: ((String) -> Unit)? = null,
     val onClientSideChange: ((String) -> Unit)? = null,
