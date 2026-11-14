@@ -90,6 +90,26 @@ class RendererCompatibilityPolicyTest {
     }
 
     @Test
+    fun resolvedMetadataWithMissingOrConflictingLwjglLinesIsBlocked() {
+        val missing = VersionJson(
+            id = "1.20.1",
+            libraries = listOf(Library(name = "net.example:graphics-helper:1.0")),
+        )
+        val conflicting = VersionJson(
+            id = "1.12.2",
+            libraries = listOf(
+                Library(name = "org.lwjgl.lwjgl:lwjgl:2.9.4"),
+                Library(name = "org.lwjgl:lwjgl:3.3.3"),
+            ),
+        )
+        val empty = VersionJson(id = "1.12.2")
+
+        assertNull(RendererCompatibilityPolicy.planFor(missing))
+        assertNull(RendererCompatibilityPolicy.planFor(conflicting))
+        assertNull(RendererCompatibilityPolicy.planFor(empty))
+    }
+
+    @Test
     fun ambiguousOrUnknownIdentifiersAreNotGuessed() {
         assertNull(RendererCompatibilityPolicy.planFor("23w14a"))
         assertNull(RendererCompatibilityPolicy.planFor("b1.7.3"))
