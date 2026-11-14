@@ -12,7 +12,7 @@ import okhttp3.Request
 import java.io.IOException
 
 /**
- * Public, read-only Modrinth API v2 client. Search is always restricted to mods.
+ * Public, read-only Modrinth API v2 client. Search is restricted to one supported project type.
  * Search facets use only fields documented by Modrinth: project_type, categories,
  * versions, client_side and server_side. Loaders are a categories facet in search.
  */
