@@ -52,8 +52,12 @@ object LaunchRequestFactory {
         if ((resolutionWidth == null) != (resolutionHeight == null)) {
             throw LaunchConfigurationException("Custom resolution requires both width and height")
         }
-        if (resolutionWidth != null && (resolutionWidth !in 320..7680 || resolutionHeight !in 240..4320)) {
-            throw LaunchConfigurationException("Custom resolution is outside the supported range")
+        if (resolutionWidth != null) {
+            val height = resolutionHeight
+                ?: throw LaunchConfigurationException("Custom resolution requires both width and height")
+            if (resolutionWidth !in 320..7680 || height !in 240..4320) {
+                throw LaunchConfigurationException("Custom resolution is outside the supported range")
+            }
         }
         val missingClasspath = installed.classpath.filterNot { it.isFile }
         if (missingClasspath.isNotEmpty()) {
