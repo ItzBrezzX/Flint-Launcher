@@ -56,7 +56,7 @@ set_target_properties(GL PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gl4es/${ANDROID_ABI}"
 )
 
-target_link_libraries(GL PRIVATE
+target_link_libraries(GL
     ${log-lib}
     ${android-lib}
     ${egl-lib}
