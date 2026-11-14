@@ -12,14 +12,14 @@ extern "C" {
  * platform libraries.
  */
 typedef struct {
-    int force_gles_context;
-    int override_major_version;
-    int disp_width;
-    int disp_height;
-    float disp_hz;
-} flint_render_spec_t;
+    int request_es_context;
+    int requested_es_major;
+    int display_width_px;
+    int display_height_px;
+    float display_refresh_hz;
+} flint_render_config_t;
 
-extern flint_render_spec_t flint_render_spec;
+extern flint_render_config_t flint_render_spec;
 
 /* Handles remain open for the lifetime of the process. */
 void *flint_acquire_egl_handle(void);
