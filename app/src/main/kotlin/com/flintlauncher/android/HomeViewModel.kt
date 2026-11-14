@@ -203,7 +203,15 @@ class HomeViewModel(
                 false
             }
             if (!verified) {
-                _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Java ${runtime.majorVersion} was installed but failed runtime verification.") }
+                val detail = manager.lastVerificationError
+                    ?: "The JVM probe returned false without a diagnostic."
+                _state.update {
+                    it.copy(
+                        launchBusy = false,
+                        launchStage = null,
+                        launchMessage = "Java ${runtime.majorVersion} was installed, but JVM runtime verification failed. $detail",
+                    )
+                }
                 return@launch
             }
 
