@@ -60,6 +60,8 @@ object LaunchCommandBuilder {
         environment: Environment = Environment(),
         extraJvmArguments: List<String> = emptyList(),
         extraGameArguments: List<String> = emptyList(),
+        runtimeHeapMb: Int? = null,
+        customJvmArguments: String = "",
     ): LaunchCommand {
         val mainClass = version.mainClass
             ?: throw LaunchConfigurationException("Version ${version.id} has no main class")
@@ -76,7 +78,12 @@ object LaunchCommandBuilder {
             ?: version.minecraftArguments?.split(' ')?.filter { it.isNotEmpty() }
             ?: throw LaunchConfigurationException("Version ${version.id} has no game arguments")
 
-        val jvm = extraJvmArguments + rawJvm.map { substitute(it, values) }
+        val runtimeSettingsArguments = if (runtimeHeapMb != null) {
+            RuntimeJvmArguments.build(runtimeHeapMb, customJvmArguments)
+        } else {
+            RuntimeJvmArguments.parseCustomArguments(customJvmArguments)
+        }
+        val jvm = runtimeSettingsArguments + extraJvmArguments + rawJvm.map { substitute(it, values) }
         val game = rawGame.map { substitute(it, values) } + extraGameArguments
 
         val unresolved = (jvm + game).flatMap { placeholder.findAll(it).map { m -> m.groupValues[1] }.toList() }.distinct()
