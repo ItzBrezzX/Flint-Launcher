@@ -1,468 +1,167 @@
 package com.flintlauncher.android.ui.mods
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.flintlauncher.android.ui.state.ModsActions
-import com.flintlauncher.android.ui.state.ModsUiState
+import com.flintlauncher.android.ui.state.*
 
-private val Bg = Color(0xFF07110B)
-private val Panel = Color(0xFF0B1410)
-private val CardBg = Color(0xFF101B14)
-private val Accent = Color(0xFF35D12C)
-private val TextPrimary = Color(0xFFE8F0E8)
-private val TextMuted = Color(0xFF8A9A8E)
-private val TextSoft = Color(0xFFC8D4C8)
-private val Border = Color(0xFF1A2A1E)
-private val TagBg = Color(0xFF1A2A1E)
-private val DarkText = Color(0xFF07110B)
-private val StarYellow = Color(0xFFFFC107)
-
-private val Round6 = RoundedCornerShape(6.dp)
-private val Round8 = RoundedCornerShape(8.dp)
-private val Round10 = RoundedCornerShape(10.dp)
-private val Round12 = RoundedCornerShape(12.dp)
-private val Round14 = RoundedCornerShape(14.dp)
-private val Round16 = RoundedCornerShape(16.dp)
-private val Round20 = RoundedCornerShape(20.dp)
-
-private val BannerBrush = Brush.horizontalGradient(
-    listOf(Color(0xFF0A2E1A), Color(0xFF145C2E), Color(0xFF0A2E1A))
-)
-private val AccentBorder = BorderStroke(1.dp, Accent.copy(alpha = 0.35f))
-private val CardBorder = BorderStroke(1.dp, Border)
-private val FeaturedBorder = BorderStroke(1.dp, Accent.copy(alpha = 0.5f))
-
-@Immutable
-private data class ModCard(
-    val id: String,
-    val name: String,
-    val description: String,
-    val downloads: String,
-    val rating: String,
-    val tags: List<String>,
-    val iconEmoji: String,
-)
-
-private val SampleMods = listOf(
-    ModCard("sodium", "Sodium", "A powerful performance mod.", "7.5M", "4.8", listOf("Fabric", "1.21.x", "Performance"), "⚡"),
-    ModCard("iris", "Iris Shaders", "A modern shader mod.", "5.2M", "4.7", listOf("Fabric", "1.21.x", "Shaders"), "🌈"),
-    ModCard("optifine", "OptiFine", "Boost your Minecraft performance.", "4.9M", "4.6", listOf("Forge", "Fabric", "Performance"), "🔧"),
-    ModCard("backpack", "Backpack", "A simple backpack mod.", "3.1M", "4.5", listOf("Fabric", "1.21.x", "Utility"), "🎒"),
-)
-
-private val Categories = listOf("All", "Mods", "Shaders", "Resource Packs", "Add-Ons", "Data Packs", "Maps")
-private val FeaturedItems = listOf(
-    "Complementary Shaders" to "2.1M",
-    "Sodium" to "1.8M",
-    "Iris Shaders" to "1.6M",
-)
+private val FlintGreen = Color(0xFF35D12C)
+private val Screen = Color(0xFF07110B)
+private val Panel = Color(0xFF101B14)
+private val Muted = Color(0xFF9AA99D)
 
 @Composable
-fun ModsScreen(
-    state: ModsUiState,
-    actions: ModsActions,
-    modifier: Modifier = Modifier,
-) {
-    var selectedCategory by remember { mutableStateOf("All") }
-    var showComingSoon by remember { mutableStateOf<String?>(null) }
-    val onComingSoon: (String) -> Unit = remember { { showComingSoon = it } }
-
-    Column(
-        modifier
-            .fillMaxSize()
-            .background(Bg)
-    ) {
-        // Category tabs – full width, scrollable if needed
-        CategoryTabs(
-            selected = selectedCategory,
-            onSelect = { selectedCategory = it },
-            onMoreClick = { onComingSoon("More categories") },
-        )
-
-        Row(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(bottom = 0.dp),
-        ) {
-            // Center column
-            Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(start = 16.dp, end = 10.dp),
-            ) {
-                FeaturedBanner(onExplore = { onComingSoon("Explore") })
-                Spacer(Modifier.height(12.dp))
-                FilterRow(onComingSoon = onComingSoon)
-                Spacer(Modifier.height(12.dp))
-
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 260.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 12.dp),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    items(items = SampleMods, key = { it.id }) { mod ->
-                        ModCardItem(mod = mod, onDownload = { onComingSoon("Download ${mod.name}") })
-                    }
-                }
-            }
-
-            // Right Featured panel – fixed width so it never clips
-            FeaturedPanel(onComingSoon = onComingSoon)
-        }
-
-        // Bottom bar – always fully visible
-        DownloadQueueBar(onComingSoon = onComingSoon)
-    }
-
-    showComingSoon?.let { feature ->
-        AlertDialog(
-            onDismissRequest = { showComingSoon = null },
-            title = { Text("Coming Soon") },
-            text = { Text("Fitur \"$feature\" masih dalam pengembangan.") },
-            confirmButton = {
-                TextButton(onClick = { showComingSoon = null }) {
-                    Text("OK", color = Accent)
-                }
-            },
-            containerColor = CardBg,
-            titleContentColor = TextPrimary,
-            textContentColor = TextSoft,
-        )
-    }
-}
-
-@Composable
-private fun CategoryTabs(
-    selected: String,
-    onSelect: (String) -> Unit,
-    onMoreClick: () -> Unit,
-) {
-    val scroll = rememberScrollState()
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scroll)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Categories.forEach { cat ->
-            val isSelected = selected == cat
-            Box(
-                Modifier
-                    .clip(Round20)
-                    .background(if (isSelected) Accent else CardBg)
-                    .clickable { onSelect(cat) }
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
-            ) {
-                Text(
-                    cat,
-                    color = if (isSelected) DarkText else TextSoft,
-                    fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1,
-                )
-            }
-        }
-        Box(
-            Modifier
-                .clip(Round20)
-                .background(CardBg)
-                .clickable(onClick = onMoreClick)
-                .padding(horizontal = 14.dp, vertical = 7.dp),
-        ) {
-            Text("⋯ More", color = TextSoft, fontSize = 12.sp, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-private fun FeaturedBanner(onExplore: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(150.dp)
-            .clip(Round16)
-            .background(BannerBrush)
-            .border(AccentBorder, Round16),
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text("MINECRAFT", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1)
-            Text("MOD MENU", color = Accent, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1)
-            Text(
-                "Download the best mods, shaders and more!",
-                color = TextSoft,
-                fontSize = 12.sp,
-                maxLines = 1,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            Spacer(Modifier.height(10.dp))
-            Button(
-                onClick = onExplore,
-                colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                shape = Round8,
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-            ) {
-                Text("Explore Now →", color = DarkText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun FilterRow(onComingSoon: (String) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        FilterDropdown("Platform", "All Platforms", Modifier.weight(1f)) { onComingSoon("Platform filter") }
-        FilterDropdown("Mod Loader", "All Loaders", Modifier.weight(1f)) { onComingSoon("Loader filter") }
-        FilterDropdown("Minecraft Version", "All Versions", Modifier.weight(1f)) { onComingSoon("Version filter") }
-        FilterDropdown("Sort By", "Most Downloaded", Modifier.weight(1f)) { onComingSoon("Sort") }
-    }
-}
-
-@Composable
-private fun FilterDropdown(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Column(modifier) {
-        Text(label, color = TextMuted, fontSize = 10.sp, maxLines = 1)
-        Spacer(Modifier.height(3.dp))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(Round8)
-                .background(CardBg)
-                .border(1.dp, Border, Round8)
-                .clickable(onClick = onClick)
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                value,
-                color = TextPrimary,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(Icons.Default.ArrowDropDown, null, tint = TextMuted, modifier = Modifier.size(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun FeaturedPanel(onComingSoon: (String) -> Unit) {
-    Column(
-        Modifier
-            .width(220.dp)
-            .fillMaxHeight()
-            .background(Panel)
-            .padding(12.dp),
-    ) {
+fun ModsScreen(state: ModsUiState, actions: ModsActions, modifier: Modifier = Modifier) {
+    var query by remember(state.query) { mutableStateOf(state.query) }
+    Column(modifier.fillMaxSize().background(Screen).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("MODRINTH LIBRARY", color = FlintGreen, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Katalog dan unduhan resmi Modrinth", color = Muted, style = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(query, { query = it; actions.onQueryChange?.invoke(it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cari mod") })
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Star, null, tint = Accent, modifier = Modifier.size(16.dp))
-            Text(
-                "Featured",
-                color = TextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(start = 5.dp),
-                maxLines = 1,
-            )
+            Button(onClick = { actions.onSearch?.invoke() }, enabled = actions.onSearch != null) { Text("Search") }
+            TextButton(onClick = { actions.onRefresh?.invoke() }, enabled = actions.onRefresh != null) { Text("Refresh") }
+            Spacer(Modifier.weight(1f))
+            Text(state.totalHits.toString() + " hasil", color = Muted)
         }
-        Spacer(Modifier.height(12.dp))
-        FeaturedItems.forEach { (name, downloads) ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(Round10)
-                    .clickable { onComingSoon(name) }
-                    .padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier.size(36.dp).clip(Round8).background(TagBg),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("★", fontSize = 16.sp)
+        FilterMenu("Profile", state.profiles.map { ModFilterOption(it.id, it.name + " · " + it.minecraftVersion + " · " + it.loader) }, state.selectedProfileId, { actions.onSelectProfile?.invoke(it) }, actions.onSelectProfile != null)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) { FilterMenu("Category", state.categories, state.selectedCategory, { actions.onCategoryChange?.invoke(it) }, actions.onCategoryChange != null) }
+            Box(Modifier.weight(1f)) { FilterMenu("Loader", state.loaders, state.selectedLoader, { actions.onLoaderChange?.invoke(it) }, actions.onLoaderChange != null) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) { FilterMenu("Minecraft", state.gameVersions, state.selectedGameVersion, { actions.onGameVersionChange?.invoke(it) }, actions.onGameVersionChange != null) }
+            Box(Modifier.weight(1f)) {
+                FilterMenu("Sort", listOf(ModFilterOption("downloads","Most downloaded"),ModFilterOption("relevance","Relevance"),ModFilterOption("follows","Most followed"),ModFilterOption("newest","Newest"),ModFilterOption("updated","Recently updated")), state.sortIndex, { actions.onSortChange?.invoke(it) }, actions.onSortChange != null)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) { FilterMenu("Client side", sideOptions(), state.clientSide, { actions.onClientSideChange?.invoke(it) }, actions.onClientSideChange != null) }
+            Box(Modifier.weight(1f)) { FilterMenu("Server side", sideOptions(), state.serverSide, { actions.onServerSideChange?.invoke(it) }, actions.onServerSideChange != null) }
+        }
+        state.errorMessage?.let { MessagePanel(it) { actions.onDismissNotice?.invoke() } }
+        state.notice?.let { MessagePanel(it) { actions.onDismissNotice?.invoke() } }
+        when (val results = state.results) {
+            Loadable.Loading -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FlintGreen) }
+            is Loadable.Error -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(results.message, color = Color.White)
+                    TextButton(onClick = { actions.onRefresh?.invoke() }) { Text("Try again", color = FlintGreen) }
                 }
-                Column(Modifier.padding(start = 8.dp).weight(1f)) {
-                    Text(name, color = TextPrimary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("↓ $downloads", color = TextMuted, fontSize = 10.sp, maxLines = 1)
+            }
+            is Loadable.Content -> if (results.value.isEmpty()) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Text("Tidak ada mod yang cocok.", color = Muted) }
+            } else {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(results.value, key = { it.id }) { project ->
+                        ProjectCard(project, state.busyProjectId == project.id) { actions.onSelectProject?.invoke(project.id) }
+                    }
+                    if (state.offset + state.pageLimit < state.totalHits) item {
+                        OutlinedButton(onClick = { actions.onLoadMore?.invoke() }, enabled = !state.loading && actions.onLoadMore != null, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (state.loading) "Loading…" else "Load more")
+                        }
+                    }
                 }
             }
         }
-        Spacer(Modifier.weight(1f))
-        OutlinedButton(
-            onClick = { onComingSoon("View More Featured") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = Round10,
-            border = FeaturedBorder,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Accent),
-            contentPadding = PaddingValues(vertical = 6.dp),
-        ) {
-            Text("View More →", fontSize = 12.sp)
+    }
+    state.selectedProject?.let { project ->
+        ProjectDetailsDialog(project, state.selectedVersions, state.detailLoading, state.busyProjectId == project.id,
+            { actions.onCloseProject?.invoke() }, { actions.onInstallVersion?.invoke(project.id, it) })
+    }
+}
+
+@Composable
+private fun FilterMenu(title: String, options: List<ModFilterOption>, selected: String, onSelect: (String) -> Unit, enabled: Boolean) {
+    var expanded by remember { mutableStateOf(false) }
+    Column {
+        Text(title, color = Muted, style = MaterialTheme.typography.labelSmall)
+        Box {
+            OutlinedButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+                Text(options.firstOrNull { it.value == selected }?.label ?: if (selected.isBlank()) "All" else selected, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            DropdownMenu(expanded, { expanded = false }) {
+                DropdownMenuItem(text = { Text("All") }, onClick = { expanded = false; onSelect("") })
+                options.forEach { option -> DropdownMenuItem(text = { Text(option.label) }, onClick = { expanded = false; onSelect(option.value) }) }
+            }
         }
     }
 }
 
 @Composable
-private fun DownloadQueueBar(onComingSoon: (String) -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .background(Panel)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Default.Download, null, tint = Accent, modifier = Modifier.size(16.dp))
-        Text(
-            "Download Queue (0)",
-            color = TextPrimary,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(start = 6.dp),
-            maxLines = 1,
-        )
-        Spacer(Modifier.weight(1f))
-        TextButton(
-            onClick = { onComingSoon("Clear Queue") },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-        ) {
-            Icon(Icons.Default.Delete, null, tint = TextMuted, modifier = Modifier.size(14.dp))
-            Text("Clear", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 3.dp))
-        }
-        Button(
-            onClick = { onComingSoon("View Downloads") },
-            colors = ButtonDefaults.buttonColors(containerColor = Accent),
-            shape = Round8,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-        ) {
-            Text("View Downloads →", color = DarkText, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-        }
-    }
-}
-
-@Composable
-private fun ModCardItem(mod: ModCard, onDownload: () -> Unit) {
-    Card(
-        shape = Round14,
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        border = CardBorder,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(12.dp)) {
+private fun ProjectCard(project: ModProjectUi, busy: Boolean, onOpen: () -> Unit) {
+    Surface(Modifier.fillMaxWidth().clickable(onClick = onOpen), color = Panel, shape = RoundedCornerShape(12.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(42.dp).clip(Round10).background(TagBg),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(mod.iconEmoji, fontSize = 20.sp)
+                Column(Modifier.weight(1f)) {
+                    Text(project.title, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("by " + project.author.ifBlank { "Unknown author" }, color = Muted, style = MaterialTheme.typography.labelSmall)
                 }
-                Column(Modifier.padding(start = 10.dp).weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(mod.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Default.CheckCircle, null, tint = Accent, modifier = Modifier.size(14.dp))
-                    }
-                    Text(mod.description, color = TextMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+                Text(if (project.installed) "INSTALLED" else if (busy) "WORKING" else "DETAILS →", color = FlintGreen, style = MaterialTheme.typography.labelSmall)
             }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                mod.tags.forEach { tag ->
-                    Box(
-                        Modifier
-                            .clip(Round6)
-                            .background(TagBg)
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    ) {
-                        Text(tag, color = TextSoft, fontSize = 10.sp, maxLines = 1)
-                    }
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Download, null, tint = TextMuted, modifier = Modifier.size(12.dp))
-                Text(mod.downloads, color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
-                Spacer(Modifier.width(10.dp))
-                Icon(Icons.Default.Star, null, tint = StarYellow, modifier = Modifier.size(12.dp))
-                Text(mod.rating, color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
+            Text(project.description, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+            Row {
+                Text(project.downloads.toString() + " downloads", color = Muted, style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.weight(1f))
-                Button(
-                    onClick = onDownload,
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                    shape = Round8,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                ) {
-                    Icon(Icons.Default.Download, null, tint = DarkText, modifier = Modifier.size(12.dp))
-                    Text("Download", color = DarkText, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
-                }
+                Text(project.categories.take(4).joinToString(" · "), color = Muted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
             }
         }
     }
 }
+
+@Composable
+private fun ProjectDetailsDialog(project: ModProjectUi, versions: List<ModVersionUi>, loading: Boolean, busy: Boolean, onClose: () -> Unit, onInstall: (String) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(project.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(project.description, style = MaterialTheme.typography.bodySmall)
+                Text("Client: " + project.clientSide + " · Server: " + project.serverSide, style = MaterialTheme.typography.labelSmall)
+                when {
+                    loading -> CircularProgressIndicator(color = FlintGreen)
+                    versions.isEmpty() -> Text("Tidak ada versi kompatibel untuk profile ini.", color = Muted)
+                    else -> LazyColumn(Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(versions, key = { it.id }) { version ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(version.versionNumber)
+                                    Text(version.gameVersions.joinToString(), color = Muted, style = MaterialTheme.typography.labelSmall)
+                                }
+                                Button(onClick = { onInstall(version.id) }, enabled = !busy) { Text(if (busy) "Installing…" else "Install") }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Close") } },
+    )
+}
+
+@Composable
+private fun MessagePanel(message: String, onDismiss: () -> Unit) {
+    Surface(color = Panel, shape = RoundedCornerShape(10.dp)) {
+        Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(message, color = Color.White, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onDismiss) { Text("OK", color = FlintGreen) }
+        }
+    }
+}
+
+private fun sideOptions() = listOf(
+    ModFilterOption("required", "Required"),
+    ModFilterOption("optional", "Optional"),
+    ModFilterOption("unsupported", "Unsupported"),
+    ModFilterOption("unknown", "Unknown"),
+)
