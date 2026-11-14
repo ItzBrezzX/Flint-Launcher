@@ -76,6 +76,7 @@ class HomeViewModel(
      * refuses to launch the JVM until a real Minecraft renderer is bundled.
      */
     fun launchSelected() {
+        CrashDiagnostics.record("INFO", "Play tapped; selected installation=${_state.value.selectedInstallationId ?: "none"}")
         val selected = _state.value.selected
         if (selected == null) {
             _state.update { it.copy(launchMessage = "Install a Minecraft version first.") }
@@ -120,6 +121,7 @@ class HomeViewModel(
             )
             when (prepared) {
                 is InstallResult.Failed -> {
+                    CrashDiagnostics.record("ERROR", "Minecraft preparation failed: ${prepared.message}")
                     refreshInstallations()
                     _state.update {
                         it.copy(
@@ -140,6 +142,7 @@ class HomeViewModel(
             val manager = runtimeManager
             val arch = deviceArch
             if (manager == null || arch == null) {
+                CrashDiagnostics.record("ERROR", "No compatible mobile JRE manager; process ABI=${arch ?: "unknown"}")
                 _state.update {
                     it.copy(launchBusy = false, launchStage = null, launchMessage = "This APK process ABI is not supported by Flint's mobile Java runtime catalog.")
                 }
@@ -151,6 +154,7 @@ class HomeViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
+                CrashDiagnostics.recordThrowable("ERROR", "Could not check Java runtimes", error)
                 _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Could not check Java runtimes: ${error.message ?: "unknown error"}") }
                 return@launch
             }
@@ -183,6 +187,7 @@ class HomeViewModel(
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
+                    CrashDiagnostics.recordThrowable("ERROR", "Java download failed", error)
                     _state.update { it.copy(launchBusy = false, launchStage = null, launchMessage = "Java download failed: ${error.message ?: "unknown error"}") }
                     return@launch
                 }
@@ -205,6 +210,7 @@ class HomeViewModel(
              * window backend exists and JVM probing can run in an isolated
              * process. Installing Java is not equivalent to launching MC.
              */
+            CrashDiagnostics.record("WARN", "Launch blocked after Java preparation: renderer/game-window backend is not integrated; Java=${runtime.majorVersion} ABI=${runtime.arch}")
             _state.update {
                 it.copy(
                     launchBusy = false,
