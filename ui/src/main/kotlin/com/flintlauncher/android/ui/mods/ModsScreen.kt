@@ -27,13 +27,14 @@ fun ModsScreen(state: ModsUiState, actions: ModsActions, modifier: Modifier = Mo
     Column(modifier.fillMaxSize().background(Screen).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("MODRINTH LIBRARY", color = FlintGreen, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Katalog dan unduhan resmi Modrinth", color = Muted, style = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(query, { query = it; actions.onQueryChange?.invoke(it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cari mod") })
+        OutlinedTextField(query, { query = it; actions.onQueryChange?.invoke(it) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cari ${state.projectType}") })
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { actions.onSearch?.invoke() }, enabled = actions.onSearch != null) { Text("Search") }
             TextButton(onClick = { actions.onRefresh?.invoke() }, enabled = actions.onRefresh != null) { Text("Refresh") }
             Spacer(Modifier.weight(1f))
             Text(state.totalHits.toString() + " hasil", color = Muted)
         }
+        FilterMenu("Project type", listOf(ModFilterOption("mod","Mods"), ModFilterOption("shader","Shaders"), ModFilterOption("resourcepack","Resource packs"), ModFilterOption("modpack","Modpacks")), state.projectType, { actions.onProjectTypeChange?.invoke(it) }, actions.onProjectTypeChange != null)
         FilterMenu("Profile", state.profiles.map { ModFilterOption(it.id, it.name + " · " + it.minecraftVersion + " · " + it.loader) }, state.selectedProfileId, { actions.onSelectProfile?.invoke(it) }, actions.onSelectProfile != null)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.weight(1f)) { FilterMenu("Category", state.categories, state.selectedCategory, { actions.onCategoryChange?.invoke(it) }, actions.onCategoryChange != null) }
@@ -60,7 +61,7 @@ fun ModsScreen(state: ModsUiState, actions: ModsActions, modifier: Modifier = Mo
                 }
             }
             is Loadable.Content -> if (results.value.isEmpty()) {
-                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Text("Tidak ada mod yang cocok.", color = Muted) }
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Text("Tidak ada ${state.projectType} yang cocok.", color = Muted) }
             } else {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(results.value, key = { it.id }) { project ->
@@ -107,7 +108,7 @@ private fun ProjectCard(project: ModProjectUi, busy: Boolean, onOpen: () -> Unit
                     Text(project.title, color = Color.White, fontWeight = FontWeight.SemiBold)
                     Text("by " + project.author.ifBlank { "Unknown author" }, color = Muted, style = MaterialTheme.typography.labelSmall)
                 }
-                Text(if (project.installed) "INSTALLED" else if (busy) "WORKING" else "DETAILS →", color = FlintGreen, style = MaterialTheme.typography.labelSmall)
+                Text(if (project.installed) "INSTALLED" else if (busy) "WORKING" else project.projectType.uppercase(), color = FlintGreen, style = MaterialTheme.typography.labelSmall)
             }
             Text(project.description, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
             Row {
@@ -127,7 +128,7 @@ private fun ProjectDetailsDialog(project: ModProjectUi, versions: List<ModVersio
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(project.description, style = MaterialTheme.typography.bodySmall)
-                Text("Client: " + project.clientSide + " · Server: " + project.serverSide, style = MaterialTheme.typography.labelSmall)
+                Text("Type: " + project.projectType + if (project.projectType == "mod") " · Client: " + project.clientSide + " · Server: " + project.serverSide else "", style = MaterialTheme.typography.labelSmall)
                 when {
                     loading -> CircularProgressIndicator(color = FlintGreen)
                     versions.isEmpty() -> Text("Tidak ada versi kompatibel untuk profile ini.", color = Muted)
@@ -138,7 +139,7 @@ private fun ProjectDetailsDialog(project: ModProjectUi, versions: List<ModVersio
                                     Text(version.versionNumber)
                                     Text(version.gameVersions.joinToString(), color = Muted, style = MaterialTheme.typography.labelSmall)
                                 }
-                                Button(onClick = { onInstall(version.id) }, enabled = !busy) { Text(if (busy) "Installing…" else "Install") }
+                                if (project.projectType == "mod") Button(onClick = { onInstall(version.id) }, enabled = !busy) { Text(if (busy) "Installing…" else "Install") } else Text("Browse only", color = Muted, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
