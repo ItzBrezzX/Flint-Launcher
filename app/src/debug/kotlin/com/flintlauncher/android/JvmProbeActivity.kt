@@ -11,9 +11,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Debug-only device gate. Runs inside the isolated :game process so HotSpot is
+ * Debug-only device gate. Runs inside the isolated :jvmprobe process so HotSpot is
  * never loaded into the launcher UI process. It downloads a pinned mobile JRE,
- * executes a real Java class through JNI/JLI, and emits a machine-readable result.
+ * executes a real Java class through JNI_CreateJavaVM, and emits a machine-readable result.
  */
 class JvmProbeActivity : Activity() {
     private val probeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
