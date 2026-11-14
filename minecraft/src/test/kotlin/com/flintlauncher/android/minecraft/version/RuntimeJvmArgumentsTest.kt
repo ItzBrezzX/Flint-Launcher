@@ -8,7 +8,7 @@ class RuntimeJvmArgumentsTest {
     @Test
     fun addsManagedHeapBeforeCustomArguments() {
         assertEquals(
-            listOf("-Xmx1024M", "-Duser.language=en", "-XX:+UseG1GC"),
+            listOf("-Duser.language=en", "-XX:+UseG1GC", "-Xmx1024M"),
             RuntimeJvmArguments.build(1024, "-Duser.language=en -XX:+UseG1GC"),
         )
     }
@@ -16,7 +16,7 @@ class RuntimeJvmArgumentsTest {
     @Test
     fun preservesQuotedArgumentsAsSingleTokens() {
         assertEquals(
-            listOf("-Xmx768M", "-Djava.library.path=/data/user files/lib", "-Dlabel=two words"),
+            listOf("-Djava.library.path=/data/user files/lib", "-Dlabel=two words", "-Xmx768M"),
             RuntimeJvmArguments.build(768, """-Djava.library.path="/data/user files/lib" '-Dlabel=two words'"""),
         )
     }
