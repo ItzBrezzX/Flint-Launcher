@@ -19,7 +19,7 @@ typedef struct {
     float display_refresh_hz;
 } flint_render_config_t;
 
-extern flint_render_config_t flint_render_spec;
+extern flint_render_config_t flint_render_config;
 
 /* Handles remain open for the lifetime of the process. */
 void *flint_acquire_egl_handle(void);
