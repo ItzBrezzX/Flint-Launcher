@@ -3,8 +3,15 @@ project(flint_native LANGUAGES C CXX)
 
 include(FetchContent)
 
-# Android GLFW backend used by LWJGL2/LWJGL3. Keep upstream revisions pinned;
-# GLFW's Android platform uses MojoExec for Android linker/EGL integration.
+# Flint owns the small public Android platform-loading boundary used by GLFW.
+# It loads only public system EGL/Vulkan libraries and never bypasses linker namespaces.
+add_library(flint_platform STATIC flint_platform.c)
+target_include_directories(flint_platform PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_options(flint_platform PRIVATE -Wall -Wextra)
+target_link_libraries(flint_platform PUBLIC dl)
+set_target_properties(flint_platform PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Android GLFW backend used by LWJGL2/LWJGL3. Keep upstream revisions pinned.
 set(GLFW_BUILD_ANDROID ON CACHE BOOL "Build Android GLFW backend" FORCE)
 set(GLFW_BUILD_X11 OFF CACHE BOOL "Disable desktop X11 backend" FORCE)
 set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "Disable desktop Wayland backend" FORCE)
@@ -15,30 +22,76 @@ set(GLFW_INSTALL OFF CACHE BOOL "Disable GLFW install rules" FORCE)
 set(GLFW_LIBRARY_TYPE SHARED CACHE STRING "Build GLFW as a shared library for LWJGL" FORCE)
 
 FetchContent_Declare(
-    mojoexec
-    GIT_REPOSITORY https://github.com/MojoLauncher/mojoexec.git
-    GIT_TAG 9ec4b836e93900135bad823eaac16ebc81cf6b98
-    GIT_PROGRESS TRUE
-)
-FetchContent_MakeAvailable(mojoexec)
-
-# Pinned MojoExec uses C99 bool/true/false in fake_dlfcn.c without
-# including <stdbool.h>. Force the standard header for its C compilation.
-target_compile_options(mojoexec PRIVATE
-    "$<$<COMPILE_LANGUAGE:C>:-include>"
-    "$<$<COMPILE_LANGUAGE:C>:stdbool.h>"
-)
-
-FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/MojoLauncher/glfw.git
     GIT_TAG 7a6c6ceb51f20cd0db84dec2914ac1a0237051f6
     GIT_PROGRESS TRUE
 )
-FetchContent_MakeAvailable(glfw)
+FetchContent_GetProperties(glfw)
+if(NOT glfw_POPULATED)
+    FetchContent_Populate(glfw)
+endif()
 
-if(NOT TARGET glfw OR NOT TARGET mojoexec)
-    message(FATAL_ERROR "Pinned Android GLFW/MojoExec targets were not created")
+# Apply a narrow, checked adaptation to the pinned GLFW Android fork.
+# The GLFW platform backend now calls Flint's independently implemented
+# public-library loader and display metadata API instead of MojoExec.
+function(flint_replace_glfw_source relative_path old_text new_text)
+    set(source_file "${glfw_SOURCE_DIR}/${relative_path}")
+    file(READ "${source_file}" source_text)
+    string(FIND "${source_text}" "${old_text}" match_position)
+    if(match_position EQUAL -1)
+        message(FATAL_ERROR "Flint GLFW patch no longer matches ${relative_path}: ${old_text}")
+    endif()
+    string(REPLACE "${old_text}" "${new_text}" source_text "${source_text}")
+    file(WRITE "${source_file}" "${source_text}")
+endfunction()
+
+flint_replace_glfw_source("src/android_init.c"
+    "#include <mojoexec.h>" "#include <flint_platform.h>")
+flint_replace_glfw_source("src/android_init.c"
+    "mojoexec_acq_vulkan_handle" "flint_acquire_vulkan_handle")
+flint_replace_glfw_source("src/android_init.c"
+    "mojoexec_acq_egl_handle" "flint_acquire_egl_handle")
+
+flint_replace_glfw_source("src/android_window.c"
+    "#include <mojoexec.h>" "#include <flint_platform.h>")
+flint_replace_glfw_source("src/android_window.c"
+    "mojoexec_renderspec" "flint_render_spec")
+
+flint_replace_glfw_source("src/android_monitor.c"
+    "#include <mojoexec.h>" "#include <flint_platform.h>")
+flint_replace_glfw_source("src/android_monitor.c"
+    "mojoexec_renderspec" "flint_render_spec")
+
+flint_replace_glfw_source("src/egl_context.c"
+    "#include \"mojoexec.h\"" "#include <flint_platform.h>")
+flint_replace_glfw_source("src/egl_context.c"
+    "mojoexec_acq_egl_handle" "flint_acquire_egl_handle")
+flint_replace_glfw_source("src/egl_context.c"
+    "acquired client handle through mojoexec" "acquired EGL client handle through Flint")
+flint_replace_glfw_source("src/egl_context.c"
+    "#if defined(_GLFW_ANDROID)\n        mojoexec_make_bigcore_affine();\n#endif"
+    "")
+
+flint_replace_glfw_source("src/CMakeLists.txt"
+    [=[
+    if (NOT TARGET mojoexec)
+        message(FATAL_ERROR "MojoExec is a required dependency! Make sure you have added it beforeincluding this")
+    endif ()
+    target_link_libraries(glfw PRIVATE android log mojoexec)
+]=]
+    [=[
+    if (NOT TARGET flint_platform)
+        message(FATAL_ERROR "Flint platform loader target is missing")
+    endif ()
+    target_include_directories(glfw PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../native/src/main/cpp")
+    target_link_libraries(glfw PRIVATE android log flint_platform)
+]=])
+
+add_subdirectory("${glfw_SOURCE_DIR}" "${glfw_BINARY_DIR}")
+
+if(NOT TARGET glfw OR NOT TARGET flint_platform)
+    message(FATAL_ERROR "Pinned Android GLFW/Flint platform targets were not created")
 endif()
 
 set_target_properties(glfw PROPERTIES
