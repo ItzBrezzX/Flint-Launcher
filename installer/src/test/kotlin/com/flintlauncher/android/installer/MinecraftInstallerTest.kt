@@ -329,6 +329,29 @@ class NativesExtractorTest {
     }
 
     @Test
+    fun createsTheNativeDirectoryEvenWhenNoNativeJarsAreRequired() {
+        val target = File(tmp.root, "empty-natives")
+
+        val extracted = NativesExtractor.extract(emptyList(), target)
+
+        assertTrue(target.isDirectory)
+        assertTrue(extracted.isEmpty())
+    }
+
+    @Test
+    fun failsWhenTheNativeOutputDirectoryCannotBeCreated() {
+        val blockingFile = File(tmp.root, "not-a-directory").apply { writeText("block") }
+        val target = File(blockingFile, "natives")
+
+        try {
+            NativesExtractor.extract(emptyList(), target)
+            fail("expected InstallPlanException")
+        } catch (error: InstallPlanException) {
+            assertTrue(error.message!!.contains("native library directory"))
+        }
+    }
+
+    @Test
     fun anEntryThatEscapesTheTargetAbortsExtraction() {
         val jar = zip("evil.jar", mapOf("../evil.so" to "x"))
         try {
