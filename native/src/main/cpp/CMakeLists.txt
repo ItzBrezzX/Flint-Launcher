@@ -6,6 +6,7 @@ include(FetchContent)
 add_library(flint_native SHARED
     flint_jni.cpp
     egl_smoke.cpp
+    egl_window.cpp
 )
 
 find_library(log-lib log)

@@ -1,5 +1,7 @@
 package com.flintlauncher.android.nativebridge
 
+import android.view.Surface
+
 /**
  * JNI surface for the native runtime and graphics diagnostics.
  *
@@ -32,6 +34,15 @@ object NativeBridge {
     /** Actual EGL/GLES driver strings from a temporary pbuffer context. */
     external fun nativeEglCapabilities(): String
 
+    /** Attach a real Android Surface to an EGL window surface and present an initial frame. */
+    external fun nativeCreateEglWindow(surface: Surface): String
+
+    /** Present a diagnostic GLES frame to the attached Android window surface. */
+    external fun nativeRenderEglWindowFrame(): String
+
+    /** Release the EGL window surface, context, display, and retained ANativeWindow. */
+    external fun nativeDestroyEglWindow(): String
+
     /** Load mobile OpenJDK libjvm/libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
 
@@ -54,6 +65,18 @@ object NativeBridge {
     fun safeEglCapabilities(): String =
         if (!loaded) "native-not-loaded: $loadError"
         else runCatching { nativeEglCapabilities() }.getOrElse { "gpu-probe-exception: ${it.message}" }
+
+    fun safeCreateEglWindow(surface: Surface): String =
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeCreateEglWindow(surface) }.getOrElse { "egl-window-exception: ${it.message}" }
+
+    fun safeRenderEglWindowFrame(): String =
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeRenderEglWindowFrame() }.getOrElse { "egl-window-frame-exception: ${it.message}" }
+
+    fun safeDestroyEglWindow(): String =
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeDestroyEglWindow() }.getOrElse { "egl-window-destroy-exception: ${it.message}" }
 
     fun safeJreStatus(): String =
         if (!loaded) "native-not-loaded: $loadError"

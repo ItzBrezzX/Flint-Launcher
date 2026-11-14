@@ -22,6 +22,12 @@
             android:foregroundServiceType="dataSync" />
 
         <activity
+            android:name=".GameSurfaceActivity"
+            android:process=":game"
+            android:screenOrientation="sensorLandscape"
+            android:exported="false" />
+
+        <activity
             android:name=".MainActivity"
             android:screenOrientation="sensorLandscape"
             android:exported="true">

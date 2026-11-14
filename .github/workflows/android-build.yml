@@ -194,7 +194,7 @@ jobs:
           # The action executes script lines in separate shells. Keep every
           # stateful command inside this one inner shell invocation.
           script: |
-            sh -c 'set -eu; WORKSPACE="${{ github.workspace }}"; TEMP_DIR="${{ runner.temp }}"; APK_DIR="$WORKSPACE/app/build/outputs/apk/debug"; APK="$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -print -quit)"; LOGCAT="$TEMP_DIR/flint-emulator-logcat.txt"; ACTIVITY="$TEMP_DIR/flint-emulator-activity.txt"; MARKER="$TEMP_DIR/flint-emulator-launched"; if [ -z "$APK" ] || [ ! -s "$APK" ]; then echo "Debug APK not found under $APK_DIR" >&2; find "$WORKSPACE/app/build/outputs" -maxdepth 5 -type f -name "*.apk" -print >&2 || true; exit 1; fi; echo "Installing APK: $APK"; adb wait-for-device; adb install -r "$APK"; adb shell am force-stop com.flintlauncher.android; adb shell am start -W -n com.flintlauncher.android/.MainActivity; sleep 8; adb shell pidof com.flintlauncher.android >/dev/null; adb shell dumpsys activity activities > "$ACTIVITY"; adb logcat -d -t 4000 > "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal" "$LOGCAT"; then exit 1; fi; touch "$MARKER"; echo "Flint MainActivity installed and started successfully on Android API 34 x86_64 emulator."'
+            sh -c 'set -eu; WORKSPACE="${{ github.workspace }}"; TEMP_DIR="${{ runner.temp }}"; APK_DIR="$WORKSPACE/app/build/outputs/apk/debug"; APK="$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -print -quit)"; LOGCAT="$TEMP_DIR/flint-emulator-logcat.txt"; SURFACE_LOG="$TEMP_DIR/flint-emulator-surface-logcat.txt"; ACTIVITY="$TEMP_DIR/flint-emulator-activity.txt"; MARKER="$TEMP_DIR/flint-emulator-launched"; if [ -z "$APK" ] || [ ! -s "$APK" ]; then echo "Debug APK not found under $APK_DIR" >&2; find "$WORKSPACE/app/build/outputs" -maxdepth 5 -type f -name "*.apk" -print >&2 || true; exit 1; fi; echo "Installing APK: $APK"; adb wait-for-device; adb install -r "$APK"; adb shell am force-stop com.flintlauncher.android; adb shell am start -W -n com.flintlauncher.android/.MainActivity; sleep 8; adb shell pidof com.flintlauncher.android >/dev/null; adb shell dumpsys activity activities > "$ACTIVITY"; adb logcat -d -t 4000 > "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal" "$LOGCAT"; then exit 1; fi; adb logcat -c; adb shell am start -W -n com.flintlauncher.android/.GameSurfaceActivity; sleep 3; adb shell pidof com.flintlauncher.android:game >/dev/null; adb logcat -d -s FlintGameSurface:I > "$SURFACE_LOG"; if ! grep -Eq "create=egl-window-ok:[0-9]+x[0-9]+" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; if ! grep -Fq "frame=egl-window-frame-ok" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; adb logcat -d -t 4000 >> "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal" "$LOGCAT"; then exit 1; fi; touch "$MARKER"; echo "Flint MainActivity and isolated EGL window-surface smoke passed on Android API 34 x86_64 emulator."'
 
       - name: Verify emulator launch evidence
         if: always()
@@ -208,7 +208,7 @@ jobs:
             fi
             exit 1
           fi
-          echo "Verified: APK installed and MainActivity process remained alive after launch."
+          echo "Verified: launcher Activity and isolated :game EGL window surface both passed."
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v7
@@ -223,6 +223,7 @@ jobs:
             ${{ runner.temp }}/gradle-version.txt
             ${{ runner.temp }}/so-path.txt
             ${{ runner.temp }}/flint-emulator-logcat.txt
+            ${{ runner.temp }}/flint-emulator-surface-logcat.txt
             ${{ runner.temp }}/flint-emulator-activity.txt
             **/build/reports/tests/**
           if-no-files-found: ignore
