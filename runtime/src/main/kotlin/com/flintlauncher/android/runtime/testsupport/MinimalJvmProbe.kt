@@ -9,7 +9,7 @@ import java.util.Base64
 
 /**
  * Host-side driver for Spike 0.3: load a mobile JRE and run a minimal Java main
- * through JNI → JLI_Launch.
+ * through libjvm's JNI Invocation API (JNI_CreateJavaVM).
  *
  * This class does not mock success. Every outcome is derived from native return codes
  * and filesystem probes.
@@ -70,10 +70,10 @@ object MinimalJvmProbe {
     }
 
     /**
-     * Attempt: nativeLoadJre(runtime) then nativeLaunchJvm(argv for FlintJvmProbe).
+     * Attempt: nativeLoadJre(runtime) then create HotSpot with JNI_CreateJavaVM and invoke FlintJvmProbe.main.
      * The probe class is generated into [classpathDir], so javac is not needed.
      *
-     * This starts a process-global HotSpot VM. Run it in a disposable process;
+     * This starts a process-global HotSpot VM through the Invocation API. Run it in a disposable process;
      * after it returns, restart Flint before attempting a real game launch.
      */
     fun run(
@@ -124,7 +124,7 @@ object MinimalJvmProbe {
         )
         notes += "argv=" + argv.joinToString(" ")
 
-        Log.i(TAG, "probe-stage=jli-launch-start argv=${argv.joinToString(" ")}")
+        Log.i(TAG, "probe-stage=jvm-create-start argv=${argv.joinToString(" ")}")
         val code = try {
             NativeBridge.nativeLaunchJvm(argv)
         } catch (t: Throwable) {
@@ -132,8 +132,8 @@ object MinimalJvmProbe {
             NativeBridge.nativeShutdown()
             return JvmProbeResult(true, null, true, null, notes)
         }
-        Log.i(TAG, "probe-stage=jli-launch-finished exitCode=$code")
-        notes += "JLI_Launch exit code=$code"
+        Log.i(TAG, "probe-stage=jvm-create-finished exitCode=$code")
+        notes += "JNI_CreateJavaVM/main exit code=$code"
         NativeBridge.nativeShutdown()
         return JvmProbeResult(true, null, true, code, notes)
     }
