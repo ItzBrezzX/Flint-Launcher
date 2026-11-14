@@ -181,7 +181,6 @@ jobs:
         id: emulator-smoke
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # API 34 is used for the smoke device; app compilation still targets API 35.
           api-level: 34
           target: google_apis
           arch: x86_64
@@ -192,70 +191,10 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          # The action executes script lines in separate shells. Keep every
+          # stateful command inside this one inner shell invocation.
           script: |
-            # Pass GitHub context paths explicitly. Composite actions do not
-            # reliably expose GITHUB_WORKSPACE/RUNNER_TEMP inside script input.
-            set -eu
-            WORKSPACE="${{ github.workspace }}"
-            TEMP_DIR="${{ runner.temp }}"
-            APK_DIR="${WORKSPACE}/app/build/outputs/apk/debug"
-            BOOT_MARKER="${TEMP_DIR}/flint-emulator-booted"
-            LAUNCH_MARKER="${TEMP_DIR}/flint-emulator-launched"
-            LOGCAT="${TEMP_DIR}/flint-emulator-logcat.txt"
-            ACTIVITY="${TEMP_DIR}/flint-emulator-activity.txt"
-
-            rm -f "${BOOT_MARKER}" "${LAUNCH_MARKER}" "${LOGCAT}" "${ACTIVITY}"
-            cd "${WORKSPACE}"
-
-            APK=$(find "${APK_DIR}" -maxdepth 1 -type f -name '*.apk' -print -quit)
-            if [ -z "${APK}" ] || [ ! -s "${APK}" ]; then
-              echo "Debug APK not found under ${APK_DIR}" >&2
-              find "${WORKSPACE}/app/build/outputs" -maxdepth 5 -type f -name '*.apk' -print >&2 2>/dev/null || true
-              exit 1
-            fi
-            echo "Installing APK: ${APK}"
-
-            adb wait-for-device
-            booted=0
-            attempt=0
-            while [ "$attempt" -lt 90 ]; do
-              state=$(adb get-state 2>/dev/null || true)
-              if [ "$state" = "device" ]; then
-                completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r' || true)
-                if [ "$completed" = "1" ]; then
-                  booted=1
-                  break
-                fi
-              fi
-              attempt=$((attempt + 1))
-              sleep 2
-            done
-            if [ "$booted" -ne 1 ]; then
-              echo "Android emulator did not become fully booted/online." >&2
-              adb devices -l >&2 || true
-              exit 1
-            fi
-            touch "${BOOT_MARKER}"
-
-            adb install -r "${APK}"
-            adb shell am force-stop com.flintlauncher.android
-            adb shell am start -W -n com.flintlauncher.android/.MainActivity
-            sleep 8
-
-            if ! adb shell pidof com.flintlauncher.android >/dev/null; then
-              echo "Flint process is not running after MainActivity launch." >&2
-              adb logcat -d -t 4000 > "${LOGCAT}" 2>/dev/null || true
-              exit 1
-            fi
-
-            adb shell dumpsys activity activities > "${ACTIVITY}"
-            adb logcat -d -t 4000 > "${LOGCAT}"
-            if grep -E "FATAL EXCEPTION|Fatal signal" "${LOGCAT}"; then
-              exit 1
-            fi
-
-            touch "${LAUNCH_MARKER}"
-            echo "Flint MainActivity installed and started successfully on Android API 34 x86_64 emulator."
+            sh -c 'set -eu; WORKSPACE="${{ github.workspace }}"; TEMP_DIR="${{ runner.temp }}"; APK_DIR="$WORKSPACE/app/build/outputs/apk/debug"; APK="$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -print -quit)"; LOGCAT="$TEMP_DIR/flint-emulator-logcat.txt"; ACTIVITY="$TEMP_DIR/flint-emulator-activity.txt"; MARKER="$TEMP_DIR/flint-emulator-launched"; if [ -z "$APK" ] || [ ! -s "$APK" ]; then echo "Debug APK not found under $APK_DIR" >&2; find "$WORKSPACE/app/build/outputs" -maxdepth 5 -type f -name "*.apk" -print >&2 || true; exit 1; fi; echo "Installing APK: $APK"; adb wait-for-device; adb install -r "$APK"; adb shell am force-stop com.flintlauncher.android; adb shell am start -W -n com.flintlauncher.android/.MainActivity; sleep 8; adb shell pidof com.flintlauncher.android >/dev/null; adb shell dumpsys activity activities > "$ACTIVITY"; adb logcat -d -t 4000 > "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal" "$LOGCAT"; then exit 1; fi; touch "$MARKER"; echo "Flint MainActivity installed and started successfully on Android API 34 x86_64 emulator."'
 
       - name: Verify emulator launch evidence
         if: always()
