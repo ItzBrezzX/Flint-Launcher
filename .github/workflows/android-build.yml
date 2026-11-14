@@ -1,5 +1,5 @@
 # Spike 0.4 — reproducible ARM64 debug APK with native library verification.
-# Fails the job if libflint_native.so is missing from the APK.
+# Fails the job if either libflint_native.so or GL4ES libGL.so is missing from the APK.
 name: Android Build (multi-ABI native)
 
 on:
@@ -99,6 +99,16 @@ jobs:
             ls -la "${SO}"
             file "${SO}" || true
             echo "${ABI}: ${SO}" >> "${RUNNER_TEMP}/so-path.txt"
+
+            GL_SO=$(find native/build -name 'libGL.so' -path "*/${ABI}/*" | head -n1 || true)
+            if [ -z "${GL_SO}" ]; then
+              echo "::error::GL4ES libGL.so not found under native/build for ${ABI}"
+              find native/build -type f -name '*.so' -print || true
+              exit 1
+            fi
+            echo "Found GL4ES ${ABI}: ${GL_SO}"
+            file "${GL_SO}" || true
+            echo "${ABI} GL4ES: ${GL_SO}" >> "${RUNNER_TEMP}/so-path.txt"
           done
 
       - name: Unit tests (host JVM)
@@ -134,6 +144,15 @@ jobs:
             unzip -o -d "${TMP}" "${APK}" "${ENTRY}"
             test -s "${TMP}/${ENTRY}"
             echo "OK: ${ENTRY} is present and non-empty"
+
+            GL_ENTRY="lib/${ABI}/libGL.so"
+            if ! unzip -l "${APK}" | grep -F "${GL_ENTRY}"; then
+              echo "::error::APK is missing GL4ES backend ${GL_ENTRY}"
+              exit 1
+            fi
+            unzip -o -d "${TMP}" "${APK}" "${GL_ENTRY}"
+            test -s "${TMP}/${GL_ENTRY}"
+            echo "OK: ${GL_ENTRY} is present and non-empty"
           done
 
       - name: Upload debug APK
