@@ -12,6 +12,7 @@ import com.flintlauncher.android.profiles.ProfileSecurity
 import com.flintlauncher.android.runtime.JavaRuntimeInfo
 import com.flintlauncher.android.runtime.LaunchRequest
 import com.flintlauncher.android.runtime.RendererInfo
+import com.flintlauncher.android.runtime.RendererCompatibilityPolicy
 import java.io.File
 
 /**
@@ -49,6 +50,10 @@ object LaunchRequestFactory {
         if (!renderer.available) {
             throw LaunchConfigurationException("Selected renderer is not verified as available")
         }
+        val lwjglLine = RendererCompatibilityPolicy.planFor(installed.version)?.lwjglLine
+            ?: throw LaunchConfigurationException(
+                "Cannot select an Android game backend for ${installed.versionId}: resolved metadata does not identify exactly one LWJGL compatibility line",
+            )
         if ((resolutionWidth == null) != (resolutionHeight == null)) {
             throw LaunchConfigurationException("Custom resolution requires both width and height")
         }
@@ -153,6 +158,7 @@ object LaunchRequestFactory {
             userType = userType,
             runtime = runtime,
             renderer = renderer,
+            lwjglLine = lwjglLine,
         )
     }
 }
