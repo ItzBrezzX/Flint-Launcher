@@ -73,7 +73,7 @@ object RuntimeJvmArguments {
                     escaping = false
                     tokenStarted = true
                 }
-                char == '\\\\' && quote != '\'' -> {
+                char == '\\' && quote != '\'' -> {
                     escaping = true
                     tokenStarted = true
                 }
