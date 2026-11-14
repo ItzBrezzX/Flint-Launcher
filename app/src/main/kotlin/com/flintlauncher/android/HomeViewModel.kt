@@ -194,32 +194,22 @@ class HomeViewModel(
                 }
             }
 
-            _state.update { it.copy(launchStage = "Verifying Java runtime", launchProgressPercent = null) }
-            val verified = try {
-                manager.verify(runtime)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                false
-            }
-            if (!verified) {
-                val detail = manager.lastVerificationError
-                    ?: "The JVM probe returned false without a diagnostic."
-                _state.update {
-                    it.copy(
-                        launchBusy = false,
-                        launchStage = null,
-                        launchMessage = "Java ${runtime.majorVersion} was installed, but JVM runtime verification failed. $detail",
-                    )
-                }
-                return@launch
-            }
-
+            /*
+             * Do not execute JLI_Launch from the launcher process here.
+             * The current native probe starts a process-global HotSpot VM
+             * synchronously in this same Android process. On unsupported
+             * Android/JRE combinations that can terminate the whole app
+             * with a native signal, which Kotlin try/catch cannot intercept.
+             *
+             * Game launch is intentionally gated until the renderer + game
+             * window backend exists and JVM probing can run in an isolated
+             * process. Installing Java is not equivalent to launching MC.
+             */
             _state.update {
                 it.copy(
                     launchBusy = false,
                     launchStage = null,
-                    launchMessage = "Java ${runtime.majorVersion} (${runtime.arch}) is verified for Minecraft ${selected.minecraftVersion}. Flint still cannot start the game: the GL4ES/OpenGL compatibility renderer and full game window bridge are not bundled yet.",
+                    launchMessage = "Java ${runtime.majorVersion} (${runtime.arch}) is installed. Minecraft launch is not available yet: Flint's GL4ES/OpenGL renderer and game-window backend are not integrated. JVM execution is paused here to prevent a native JVM crash in the launcher process.",
                 )
             }
         }
