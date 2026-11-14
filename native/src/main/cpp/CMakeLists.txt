@@ -14,7 +14,7 @@ find_library(android-lib android)
 find_library(egl-lib EGL)
 find_library(gles-lib GLESv2)
 
-target_link_libraries(flint_native
+target_link_libraries(flint_native PRIVATE
     ${log-lib}
     ${android-lib}
     ${egl-lib}
