@@ -162,7 +162,7 @@ class RuntimeSettingsViewModel(
                             installingMajor = null,
                             installStage = null,
                             installPercent = 100f,
-                            message = "Java " + runtime.majorVersion + " (" + runtime.arch + ") installed and verified.",
+                            message = "Java " + runtime.majorVersion + " (" + runtime.arch + ") installed. Archive hash, version metadata and ABI checks passed; JVM execution is checked separately when launching.",
                         )
                     }
                 },
