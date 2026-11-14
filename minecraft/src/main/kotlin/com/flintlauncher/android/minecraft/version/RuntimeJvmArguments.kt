@@ -15,6 +15,10 @@ object RuntimeJvmArguments {
         if (heapMb !in 256..16_384) {
             throw LaunchConfigurationException("Java heap must be between 256 MB and 16384 MB")
         }
+        return listOf("-Xmx${heapMb}M") + parseCustomArguments(customArguments)
+    }
+
+    fun parseCustomArguments(customArguments: String): List<String> {
         if (customArguments.length > MAX_INPUT_LENGTH) {
             throw LaunchConfigurationException("Custom JVM arguments exceed 2048 characters")
         }
@@ -42,7 +46,7 @@ object RuntimeJvmArguments {
                 )
             }
         }
-        return listOf("-Xmx${heapMb}M") + parsed
+        return parsed
     }
 
     private fun tokenize(input: String): List<String> {
