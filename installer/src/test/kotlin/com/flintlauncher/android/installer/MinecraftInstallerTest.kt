@@ -190,7 +190,7 @@ class MinecraftInstallerTest {
           "assetIndex":{"id":"pre-1.6","sha1":"${sha1(assetIndex)}","size":${assetIndex.size},"url":"$base/legacy/assets/index.json"},
           "libraries":[{"name":"org.lwjgl.lwjgl:lwjgl:2.9.0","downloads":{"artifact":{
             "path":"$libraryPath","sha1":"${sha1(lwjglLibrary)}","size":${lwjglLibrary.size},"url":"$base/legacy/lwjgl.jar"}}}],
-          "minecraftArguments":"--username \\\"${' = runBlocking {
+          "minecraftArguments":"--username \"${' = runBlocking {
         success(installer.install("1.0-test"))
         fake.requested.clear()
 
@@ -386,7 +386,7 @@ class NativesExtractorTest {
         assertTrue(!File(tmp.root, "evil.so").exists())
     }
 }
-}{auth_player_name}\\\" --gameDir \\\"${' = runBlocking {
+}{auth_player_name}\" --gameDir \"${' = runBlocking {
         success(installer.install("1.0-test"))
         fake.requested.clear()
 
@@ -582,7 +582,7 @@ class NativesExtractorTest {
         assertTrue(!File(tmp.root, "evil.so").exists())
     }
 }
-}{game_directory}\\\" --assetsDir \\\"${' = runBlocking {
+}{game_directory}\" --assetsDir \"${' = runBlocking {
         success(installer.install("1.0-test"))
         fake.requested.clear()
 
@@ -778,7 +778,7 @@ class NativesExtractorTest {
         assertTrue(!File(tmp.root, "evil.so").exists())
     }
 }
-}{game_assets}\\\""
+}{game_assets}\""
         }"""
         fake.blobs["/meta/$versionId.json"] = versionJson.toByteArray()
         fake.blobs["/manifest.json"] = """{"latest":{"release":"1.0-test","snapshot":"1.0-test"},"versions":[
