@@ -34,6 +34,7 @@ class FlintApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashDiagnostics.initialize(this)
         container = AppContainer(this)
     }
 }
