@@ -1,5 +1,6 @@
 package com.flintlauncher.android.runtime.testsupport
 
+import android.util.Log
 import com.flintlauncher.android.nativebridge.NativeBridge
 import com.flintlauncher.android.runtime.JavaRuntimeInfo
 import com.flintlauncher.android.runtime.MobileJreManager
@@ -95,7 +96,9 @@ object MinimalJvmProbe {
             return JvmProbeResult(true, null, false, null, notes)
         }
 
+        Log.i(TAG, "probe-stage=native-load-start home=${runtime.homeDir.absolutePath}")
         val jreOk = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
+        Log.i(TAG, "probe-stage=native-load-finished success=$jreOk status=${NativeBridge.safeJreStatus()}")
         notes += if (jreOk) "nativeLoadJre=true" else "nativeLoadJre=false"
         notes += "native JRE status: ${NativeBridge.safeJreStatus()}"
         if (!jreOk) {
@@ -119,6 +122,7 @@ object MinimalJvmProbe {
         )
         notes += "argv=" + argv.joinToString(" ")
 
+        Log.i(TAG, "probe-stage=jli-launch-start argv=${argv.joinToString(" ")}")
         val code = try {
             NativeBridge.nativeLaunchJvm(argv)
         } catch (t: Throwable) {
@@ -126,6 +130,7 @@ object MinimalJvmProbe {
             NativeBridge.nativeShutdown()
             return JvmProbeResult(true, null, true, null, notes)
         }
+        Log.i(TAG, "probe-stage=jli-launch-finished exitCode=$code")
         notes += "JLI_Launch exit code=$code"
         NativeBridge.nativeShutdown()
         return JvmProbeResult(true, null, true, code, notes)
