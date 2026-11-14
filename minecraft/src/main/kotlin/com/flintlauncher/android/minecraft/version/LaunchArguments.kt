@@ -75,7 +75,7 @@ object LaunchCommandBuilder {
 
         val rawJvm = version.arguments?.jvm?.takeIf { it.isNotEmpty() }?.let { resolve(it, env) } ?: legacyJvm
         val rawGame = version.arguments?.game?.takeIf { it.isNotEmpty() }?.let { resolve(it, env) }
-            ?: version.minecraftArguments?.split(' ')?.filter { it.isNotEmpty() }
+            ?: version.minecraftArguments?.let(LegacyArgumentTokenizer::tokenize)
             ?: throw LaunchConfigurationException("Version ${version.id} has no game arguments")
 
         val runtimeSettingsArguments = if (runtimeHeapMb != null) {
