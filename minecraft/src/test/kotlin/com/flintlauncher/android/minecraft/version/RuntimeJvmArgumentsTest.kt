@@ -24,7 +24,7 @@ class RuntimeJvmArgumentsTest {
     @Test
     fun parsesEscapedWhitespaceWithoutShellExpansion() {
         assertEquals(
-            listOf("-Xmx512M", "-Dpath=/data/user files/\$HOME"),
+            listOf("-Dpath=/data/user files/\$HOME", "-Xmx512M"),
             RuntimeJvmArguments.build(512, "-Dpath=/data/user\\ files/\\\$HOME"),
         )
     }
