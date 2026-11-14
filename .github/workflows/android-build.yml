@@ -162,18 +162,37 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
+      # GitHub-hosted Linux runners need KVM permissions for reliable x86_64
+      # emulator acceleration. Without this, the emulator can remain ADB-offline
+      # until the boot timeout even though the QEMU process is running.
+      - name: Enable KVM for Android emulator
+        run: |
+          set -euo pipefail
+          if [ ! -e /dev/kvm ]; then
+            echo "::warning::/dev/kvm is unavailable on this runner; emulator may boot slowly."
+          else
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+            ls -l /dev/kvm
+          fi
+
       - name: Install and launch APK on Android emulator (best-effort infrastructure check)
         id: emulator-smoke
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          # API 34 is used for the smoke device; app compilation still targets API 35.
+          api-level: 34
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          emulator-boot-timeout: 300
+          cores: 2
+          ram-size: 4096M
+          emulator-boot-timeout: 600
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             set -Eeuo pipefail
             trap 'rc=$?; adb logcat -d -t 4000 > "${RUNNER_TEMP}/flint-emulator-logcat.txt" 2>/dev/null || true; exit "$rc"' ERR
