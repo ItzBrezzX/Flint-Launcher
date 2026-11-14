@@ -28,6 +28,9 @@ target_compile_options(flint_native PRIVATE -Wall -Wextra -fvisibility=hidden)
 # Pin the exact upstream revision so native builds are reproducible.
 set(ANDROID ON CACHE BOOL "Build GL4ES for Android" FORCE)
 set(NOX11 ON CACHE BOOL "GL4ES: no X11 on Android" FORCE)
+set(NOEGL ON CACHE BOOL "GL4ES: Flint owns EGL context and window lifecycle" FORCE)
+set(NO_LOADER ON CACHE BOOL "GL4ES: resolve GLES through Flint EGL context" FORCE)
+set(NO_INIT_CONSTRUCTOR ON CACHE BOOL "GL4ES: initialize only after Flint makes EGL current" FORCE)
 set(GBM OFF CACHE BOOL "GL4ES: no GBM on Android" FORCE)
 set(USE_ANDROID_LOG ON CACHE BOOL "GL4ES: use Android log" FORCE)
 set(DEFAULT_ES 2 CACHE STRING "GL4ES GLES backend" FORCE)
@@ -56,6 +59,13 @@ set_target_properties(GL PROPERTIES
     SOVERSION ""
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gl4es/${ANDROID_ABI}"
 )
+
+target_compile_definitions(GL PRIVATE GL4ES_COMPILE_FOR_USE_IN_SHARED_LIB)
+
+# Flint owns the EGL display/context and supplies the current-context GLES resolver.
+target_include_directories(flint_native PRIVATE "${gl4es_SOURCE_DIR}/include")
+
+target_link_libraries(flint_native PRIVATE GL)
 
 target_link_libraries(GL
     ${log-lib}

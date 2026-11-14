@@ -26,7 +26,7 @@ class GameSurfaceActivity : Activity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         val result = NativeBridge.safeCreateEglWindow(holder.surface)
-        hasWindowSurface = result.startsWith("egl-window-ok:")
+        hasWindowSurface = result.startsWith("egl-window-ok:") && result.contains("|gl4es-window-ok:")
         Log.i(TAG, "create=$result")
 
         if (hasWindowSurface) {
