@@ -6,7 +6,7 @@ import org.junit.Test
 
 class RuntimeJvmArgumentsTest {
     @Test
-    fun addsManagedHeapBeforeCustomArguments() {
+    fun placesManagedHeapAfterCustomArguments() {
         assertEquals(
             listOf("-Duser.language=en", "-XX:+UseG1GC", "-Xmx1024M"),
             RuntimeJvmArguments.build(1024, "-Duser.language=en -XX:+UseG1GC"),
