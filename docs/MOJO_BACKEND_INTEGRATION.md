@@ -1,4 +1,4 @@
-# MojoLauncher engine integration plan
+# Flint native engine integration plan
 
 ## Selected upstream snapshot
 
@@ -19,22 +19,22 @@ The selected upstream has both rendering/input API generations and an Android ga
 - `GameRunner` selects Java from version metadata, constructs classpath/game arguments and performs renderer compatibility checks.
 - `JavaRunner` and native `jre_launcher` use `JNI_CreateJavaVM`, load-stage diagnostics, class-loader hooks and signal/exit handling. This is not the same as Flint's current experimental `JLI_Launch` call in the launcher process.
 - `GameRenderer` selects renderer implementations and checks device capabilities.
-- The native build includes GLFW, SDL, mojoexec, JVM runtime glue and AWT support.
+- The inspected upstream native build includes GLFW, SDL, MojoExec, JVM runtime glue and AWT support. Flint does not import that complete native stack; the current Flint branch replaces the MojoExec dependency with its own limited public EGL/Vulkan loader.
 
 Upstream compatibility claims do not automatically transfer to Flint or the itel A665L. Flint must validate the port and device separately.
 
-## Pinned native submodules
+## Native components and ownership
 
-These gitlink commits are recorded in the selected MojoLauncher snapshot:
+| Component | Current Flint decision | Ownership / licence |
+|---|---|---|
+| Android GLFW | Keep the pinned MojoLauncher GLFW fork temporarily; adapt its Android calls to Flint's loader at configure time | Third-party GLFW fork; zlib/libpng |
+| Platform EGL/Vulkan loader | Implement in `native/src/main/cpp/flint_platform.c` | Flint-owned code |
+| GL4ES | Keep pinned Android build | Third-party; MIT |
+| MojoExec | Removed from Flint's CMake dependency graph | Not fetched, linked, or redistributed by this integration |
 
-| Component | Upstream | Pinned commit | Role |
-|---|---|---|---|
-| GLFW | https://github.com/MojoLauncher/glfw | `7a6c6ceb51f20cd0db84dec2914ac1a0237051f6` | Android GLFW/window/input |
-| mojoexec | https://github.com/MojoLauncher/mojoexec | `9ec4b836e93900135bad823eaac16ebc81cf6b98` | Android linker namespace and native loading helpers |
-| SDL | https://github.com/MojoLauncher/MojoSDL | `c63845bd49c5a7667d1de0f6134f85ed1ccc8889` | Alternate window/input/audio backend |
-| NoBlocklist | https://github.com/MojoLauncher/NoBlocklist | `f4209d4755d6af6a19fedbe578313e29ebfc45ff` | Upstream runtime helper |
+Flint's loader opens public Android system EGL/Vulkan libraries through the app's normal linker namespace. It deliberately does not reproduce private linker-namespace bypasses, driver injection, or other privileged behavior from MojoExec. If a future renderer requires functionality beyond public NDK APIs, evaluate that requirement separately instead of silently adding a bypass.
 
-Keep these pins fixed during the first port. Do not silently follow upstream branch heads.
+The GLFW fork itself is still from MojoLauncher. Replacing MojoExec does not make that fork Flint-authored; its upstream notice and licence remain in `native/THIRD_PARTY_NOTICES.md`. A fully Flint-authored Android GLFW platform backend is a separate future project and must not be represented as complete today.
 
 ## Android architecture rule tokens
 
@@ -48,7 +48,7 @@ Retain Flint's Compose launcher, version catalogue, installer, profiles, account
 2. **LWJGL selection:** inspect resolved library coordinates. Route `org.lwjgl.lwjgl:lwjgl` to LWJGL2 compatibility and `org.lwjgl:lwjgl` to LWJGL3. Do not infer the backend only from a version-ID string.
 3. **Launch adapter:** translate Flint's installed profile, account, classpath, natives and arguments into the engine's launch request. Remove incompatible desktop LWJGL binaries and supply the matching Android-compatible Java/native implementation.
 4. **Isolated game process:** run the game Activity, JVM and game service in `:game`. Never load the process-global HotSpot VM from Flint's launcher UI process.
-5. **Native build:** import the pinned GLFW, mojoexec and SDL submodules in an isolated native-engine directory. Adapt CMake/NDK versions for Flint; verify ELF machine, SONAME, JNI exports and transitive dependencies for every packaged ABI.
+5. **Native build:** keep the pinned GLFW fork behind the Flint-owned platform loader for now. Do not fetch or link MojoExec. Keep SDL out until its backend is selected. Verify ELF machine, SONAME, JNI exports and transitive dependencies for every packaged ABI.
 6. **Surface and input:** port SurfaceView/TextureView lifecycle, EGL window surface/context, touch, keyboard, mouse, controller, resize, pause/resume, context loss and audio.
 7. **Renderer capability:** keep renderer checks device-aware. GL4ES is not a universal fallback for every modern version. Activate a renderer only after its ABI library loads and creates a working context against a real Android window.
 8. **Session and diagnostics:** expose truthful Preparing/Starting/Running/Exited/Crashed states, capture JVM/game logs and exit reasons, implement stop/recovery, and wire those logs into Flint's existing share flow.
@@ -67,7 +67,7 @@ Flint currently has no root `LICENSE` file. Before copying or shipping any sourc
 - exclude optional components with unresolved or incompatible terms;
 - pin every component and keep a reproducible source/notice inventory.
 
-The upstream root licence does not automatically apply to all dependencies.
+The upstream root licence does not automatically apply to all dependencies. Flint's current native notices list only the GLFW fork and GL4ES; MojoExec is not part of the current build.
 
 ## Acceptance and test matrix
 
@@ -98,6 +98,6 @@ Passing one version does not prove all versions. Expand evidence across metadata
 
 ## Current Flint status
 
-Flint is **not yet launching Minecraft**. The Play path still deliberately stops after Java preparation. Flint currently builds GL4ES and has EGL pbuffer diagnostics, but does not yet contain the Mojo game process, complete Android GLFW/LWJGL2/LWJGL3 paths, renderer-window integration, or persistent input/audio session lifecycle.
+Flint is **not yet launching Minecraft**. The Play path still deliberately stops after Java preparation. Flint currently builds GL4ES, has EGL pbuffer diagnostics, and has a small Flint-owned loader for public Android EGL/Vulkan libraries. The pinned MojoLauncher GLFW fork is adapted to that loader, but this is not a fully Flint-authored GLFW backend. Flint still lacks the complete game process, LWJGL2/LWJGL3 launch paths, renderer-window integration, and persistent input/audio session lifecycle.
 
 The next implementation milestone must port a coherent all-version runtime foundation, not add another isolated 1.2.5 special case.
