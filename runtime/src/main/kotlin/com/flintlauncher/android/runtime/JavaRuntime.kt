@@ -97,6 +97,8 @@ data class LaunchRequest(
     val userType: String,
     val runtime: JavaRuntimeInfo,
     val renderer: RendererInfo,
+    /** Metadata-resolved LWJGL API generation; backend selection must not infer this again. */
+    val lwjglLine: LwjglCompatibilityLine,
 )
 
 /**
