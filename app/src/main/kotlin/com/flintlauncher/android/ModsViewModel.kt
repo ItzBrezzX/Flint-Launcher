@@ -41,7 +41,7 @@ class ModsViewModel(
             try {
                 val profileList = profiles.list()
                 val active = profiles.default() ?: profileList.firstOrNull()
-                val tags = mods.tags()
+                val tags = mods.tags(_state.value.projectType)
                 val categoryOptions = tags.categories.map { it.name.toOption() }
                 val loaderOptions = tags.loaders.map { it.name.toOption() }
                 val versionOptions = tags.gameVersions
@@ -74,6 +74,19 @@ class ModsViewModel(
 
     fun setQuery(value: String) {
         _state.value = _state.value.copy(query = value)
+    }
+
+    fun setProjectType(value: String) {
+        if (value !in setOf("mod", "shader", "resourcepack", "modpack")) return
+        _state.value = _state.value.copy(projectType = value, selectedCategory = "", selectedLoader = "", clientSide = "", serverSide = "", selectedProject = null, selectedVersions = emptyList())
+        viewModelScope.launch {
+            try {
+                val tags = mods.tags(value)
+                _state.value = _state.value.copy(categories = tags.categories.map { it.name.toOption() }, loaders = tags.loaders.map { it.name.toOption() })
+                search()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _state.value = _state.value.copy(errorMessage = e.message ?: "Could not load project filters") }
+        }
     }
 
     fun setCategory(value: String) {
@@ -219,7 +232,7 @@ class ModsViewModel(
         }
         viewModelScope.launch {
             try {
-                val versions = mods.versions(profile, projectId).map {
+                val versions = mods.versions(profile, projectId, project.projectType).map {
                     ModVersionUi(it.id, it.versionNumber, it.gameVersions, it.loaders, it.downloads, it.changelog)
                 }
                 _state.value = _state.value.copy(selectedVersions = versions, detailLoading = false)
@@ -240,13 +253,13 @@ class ModsViewModel(
         val current = _state.value
         val project = (current.results as? Loadable.Content)?.value?.firstOrNull { it.id == projectId }
         val version = current.selectedVersions.firstOrNull { it.id == versionId }
-        if (profile == null || project == null || version == null) {
-            _state.value = current.copy(errorMessage = "Select a profile and compatible mod version first")
+        if (profile == null || project == null || version == null || project.projectType != "mod") {
+            _state.value = current.copy(errorMessage = "Only mod projects can be installed here; other project types are browse-only until their dedicated installer is ready")
             return
         }
         val modProject = ModrinthProject(
             projectId = project.id,
-            projectType = "mod",
+            projectType = project.projectType,
             title = project.title,
             description = project.description,
             author = project.author,
@@ -333,7 +346,8 @@ class ModsViewModel(
         clientSide = clientSide.toSideSupport(),
         serverSide = serverSide.toSideSupport(),
         gameVersion = selectedGameVersion.takeIf { it.isNotBlank() },
-        loader = selectedLoader.takeIf { it.isNotBlank() && it != Loaders.VANILLA },
+        loader = selectedLoader.takeIf { it.isNotBlank() && it != Loaders.VANILLA && projectType == "mod" },
+        projectType = projectType,
         index = sortIndex,
         offset = offset,
         limit = pageLimit,
@@ -346,6 +360,7 @@ class ModsViewModel(
 
     private fun ModrinthProject.toUi(installedIds: Set<String>) = ModProjectUi(
         id = projectId,
+        projectType = projectType,
         title = title,
         description = description,
         author = author,
