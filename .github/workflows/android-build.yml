@@ -198,8 +198,17 @@ jobs:
             # functions/traps here: the action invokes script content via sh -c.
             set -eu
 
-            APK="app/build/outputs/apk/debug/app-debug.apk"
-            test -s "${APK}"
+            # Resolve the repository root explicitly. The action may execute
+            # its script from a different working directory than the checkout.
+            cd "${GITHUB_WORKSPACE}"
+            APK_DIR="${GITHUB_WORKSPACE}/app/build/outputs/apk/debug"
+            APK=$(find "${APK_DIR}" -maxdepth 1 -type f -name '*.apk' -print -quit)
+            if [ -z "${APK}" ] || [ ! -s "${APK}" ]; then
+              echo "Debug APK not found under ${APK_DIR}" >&2
+              find "${GITHUB_WORKSPACE}/app/build/outputs" -maxdepth 5 -type f -name '*.apk' -print >&2 2>/dev/null || true
+              exit 1
+            fi
+            echo "Installing APK: ${APK}"
 
             # The emulator can briefly report "offline" while Android finishes
             # booting. Wait for both ADB transport and the Android boot property.
