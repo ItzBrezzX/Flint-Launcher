@@ -282,8 +282,13 @@ private fun FilterRow(onComingSoon: (String) -> Unit) {
 }
 
 @Composable
-private fun FilterDropdown(label: String, value: String, onClick: () -> Unit) {
-    Column(Modifier.weight(1f)) {
+private fun FilterDropdown(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(modifier) {
         Text(label, color = TextMuted, fontSize = 10.sp, maxLines = 1)
         Spacer(Modifier.height(3.dp))
         Row(
