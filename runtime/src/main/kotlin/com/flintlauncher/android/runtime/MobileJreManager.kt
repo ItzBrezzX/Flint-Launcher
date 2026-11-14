@@ -83,7 +83,7 @@ class MobileJreManager(
     @Volatile
     private var verifiedRuntimeCanonicalPath: String? = null
 
-    /** Last detailed failure from the real JNI/JLI probe; null after success. */
+    /** Last detailed failure from the JNI Invocation API probe; null after success. */
     @Volatile
     var lastVerificationError: String? = null
         private set
@@ -254,7 +254,7 @@ class MobileJreManager(
 
     /**
      * Verify the selected runtime by loading its native libraries and executing
-     * a real Java 8-compatible class through JLI_Launch. This is process-global;
+     * a real Java 8-compatible class through JNI_CreateJavaVM. This is process-global;
      * never call it while enumerating all installed runtimes.
      */
     override suspend fun verify(runtime: JavaRuntimeInfo): Boolean = withContext(Dispatchers.IO) {
