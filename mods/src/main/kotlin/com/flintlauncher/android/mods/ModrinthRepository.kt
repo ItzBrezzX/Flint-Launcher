@@ -16,10 +16,10 @@ class ModrinthRepository(
 ) {
     suspend fun search(filters: ModrinthFilters): ModrinthSearchResult = api.search(filters)
 
-    suspend fun tags(): ModrinthTags = api.tags()
+    suspend fun tags(projectType: String = "mod"): ModrinthTags = api.tags(projectType)
 
-    suspend fun versions(profile: Profile, projectId: String): List<ModrinthVersion> =
-        api.projectVersions(projectId, profile.minecraftVersion, profile.loader)
+    suspend fun versions(profile: Profile, projectId: String, projectType: String = "mod"): List<ModrinthVersion> =
+        api.projectVersions(projectId, profile.minecraftVersion, profile.loader.takeIf { projectType == "mod" })
 
     suspend fun installed(profile: Profile): List<InstalledMod> = installer.installed(profile)
 
