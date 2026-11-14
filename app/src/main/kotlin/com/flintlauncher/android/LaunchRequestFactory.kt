@@ -98,7 +98,7 @@ object LaunchRequestFactory {
                 normalized == "--class-path" ||
                 normalized == "-jar" ||
                 argument.startsWith("@") ||
-                argument.any { it == '\\u0000' || it == '\\n' || it == '\\r' }
+                argument.any { it == 0.toChar() || it == '\n' || it == '\r' }
         }
         if (unsafeProfileArguments.isNotEmpty()) {
             throw LaunchConfigurationException(
