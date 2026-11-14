@@ -3,6 +3,8 @@ project(flint_native LANGUAGES C CXX)
 
 include(FetchContent)
 
+set(FLINT_NATIVE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+
 # Flint owns the small public Android platform-loading boundary used by GLFW.
 # It loads only public system EGL/Vulkan libraries and never bypasses linker namespaces.
 add_library(flint_platform STATIC flint_platform.c)
@@ -84,7 +86,7 @@ flint_replace_glfw_source("src/CMakeLists.txt"
     if (NOT TARGET flint_platform)
         message(FATAL_ERROR "Flint platform loader target is missing")
     endif ()
-    target_include_directories(glfw PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../native/src/main/cpp")
+    target_include_directories(glfw PRIVATE "${FLINT_NATIVE_SOURCE_DIR}")
     target_link_libraries(glfw PRIVATE android log flint_platform)
 ]=])
 
