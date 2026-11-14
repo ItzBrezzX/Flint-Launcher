@@ -89,6 +89,18 @@ class ModrinthApiTest {
     }
 
     @Test
+    fun searchCanTargetShaderProjectsWithoutApplyingModOnlyFacets() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"hits":[],"offset":0,"limit":20,"total_hits":0}"""))
+        api().search(ModrinthFilters(projectType = "shader", gameVersion = "1.20.1"))
+        val request = server.takeRequest()
+        val facets = Json.parseToJsonElement(request.requestUrl!!.queryParameter("facets")!!).jsonArray
+            .flatMap { it.jsonArray }.map { it.jsonPrimitive.content }.toSet()
+        assertTrue("project_type:shader" in facets)
+        assertTrue("versions:1.20.1" in facets)
+        assertTrue(facets.none { it.startsWith("categories:fabric") })
+    }
+
+    @Test
     fun tagsAreFilteredToModCategoriesAndLoaders() = runBlocking {
         server.enqueue(
             MockResponse().setBody(
