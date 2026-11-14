@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include <mutex>
 #include <string>
@@ -57,6 +58,60 @@ static std::string first_existing(const std::string &home, const char *const *su
         if (is_file(candidate)) return candidate;
     }
     return {};
+}
+
+/*
+ * JRE distributions do not all use the same lib/ layout. Keep the common
+ * layouts above as fast paths, then mirror the Kotlin inventory's recursive
+ * lookup so nested homes such as jre/lib/<arch>/... are supported as well.
+ * Do not recurse through directory symlinks: archives may contain links and
+ * following them could escape the runtime root or create a traversal loop.
+ */
+static std::string find_library_recursive(
+    const std::string &directory,
+    const std::string &library_name,
+    unsigned int depth
+) {
+    if (depth > 12) return {};
+    DIR *handle = opendir(directory.c_str());
+    if (!handle) return {};
+
+    std::string found;
+    struct dirent *entry = nullptr;
+    while ((entry = readdir(handle)) != nullptr) {
+        const char *name = entry->d_name;
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+        const std::string candidate = directory + "/" + name;
+        struct stat info {};
+        if (stat(candidate.c_str(), &info) != 0) continue;
+
+        if (S_ISREG(info.st_mode) && library_name == name) {
+            found = candidate;
+            break;
+        }
+
+        if (S_ISDIR(info.st_mode)) {
+            struct stat link_info {};
+            if (lstat(candidate.c_str(), &link_info) == 0 && S_ISLNK(link_info.st_mode)) {
+                continue;
+            }
+            found = find_library_recursive(candidate, library_name, depth + 1);
+            if (!found.empty()) break;
+        }
+    }
+    closedir(handle);
+    return found;
+}
+
+static std::string find_jre_library(
+    const std::string &home,
+    const char *const *suffixes,
+    const std::string &library_name
+) {
+    std::string path = first_existing(home, suffixes);
+    if (!path.empty()) return path;
+    return find_library_recursive(home, library_name, 0);
 }
 
 static std::vector<std::string> library_directories(const std::string &home) {
@@ -150,8 +205,8 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
         nullptr
     };
 
-    const std::string jvm_path = first_existing(home, jvm_suffixes);
-    const std::string jli_path = first_existing(home, jli_suffixes);
+    const std::string jvm_path = find_jre_library(home, jvm_suffixes, "libjvm.so");
+    const std::string jli_path = find_jre_library(home, jli_suffixes, "libjli.so");
     if (jvm_path.empty() || jli_path.empty()) {
         g_jre_error = std::string("JRE layout incomplete: ") +
             (jvm_path.empty() ? "libjvm.so not found; " : "") +
