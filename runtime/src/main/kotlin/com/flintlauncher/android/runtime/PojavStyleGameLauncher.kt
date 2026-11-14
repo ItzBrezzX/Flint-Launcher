@@ -43,9 +43,9 @@ class PojavStyleGameLauncher(
         // Build argv the way JLI_Launch expects (program name first)
         val args = mutableListOf<String>()
         args += "java"
+        // LaunchCommandBuilder has already normalized the metadata classpath
+        // to exactly one -cp entry; appending another here corrupts modern argv.
         args += request.jvmArgs
-        args += "-cp"
-        args += request.classpath.joinToString(File.pathSeparator) { it.absolutePath }
         args += request.mainClass
         args += request.gameArgs
 

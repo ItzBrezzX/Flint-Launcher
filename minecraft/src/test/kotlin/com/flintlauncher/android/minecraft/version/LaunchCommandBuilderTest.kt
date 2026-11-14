@@ -50,6 +50,33 @@ class LaunchCommandBuilderTest {
     }
 
     @Test
+    fun addsManagedClasspathWhenVersionMetadataOmitsIt() {
+        val noClasspath = VersionJsonParser.parse(
+            """{"id":"test","mainClass":"M","arguments":{"game":["--demo"],"jvm":["-Dfile.encoding=UTF-8"]}}""",
+        )
+
+        val command = LaunchCommandBuilder.build(noClasspath, context)
+
+        assertEquals(
+            listOf("-Dfile.encoding=UTF-8", "-cp", context.classpath),
+            command.jvmArguments,
+        )
+    }
+
+    @Test
+    fun rejectsDuplicateClasspathDeclarationsInsteadOfPassingAmbiguousArgv() {
+        val duplicated = VersionJsonParser.parse(
+            """{"id":"test","mainClass":"M","arguments":{"game":["--demo"],"jvm":["-cp","/first","--class-path","/second"]}}""",
+        )
+        try {
+            LaunchCommandBuilder.build(duplicated, context)
+            fail("expected LaunchConfigurationException")
+        } catch (error: LaunchConfigurationException) {
+            assertTrue(error.message!!.contains("more than one"))
+        }
+    }
+
+    @Test
     fun customResolutionFeatureAddsWidthAndHeight() {
         val command = LaunchCommandBuilder.build(modern, context.copy(resolutionWidth = 1280, resolutionHeight = 720))
         assertTrue(command.gameArguments.containsAll(listOf("--width", "1280", "--height", "720")))
