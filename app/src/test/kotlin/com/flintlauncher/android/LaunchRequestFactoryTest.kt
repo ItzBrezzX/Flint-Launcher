@@ -4,7 +4,6 @@ import com.flintlauncher.android.account.AccountType
 import com.flintlauncher.android.account.FlintAccount
 import com.flintlauncher.android.installer.GameLayout
 import com.flintlauncher.android.installer.InstalledVersion
-import com.flintlauncher.android.minecraft.manifest.VersionType
 import com.flintlauncher.android.minecraft.version.LaunchConfigurationException
 import com.flintlauncher.android.minecraft.version.VersionJsonParser
 import com.flintlauncher.android.runtime.JavaRuntimeInfo
