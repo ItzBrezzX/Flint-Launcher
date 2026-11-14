@@ -79,7 +79,7 @@ jobs:
         if: ${{ hashFiles('gradle/wrapper/gradle-wrapper.jar') != '' }}
         uses: gradle/actions/wrapper-validation@v4
 
-      - name: Compile native module (arm64-v8a)
+      - name: Compile native module (all packaged ABIs)
         run: |
           set -euo pipefail
           gradle :native:assembleDebug --stacktrace 2>&1 | tee "${RUNNER_TEMP}/native-build.log"
@@ -109,6 +109,16 @@ jobs:
             echo "Found GL4ES ${ABI}: ${GL_SO}"
             file "${GL_SO}" || true
             echo "${ABI} GL4ES: ${GL_SO}" >> "${RUNNER_TEMP}/so-path.txt"
+
+            GLFW_SO=$(find native/build -name 'libglfw.so' -path "*/${ABI}/*" | head -n1 || true)
+            if [ -z "${GLFW_SO}" ]; then
+              echo "::error::Android GLFW libglfw.so not found under native/build for ${ABI}"
+              find native/build -type f -name '*.so' -print || true
+              exit 1
+            fi
+            echo "Found Android GLFW ${ABI}: ${GLFW_SO}"
+            file "${GLFW_SO}" || true
+            echo "${ABI} GLFW: ${GLFW_SO}" >> "${RUNNER_TEMP}/so-path.txt"
           done
 
       - name: Unit tests (host JVM)
@@ -153,6 +163,15 @@ jobs:
             unzip -o -d "${TMP}" "${APK}" "${GL_ENTRY}"
             test -s "${TMP}/${GL_ENTRY}"
             echo "OK: ${GL_ENTRY} is present and non-empty"
+
+            GLFW_ENTRY="lib/${ABI}/libglfw.so"
+            if ! unzip -l "${APK}" | grep -F "${GLFW_ENTRY}"; then
+              echo "::error::APK is missing Android GLFW backend ${GLFW_ENTRY}"
+              exit 1
+            fi
+            unzip -o -d "${TMP}" "${APK}" "${GLFW_ENTRY}"
+            test -s "${TMP}/${GLFW_ENTRY}"
+            echo "OK: ${GLFW_ENTRY} is present and non-empty"
           done
 
       - name: Upload debug APK
@@ -194,7 +213,7 @@ jobs:
           # The action executes script lines in separate shells. Keep every
           # stateful command inside this one inner shell invocation.
           script: |
-            sh -c 'set -eu; WORKSPACE="${{ github.workspace }}"; TEMP_DIR="${{ runner.temp }}"; APK_DIR="$WORKSPACE/app/build/outputs/apk/debug"; APK="$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -print -quit)"; LOGCAT="$TEMP_DIR/flint-emulator-logcat.txt"; SURFACE_LOG="$TEMP_DIR/flint-emulator-surface-logcat.txt"; ACTIVITY="$TEMP_DIR/flint-emulator-activity.txt"; MARKER="$TEMP_DIR/flint-emulator-launched"; if [ -z "$APK" ] || [ ! -s "$APK" ]; then echo "Debug APK not found under $APK_DIR" >&2; find "$WORKSPACE/app/build/outputs" -maxdepth 5 -type f -name "*.apk" -print >&2 || true; exit 1; fi; echo "Installing APK: $APK"; adb wait-for-device; adb install -r "$APK"; adb shell am force-stop com.flintlauncher.android; adb shell am start -W -n com.flintlauncher.android/.MainActivity; sleep 8; adb shell pidof com.flintlauncher.android >/dev/null; adb shell dumpsys activity activities > "$ACTIVITY"; adb logcat -d -t 4000 > "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal" "$LOGCAT"; then exit 1; fi; adb logcat -c; adb shell am start -W -n com.flintlauncher.android/.GameSurfaceActivity; sleep 3; adb shell pidof com.flintlauncher.android:game >/dev/null; adb logcat -d -s FlintGameSurface:I > "$SURFACE_LOG"; if ! grep -Eq "create=egl-window-ok:[0-9]+x[0-9]+" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; if ! grep -Fq "gl4es-window-ok:" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; if ! grep -Fq "frame=egl-window-frame-ok|gl4es-window-frame-ok" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; adb logcat -c; adb shell am start -W -n com.flintlauncher.android/.JvmProbeActivity --ei java-major 17; JVM_OK=0; i=0; while [ "$i" -lt 180 ]; do JVM_LOG="$(adb logcat -d -s FlintJvmProbe:I FlintNative:I)"; if printf "%s" "$JVM_LOG" | grep -Fq "FLINT_JVM_OK"; then JVM_OK=1; break; fi; if printf "%s" "$JVM_LOG" | grep -Fq "FLINT_JVM_FAILED"; then printf "%s\n" "$JVM_LOG"; exit 1; fi; sleep 5; i=$((i+1)); done; if [ "$JVM_OK" -ne 1 ]; then echo "Timed out waiting for real Java 17 execution probe." >&2; adb logcat -d -s FlintJvmProbe:I FlintNative:I; exit 1; fi; adb logcat -d -t 4000 >> "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal" "$LOGCAT"; then exit 1; fi; touch "$MARKER"; echo "Flint MainActivity, isolated EGL/GL4ES frame, and real Java 17 class execution passed on Android API 34 x86_64 emulator."'
+            sh -c 'set -eu; WORKSPACE="${{ github.workspace }}"; TEMP_DIR="${{ runner.temp }}"; APK_DIR="$WORKSPACE/app/build/outputs/apk/debug"; APK="$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -print -quit)"; LOGCAT="$TEMP_DIR/flint-emulator-logcat.txt"; SURFACE_LOG="$TEMP_DIR/flint-emulator-surface-logcat.txt"; JVM_LOG_FILE="$TEMP_DIR/flint-emulator-jvm-logcat.txt"; ACTIVITY="$TEMP_DIR/flint-emulator-activity.txt"; MARKER="$TEMP_DIR/flint-emulator-launched"; if [ -z "$APK" ] || [ ! -s "$APK" ]; then echo "Debug APK not found under $APK_DIR" >&2; find "$WORKSPACE/app/build/outputs" -maxdepth 5 -type f -name "*.apk" -print >&2 || true; exit 1; fi; echo "Installing APK: $APK"; adb wait-for-device; adb install -r "$APK"; adb shell am force-stop com.flintlauncher.android; adb shell am start -W -n com.flintlauncher.android/.MainActivity; sleep 8; adb shell pidof com.flintlauncher.android >/dev/null; adb shell dumpsys activity activities > "$ACTIVITY"; adb logcat -d -t 4000 > "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal" "$LOGCAT"; then exit 1; fi; adb logcat -c; adb shell am start -W -n com.flintlauncher.android/.GameSurfaceActivity; sleep 3; adb shell pidof com.flintlauncher.android:game >/dev/null; adb logcat -d -s FlintGameSurface:I > "$SURFACE_LOG"; if ! grep -Eq "create=egl-window-ok:[0-9]+x[0-9]+" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; if ! grep -Fq "gl4es-window-ok:" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; if ! grep -Fq "frame=egl-window-frame-ok|gl4es-window-frame-ok" "$SURFACE_LOG"; then cat "$SURFACE_LOG"; exit 1; fi; adb logcat -c; adb shell am start -W -n com.flintlauncher.android/.JvmProbeActivity --ei java-major 17; adb shell pidof com.flintlauncher.android:jvmprobe >/dev/null; JVM_OK=0; i=0; while [ "$i" -lt 180 ]; do JVM_LOG="$(adb logcat -d -s FlintJvmProbe:I FlintNative:I AndroidRuntime:E libc:F)"; printf "%s\n" "$JVM_LOG" > "$JVM_LOG_FILE"; if printf "%s" "$JVM_LOG" | grep -Fq "FLINT_JVM_OK"; then JVM_OK=1; break; fi; if printf "%s" "$JVM_LOG" | grep -Fq "FLINT_JVM_FAILED"; then adb logcat -d -b all -t 10000 > "$LOGCAT"; cat "$JVM_LOG_FILE"; exit 1; fi; if ! adb shell pidof com.flintlauncher.android:jvmprobe >/dev/null; then echo "JVM probe process exited before reporting a result." >&2; adb logcat -d -b all -t 10000 > "$LOGCAT"; cat "$JVM_LOG_FILE"; exit 1; fi; sleep 5; i=$((i+1)); done; if [ "$JVM_OK" -ne 1 ]; then echo "Timed out waiting for real Java 17 execution probe." >&2; adb logcat -d -b all -t 10000 > "$LOGCAT"; cat "$JVM_LOG_FILE"; exit 1; fi; adb logcat -d -b all -t 10000 > "$LOGCAT"; if grep -Eq "FATAL EXCEPTION|Fatal signal|SIGSEGV|SIGABRT|UnsatisfiedLinkError" "$LOGCAT"; then exit 1; fi; touch "$MARKER"; echo "Flint MainActivity, isolated EGL/GL4ES frame, and real Java 17 class execution passed on Android API 34 x86_64 emulator."'
 
       - name: Verify emulator launch evidence
         if: always()
@@ -224,6 +243,7 @@ jobs:
             ${{ runner.temp }}/so-path.txt
             ${{ runner.temp }}/flint-emulator-logcat.txt
             ${{ runner.temp }}/flint-emulator-surface-logcat.txt
+            ${{ runner.temp }}/flint-emulator-jvm-logcat.txt
             ${{ runner.temp }}/flint-emulator-activity.txt
             **/build/reports/tests/**
           if-no-files-found: ignore
