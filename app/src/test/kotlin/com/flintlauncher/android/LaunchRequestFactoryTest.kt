@@ -157,3 +157,13 @@ class LaunchRequestFactoryTest {
         }
     }
 }
+    @Test
+    fun rejectsProfileArgumentsThatOverrideManagedHeapOrClasspath() {
+        try {
+            create(fixture(), profileJvm = listOf("-Xmx8G", "-cp"))
+            fail("expected LaunchConfigurationException")
+        } catch (error: LaunchConfigurationException) {
+            assertTrue(error.message!!.contains("managed"))
+        }
+    }
+
