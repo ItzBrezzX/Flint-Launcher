@@ -173,6 +173,9 @@ class MinecraftInstaller(
                 withContext(Dispatchers.IO) {
                     NativesExtractor.extract(plan.nativeJars, nativesDirectory)
                 }
+            } catch (cancelled: CancellationException) {
+                nativesDirectory.deleteRecursively()
+                throw cancelled
             } catch (nativeError: Exception) {
                 nativesDirectory.deleteRecursively()
                 return InstallResult.Failed("Could not extract native libraries for $versionId: ${nativeError.message ?: nativeError.javaClass.simpleName}")
