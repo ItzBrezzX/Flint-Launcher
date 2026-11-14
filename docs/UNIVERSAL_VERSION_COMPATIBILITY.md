@@ -42,7 +42,7 @@ Unsupported required metadata or missing artifacts must produce an actionable bl
 
 ## Runtime and game backend
 
-The Android backend needs distinct tested compatibility implementations for LWJGL2 and LWJGL3, plus:
+The Android backend should be based on a maintained Android engine such as the pinned MojoLauncher snapshot, extracted behind Flint-owned interfaces rather than copying its launcher UI. It needs distinct tested compatibility implementations for LWJGL2 and LWJGL3, plus:
 
 - Android game Activity/Surface lifecycle backed by `ANativeWindow` and EGL window surfaces.
 - A compatible GLFW/LWJGL native layer and version-matched Java classes.
@@ -90,7 +90,7 @@ Next gates:
 
 1. Complete and fixture-test installer/argument/classpath behavior across every metadata generation.
 2. Integrate and license-audit both Android LWJGL2 and LWJGL3 backends.
-3. Implement the isolated game process and Android Surface/EGL/input/audio lifecycle.
+3. Port the Mojo-style isolated game process, Android Surface/EGL/input/audio lifecycle, native loader and JVM bootstrap.
 4. Verify mobile JVM execution on the target ARM64 device.
 5. Reach the main menu and validate input for representative versions from each compatibility family.
 6. Expand the tested matrix before marking additional versions **Playable**.
