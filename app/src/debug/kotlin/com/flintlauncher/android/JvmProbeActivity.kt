@@ -38,7 +38,10 @@ class JvmProbeActivity : Activity() {
                 }.getOrElse { throw it }
 
                 Log.i(TAG, "runtime-installed major=${runtime.majorVersion} arch=${runtime.arch}")
-                if (!manager.verify(runtime)) {
+                Log.i(TAG, "stage=JVM verification started")
+                val verified = manager.verify(runtime)
+                Log.i(TAG, "stage=JVM verification finished success=$verified error=${manager.lastVerificationError}")
+                if (!verified) {
                     throw IllegalStateException(manager.lastVerificationError ?: "JVM execution probe failed")
                 }
 
