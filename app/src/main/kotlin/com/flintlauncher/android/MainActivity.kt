@@ -21,6 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flintlauncher.android.ui.home.HomeScreen
 import com.flintlauncher.android.ui.mods.ModsScreen
@@ -58,6 +60,7 @@ class MainActivity : ComponentActivity() {
                 val versionsState by versionsViewModel.state.collectAsStateWithLifecycle()
                 val modsState by modsViewModel.state.collectAsStateWithLifecycle()
                 val runtimeSettingsState by runtimeSettingsViewModel.state.collectAsStateWithLifecycle()
+                SideEffect { applyWindowPreferences(runtimeSettingsState) }
 
                 // Only capabilities that really exist are wired. Every other action stays
                 // null, which the UI renders as a disabled control.
@@ -142,6 +145,55 @@ class MainActivity : ComponentActivity() {
                         else -> NotImplementedScreen(destination.label)
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Apply settings that belong to the Android host window immediately.
+     * Game-surface-only options remain gated until Flint owns a live game window.
+     */
+    private fun applyWindowPreferences(state: com.flintlauncher.android.ui.state.RuntimeSettingsUiState) {
+        window.addFlags(if (state.keepScreenAwake) {
+            android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        } else {
+            0
+        })
+        if (!state.keepScreenAwake) {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= 24) {
+            window.setSustainedPerformanceMode(state.sustainedPerformance)
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = if (state.ignoreNotch) {
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                } else {
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                }
+            }
+        }
+
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        if (state.fullscreen) {
+            controller.systemBarsBehavior =
+                androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            val preferredModeId = if (state.maxRefreshRate) {
+                window.windowManager.defaultDisplay.supportedModes.maxByOrNull { it.refreshRate }?.modeId ?: 0
+            } else {
+                0
+            }
+            window.attributes = window.attributes.apply {
+                preferredDisplayModeId = preferredModeId
             }
         }
     }
