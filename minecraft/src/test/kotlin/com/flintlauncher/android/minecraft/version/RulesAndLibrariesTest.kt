@@ -11,7 +11,7 @@ class RuleEvaluatorTest {
 
     @Test
     fun androidProcessAbiMapsToJavaArchitectureNames() {
-        assertEquals("aarch64", Environment.android("arm64-v8a").osArch)
+        assertEquals("arm64", Environment.android("arm64-v8a").osArch)
         assertEquals("arm", Environment.android("armeabi-v7a").osArch)
         assertEquals("x86_64", Environment.android("x86_64").osArch)
         assertEquals("64", Environment.android("arm64").bitness)

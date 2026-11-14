@@ -6,8 +6,8 @@ package com.flintlauncher.android.minecraft.version
  */
 data class Environment(
     val osName: String = "linux",
-    /** Java's Android os.arch name; ARM64 is "aarch64", not the Android ABI string. */
-    val osArch: String = "aarch64",
+    /** Launcher rule token matching Android launcher architecture names (arm64, arm, x86, x86_64). */
+    val osArch: String = "arm64",
     val osVersion: String? = null,
     val features: Map<String, Boolean> = emptyMap(),
 ) {
@@ -19,7 +19,7 @@ data class Environment(
         fun android(processArch: String): Environment {
             val normalized = processArch.trim().lowercase().replace('-', '_')
             val javaArch = when (normalized) {
-                "arm64", "arm64_v8a", "aarch64" -> "aarch64"
+                "arm64", "arm64_v8a", "aarch64" -> "arm64"
                 "arm", "armeabi_v7a", "armv7", "armv7l" -> "arm"
                 "x86" -> "x86"
                 "x86_64", "amd64" -> "x86_64"

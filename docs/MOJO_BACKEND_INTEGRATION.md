@@ -36,6 +36,10 @@ These gitlink commits are recorded in the selected MojoLauncher snapshot:
 
 Keep these pins fixed during the first port. Do not silently follow upstream branch heads.
 
+## Android architecture rule tokens
+
+The Android architecture token must match the launcher's metadata rule convention, not blindly copy Java's `os.arch` property. MojoLauncher’s `Architecture.archAsString()` returns `arm64`, `arm`, `x86_64` or `x86`, and its metadata OS rule compares against that token exactly. Flint’s `Environment.android()` therefore normalizes `arm64-v8a` to `arm64` (not `aarch64`) before evaluating library rules. Reference: https://github.com/MojoLauncher/MojoLauncher/blob/v3_openjdk/app_mojo/src/main/java/git/artdeell/mojo/Architecture.java and https://github.com/MojoLauncher/MojoLauncher/blob/v3_openjdk/app_mojo/src/main/java/git/artdeell/mojo/value/MoJsonRule.java.
+
 ## Flint integration boundary
 
 Retain Flint's Compose launcher, version catalogue, installer, profiles, accounts and Modrinth marketplace. Extract the engine behind a Flint-owned `:game-engine` or equivalent runtime module:
