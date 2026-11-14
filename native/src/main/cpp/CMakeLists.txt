@@ -58,12 +58,22 @@ flint_replace_glfw_source("src/android_init.c"
 flint_replace_glfw_source("src/android_window.c"
     "#include <mojoexec.h>" "#include <flint_platform.h>")
 flint_replace_glfw_source("src/android_window.c"
-    "mojoexec_renderspec" "flint_render_spec")
+    "mojoexec_renderspec" "flint_render_config")
+flint_replace_glfw_source("src/android_window.c"
+    "force_gles_context" "request_es_context")
+flint_replace_glfw_source("src/android_window.c"
+    "override_major_version" "requested_es_major")
 
 flint_replace_glfw_source("src/android_monitor.c"
     "#include <mojoexec.h>" "#include <flint_platform.h>")
 flint_replace_glfw_source("src/android_monitor.c"
-    "mojoexec_renderspec" "flint_render_spec")
+    "mojoexec_renderspec" "flint_render_config")
+flint_replace_glfw_source("src/android_monitor.c"
+    "disp_width" "display_width_px")
+flint_replace_glfw_source("src/android_monitor.c"
+    "disp_height" "display_height_px")
+flint_replace_glfw_source("src/android_monitor.c"
+    "disp_hz" "display_refresh_hz")
 
 flint_replace_glfw_source("src/egl_context.c"
     "#include \"mojoexec.h\"" "#include <flint_platform.h>")
