@@ -3,6 +3,44 @@ project(flint_native LANGUAGES C CXX)
 
 include(FetchContent)
 
+# Android GLFW backend used by LWJGL2/LWJGL3. Keep upstream revisions pinned;
+# GLFW's Android platform uses MojoExec for Android linker/EGL integration.
+set(GLFW_BUILD_ANDROID ON CACHE BOOL "Build Android GLFW backend" FORCE)
+set(GLFW_BUILD_X11 OFF CACHE BOOL "Disable desktop X11 backend" FORCE)
+set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "Disable desktop Wayland backend" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "Disable GLFW examples" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "Disable GLFW tests" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "Disable GLFW documentation" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "Disable GLFW install rules" FORCE)
+set(GLFW_LIBRARY_TYPE SHARED CACHE STRING "Build GLFW as a shared library for LWJGL" FORCE)
+
+FetchContent_Declare(
+    mojoexec
+    GIT_REPOSITORY https://github.com/MojoLauncher/mojoexec.git
+    GIT_TAG 9ec4b836e93900135bad823eaac16ebc81cf6b98
+    GIT_PROGRESS TRUE
+)
+FetchContent_MakeAvailable(mojoexec)
+
+FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/MojoLauncher/glfw.git
+    GIT_TAG 7a6c6ceb51f20cd0db84dec2914ac1a0237051f6
+    GIT_PROGRESS TRUE
+)
+FetchContent_MakeAvailable(glfw)
+
+if(NOT TARGET glfw OR NOT TARGET mojoexec)
+    message(FATAL_ERROR "Pinned Android GLFW/MojoExec targets were not created")
+endif()
+
+set_target_properties(glfw PROPERTIES
+    OUTPUT_NAME "glfw"
+    SUFFIX ".so"
+    VERSION ""
+    SOVERSION ""
+)
+
 add_library(flint_native SHARED
     flint_jni.cpp
     egl_smoke.cpp
@@ -65,7 +103,7 @@ target_compile_definitions(GL PRIVATE GL4ES_COMPILE_FOR_USE_IN_SHARED_LIB)
 # Flint owns the EGL display/context and supplies the current-context GLES resolver.
 target_include_directories(flint_native PRIVATE "${gl4es_SOURCE_DIR}/include")
 
-target_link_libraries(flint_native PRIVATE GL)
+target_link_libraries(flint_native PRIVATE GL glfw)
 
 target_link_libraries(GL
     ${log-lib}
