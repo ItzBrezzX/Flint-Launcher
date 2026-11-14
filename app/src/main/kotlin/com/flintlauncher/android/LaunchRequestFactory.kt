@@ -113,7 +113,7 @@ object LaunchRequestFactory {
             resolutionHeight = resolutionHeight,
         )
         val extraJvm = buildList {
-            installed.loggingJvmArgument?.let(::add)
+            installed.loggingJvmArgument?.let { add(it) }
             addAll(profileJvmArguments)
         }
         val command = LaunchCommandBuilder.build(
