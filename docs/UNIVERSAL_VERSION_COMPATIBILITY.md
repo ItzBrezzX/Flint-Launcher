@@ -2,82 +2,97 @@
 
 ## Product requirement
 
-Flint targets the full Minecraft Java version catalogue, not a single legacy release:
+Flint targets the complete Minecraft Java Edition catalogue, not one release:
 
-- Current and historical release versions.
-- Snapshot versions, including older snapshot identifiers.
-- Legacy beta and alpha versions.
-- Modded installations when their loader and dependencies are supported.
+- Classic, Indev/Infdev, alpha, beta, and every historical release.
+- Old and current snapshots, including date-based identifiers.
+- Current releases, including the year-based 26.x line.
+- Modded profiles when their loader, installer and dependencies are supported.
 
-A version appearing in the catalogue is not a claim that it can launch. Flint may mark a profile **Playable** only after its install plan, runtime, native dependencies, renderer path, and launch smoke test pass.
+A catalogue entry is not a launch guarantee. A profile is **Playable** only after its exact metadata, runtime, native libraries, renderer/window path, and input have passed launch tests.
 
-## Version metadata and runtime selection
+## Version and backend resolution
 
-1. Read the official version manifest and preserve each entry's exact ID, type, URL, and timestamps.
-2. Fetch the selected version JSON and its parent metadata when inheritance is used.
-3. Resolve the Java major from that version's `javaVersion.majorVersion`. For legacy metadata without this field, use the documented legacy fallback (Java 8) only where appropriate.
-4. Select an Android runtime matching the app process ABI and required Java major. Never choose a runtime merely because it is installed.
-5. Keep runtime verification separate from archive/layout detection. Verification must execute a Java probe on the selected runtime; native library presence alone is insufficient.
+1. Load the official version manifest. Preserve exact ID, type, timestamp and metadata URL; never hardcode the version catalogue.
+2. Fetch and merge the complete version inheritance chain before choosing a backend.
+3. Resolve Java from the final `javaVersion.majorVersion`. For metadata that predates this field, use Java 8 only where the legacy compatibility contract permits it.
+4. Choose an Android mobile JRE that satisfies the required major and matches the app process ABI. Current ARM64 catalogue targets Java 8, 17, 21 and 25; archive discovery alone is not runtime execution proof.
+5. Choose the LWJGL compatibility line from resolved libraries, not from version-ID string parsing:
+   - `org.lwjgl.lwjgl:lwjgl` → LWJGL2 compatibility path.
+   - `org.lwjgl:lwjgl` → LWJGL3 compatibility path.
+   - Unknown or ambiguous metadata → blocked with a diagnostic; do not guess.
+6. Choose a renderer only after its ABI library is verified, loaded on the device and tested against a real Android window surface. EGL pbuffer success is diagnostics only.
+7. Run the game in an isolated Android game process. Do not load a process-global HotSpot VM from the launcher UI process.
+
+The current metadata-aware compatibility resolver implements the LWJGL library-selection rule. That policy is not yet a working game backend.
 
 ## Installer compatibility
 
-The installer must resolve, validate, and install per-version:
+The installer must resolve, validate and install per version:
 
-- Inherited version metadata and launch arguments.
-- OS/architecture library rules and artifact classifiers.
-- Legacy and modern asset indexes, including legacy asset materialization where required.
-- Client JAR, libraries, natives, logging configuration, and checksums.
-- Version-specific main class and argument schemas.
-- Loader-specific metadata and dependencies for supported mod loaders.
+- Every parent in a loader/version inheritance chain.
+- OS, architecture and feature rules; artifact and native classifiers.
+- Legacy virtual/resource assets and modern content-addressed assets.
+- Client JAR, libraries, platform-appropriate natives, logging config and checksums.
+- Legacy `minecraftArguments` and modern structured argument objects.
+- Version-specific main class, JVM arguments, and environment placeholders.
+- Loader metadata, processors and dependencies for supported Fabric, Quilt, Forge and NeoForge versions.
 
-Unknown metadata fields and newer argument forms must not crash parsing. Unsupported required rules or missing artifacts must produce an actionable blocked state rather than a partially installed profile.
+Unsupported required metadata or missing artifacts must produce an actionable blocked state, never a partially installed profile marked ready.
 
-## Launch and rendering compatibility
+## Runtime and game backend
 
-The launch backend must construct the final classpath and JVM/game arguments from the resolved metadata, then execute the correct main class. Java success is not equivalent to game success.
+The Android backend needs distinct tested compatibility implementations for LWJGL2 and LWJGL3, plus:
 
-The Android backend must provide a compatible window/surface lifecycle, input bridge, audio path, and LWJGL/OpenGL compatibility layer. Legacy LWJGL 2 and modern rendering paths may require different compatibility implementations. Renderer availability must be detected on the actual device; never advertise GL4ES, Zink, or another backend as usable without a real load and context test.
+- Android game Activity/Surface lifecycle backed by `ANativeWindow` and EGL window surfaces.
+- A compatible GLFW/LWJGL native layer and version-matched Java classes.
+- Renderer integration (GL4ES first for suitable legacy/vanilla paths; other renderers only when device capability tests pass).
+- Touch, keyboard, mouse and controller input; audio; resize, pause/resume and context-loss handling.
+- Dedicated game-process lifecycle, real started/running/exited/crashed states, logs and safe stop/recovery.
+
+A Java probe succeeding is not a Minecraft launch. A JLI method returning is not a live game session. A live session is not **Playable** until the main menu renders and basic input works.
 
 ## Compatibility states
 
-Each profile should expose one of these explicit states:
-
 - **Available** — metadata is discoverable.
-- **Installing** — artifacts are being resolved/downloaded/validated.
-- **Installed** — required files are present and hashes/layout checks pass.
-- **Runtime verified** — selected Java runtime successfully executes the probe.
-- **Launch tested** — game process reaches a known successful startup milestone.
-- **Playable** — the game reaches its main menu and basic input/rendering work.
-- **Blocked** — a specific missing runtime, library, loader, renderer, device capability, or unsupported metadata requirement is shown.
+- **Installing** — artifacts are resolving, downloading or validating.
+- **Installed** — required files and integrity checks pass.
+- **Runtime verified** — the selected Android JVM executes a probe on the target ABI.
+- **Launch tested** — the game starts and reaches a defined startup milestone.
+- **Playable** — the main menu renders and basic input works.
+- **Blocked** — a specific missing runtime, library, loader, renderer, device capability or unsupported metadata requirement is reported.
 
-Do not collapse these states into a single "installed" or "verified" boolean.
+Do not collapse these states into one `installed` or `verified` boolean.
 
 ## Required test matrix
 
-CI should cover representative fixtures from each metadata generation and channel:
+Host CI fixtures must cover:
 
-- Legacy alpha and beta.
-- Early release before modern argument metadata.
-- Release with legacy asset handling.
-- Snapshot using modern argument objects.
-- Release requiring Java 8.
-- Release requiring Java 17.
-- Release requiring Java 21 or newer.
-- A version with inherited metadata.
-- Fabric/Quilt and Forge/NeoForge installer metadata where supported.
+- Classic/Indev/Infdev metadata where present, alpha, beta and early release metadata.
+- Pre-1.6 virtual assets and snapshots mapping assets to `resources/`.
+- Pre-1.13 LWJGL2 and 1.13+ LWJGL3 library metadata.
+- Legacy string arguments and modern argument objects.
+- Java 8, 17, 21 and 25 runtime selection.
+- Date-based snapshots across the LWJGL2/LWJGL3 boundary.
+- Inheritance chains, duplicate libraries, native classifiers and OS/feature rules.
+- Fabric, Quilt, Forge and NeoForge metadata/installer fixtures where supported.
+- Corrupt files, missing natives, unavailable renderer and interrupted installation.
 
-Host tests validate metadata resolution, rules, argument generation, and install plans. Android ARM64 device tests validate the real JRE, native loader, graphics context, input, and game startup. Emulator-only success is not a substitute for physical ARM64 validation.
+Physical ARM64 device tests must validate the actual mobile JRE, both relevant LWJGL paths, EGL window surface, renderer, input, audio and game startup. An x86_64 emulator or successful APK build is not a substitute for the target phone.
 
 ## Current implementation boundary
 
-The manifest model already represents `release`, `snapshot`, `old_beta`, and `old_alpha`, and version metadata can declare a Java major. The mobile runtime work is still a foundation: Java runtime probing and native loading do not yet prove that every Minecraft generation can launch.
+Implemented foundations include version manifest channels (`release`, `snapshot`, `old_beta`, `old_alpha`), metadata inheritance, legacy/modern argument parsing, asset materialization, native extraction, Java 8/17/21/25 ARM64 runtime artifacts, and metadata-aware LWJGL routing tests.
 
-The next engineering gates are:
+**Minecraft is not currently launchable from Flint.** The app still deliberately stops after Java preparation. The native module builds GL4ES and has EGL pbuffer diagnostics, but Flint does not yet connect GL4ES to a real window surface, supply the complete Android LWJGL2/LWJGL3 native paths, route input/audio, or run a managed game session in an isolated process.
 
-1. Make version inheritance, modern/legacy argument parsing, library rules, and asset handling complete and fixture-tested.
-2. Route every version through a Java-major/ABI-aware runtime selector.
-3. Finish and verify the Android graphics/input/audio compatibility backend.
-4. Run the version-channel test matrix on CI and representative real ARM64 devices.
-5. Enable **Playable** only for versions that pass the main-menu and input smoke test.
+Next gates:
 
-No version family should be silently filtered out merely because it is old or marked snapshot/beta/alpha. Unsupported cases must be identified precisely and kept visible as blocked until implemented.
+1. Complete and fixture-test installer/argument/classpath behavior across every metadata generation.
+2. Integrate and license-audit both Android LWJGL2 and LWJGL3 backends.
+3. Implement the isolated game process and Android Surface/EGL/input/audio lifecycle.
+4. Verify mobile JVM execution on the target ARM64 device.
+5. Reach the main menu and validate input for representative versions from each compatibility family.
+6. Expand the tested matrix before marking additional versions **Playable**.
+
+No version family should be silently filtered out merely because it is old, snapshot, alpha or beta. Unsupported cases must remain visible as blocked until their exact compatibility path is implemented and tested.
