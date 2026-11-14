@@ -1,7 +1,6 @@
 # Third-party native components
 
-This inventory records the pinned Android game-window backend dependencies integrated by Flint.
-Source is fetched at immutable Git revisions during the native CMake configure step.
+This inventory records the native components Flint currently fetches at immutable Git revisions during CMake configuration. Flint's own platform loader is maintained in `native/src/main/cpp/flint_platform.c` and is not a third-party component.
 
 ## GLFW Android fork
 
@@ -20,26 +19,17 @@ including commercial applications, and to alter and redistribute it freely,
 subject to the conditions in the upstream LICENSE.md. The full notice is
 retained in the pinned source fetched by CMake.
 
-## MojoExec
+Flint applies a small configure-time adaptation to the Android backend so it
+uses Flint's own public EGL/Vulkan library loader. The underlying GLFW fork
+remains third-party code and is not represented as authored by Flint.
 
-- Project: MojoExec Android porting utility library
-- Repository: https://github.com/MojoLauncher/mojoexec
-- Revision: `9ec4b836e93900135bad823eaac16ebc81cf6b98`
+## GL4ES
+
+- Project: GL4ES
+- Repository: https://github.com/ptitSeb/gl4es
+- Revision: `8b1a3da5d2331d0f88b70be25963182d46eed857`
 - License: MIT
 - Upstream license file: `LICENSE`
 
-Copyright (c) 2026 Maksim Belov
-
-Permission is granted, free of charge, to any person obtaining a copy of this
-software and associated documentation files, to deal in the Software without
-restriction, including without limitation the rights to use, copy, modify,
-merge, publish, distribute, sublicense, and/or sell copies of the Software,
-and to permit persons to whom the Software is furnished to do so, subject to
-the following conditions: the above copyright notice and this permission
-notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-
-See the pinned upstream LICENSE for the complete license text and conditions.
+The upstream license and attribution are retained in the pinned source fetched
+by CMake. See the upstream repository for the full copyright notice and terms.
