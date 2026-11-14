@@ -201,6 +201,11 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    override fun onDestroy() {
+        if (isFinishing) CrashDiagnostics.markCleanShutdown()
+        super.onDestroy()
+    }
+
     private fun shareDiagnostics() {
         val report = CrashDiagnostics.readReport()
         val intent = Intent(Intent.ACTION_SEND).apply {
