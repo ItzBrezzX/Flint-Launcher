@@ -169,4 +169,45 @@ class LaunchCommandBuilderTest {
         assertFalse(command.jvmArguments.any { it.startsWith("-Xmx") })
     }
 
+
+    @Test
+    fun legacyArgumentsPreserveQuotedValuesAndPathsWithSpaces() {
+        val legacy = VersionJson(
+            id = "1.2.5",
+            mainClass = "net.minecraft.client.Minecraft",
+            minecraftArguments =
+                "--username \"Player One\" --gameDir \"\${game_directory}\" --title \"A \\\"quoted\\\" title\"",
+        )
+
+        val command = LaunchCommandBuilder.build(
+            legacy,
+            context.copy(gameDirectory = "/data/user/0/flint/game files"),
+        )
+
+        assertEquals(
+            listOf(
+                "--username", "Player One",
+                "--gameDir", "/data/user/0/flint/game files",
+                "--title", "A \"quoted\" title",
+            ),
+            command.gameArguments,
+        )
+    }
+
+    @Test
+    fun malformedLegacyArgumentQuotesAreRejected() {
+        val legacy = VersionJson(
+            id = "1.2.5",
+            mainClass = "net.minecraft.client.Minecraft",
+            minecraftArguments = "--username \"unfinished",
+        )
+
+        try {
+            LaunchCommandBuilder.build(legacy, context)
+            fail("expected LaunchConfigurationException")
+        } catch (error: LaunchConfigurationException) {
+            assertTrue(error.message!!.contains("unterminated quote"))
+        }
+    }
+
 }
