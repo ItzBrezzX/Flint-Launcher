@@ -46,7 +46,7 @@ internal object LegacyArgumentTokenizer {
                 quote == null && char == '\\' &&
                     index + 1 < input.length &&
                     (input[index + 1].isWhitespace() || input[index + 1] == '"' ||
-                        input[index + 1] == '\\'' || input[index + 1] == '\\') -> {
+                        input[index + 1] == '\'' || input[index + 1] == '\\') -> {
                     token.append(input[index + 1])
                     tokenStarted = true
                     index++
