@@ -83,7 +83,7 @@ object LaunchCommandBuilder {
         } else {
             RuntimeJvmArguments.parseCustomArguments(customJvmArguments)
         }
-        val jvm = runtimeSettingsArguments + extraJvmArguments + rawJvm.map { substitute(it, values) }
+        val jvm = extraJvmArguments + rawJvm.map { substitute(it, values) } + runtimeSettingsArguments
         val game = rawGame.map { substitute(it, values) } + extraGameArguments
 
         val unresolved = (jvm + game).flatMap { placeholder.findAll(it).map { m -> m.groupValues[1] }.toList() }.distinct()
