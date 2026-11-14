@@ -39,7 +39,9 @@ object RendererCompatibilityPolicy {
         val line = when {
             lwjgl2 && !lwjgl3 -> LwjglCompatibilityLine.LWJGL2
             lwjgl3 && !lwjgl2 -> LwjglCompatibilityLine.LWJGL3
-            else -> return planFor(version.id)
+            // Resolved metadata is authoritative. If it is ambiguous or does not
+            // declare either LWJGL line, do not guess from a release-like ID.
+            else -> return null
         }
         return createPlan(version.id, line, "Detected ${line.name} from resolved version libraries.")
     }
