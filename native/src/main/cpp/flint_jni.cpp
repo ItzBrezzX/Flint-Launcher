@@ -363,11 +363,12 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     bool attached_here = false;
     const jint current_status = vm->GetEnv(&current_env, JNI_VERSION_1_8);
     if (current_status == JNI_EDETACHED) {
-        if (vm->AttachCurrentThread(&current_env, nullptr) != JNI_OK || current_env == nullptr) {
+        JNIEnv *attached_env = nullptr;
+        if (vm->AttachCurrentThread(&attached_env, nullptr) != JNI_OK || attached_env == nullptr) {
             LOGE("nativeLaunchJvm: could not attach launch thread to embedded VM");
             return -11;
         }
-        jvm_env = static_cast<JNIEnv *>(current_env);
+        jvm_env = attached_env;
         attached_here = true;
     } else if (current_status == JNI_OK && current_env != nullptr) {
         jvm_env = static_cast<JNIEnv *>(current_env);
