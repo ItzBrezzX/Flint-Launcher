@@ -61,6 +61,7 @@ fun RuntimeSettingsScreen(
     state: RuntimeSettingsUiState,
     actions: RuntimeSettingsActions,
     modifier: Modifier = Modifier,
+    onShareDiagnostics: (() -> Unit)? = null,
 ) {
     var selectedSection by remember { mutableStateOf(SettingsSection.OVERVIEW) }
 
@@ -77,6 +78,8 @@ fun RuntimeSettingsScreen(
                     Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text("Runtime, graphics, controls and launcher configuration", color = FlintColors.TextMuted)
                 }
+                OutlinedButton(onClick = { onShareDiagnostics?.invoke() }, enabled = onShareDiagnostics != null) { Text("Share logs") }
+                Spacer(Modifier.width(8.dp))
                 OutlinedButton(onClick = { actions.onRefresh?.invoke() }, enabled = actions.onRefresh != null) {
                     Icon(Icons.Filled.Refresh, contentDescription = "Refresh diagnostics")
                     Spacer(Modifier.width(6.dp))
@@ -99,6 +102,13 @@ fun RuntimeSettingsScreen(
                     )
                 }
             }
+
+            Text(
+                "Crash and error logs are stored locally. Use Share logs to send the latest diagnostic report for troubleshooting. Logs may include technical device details but do not intentionally include account credentials.",
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                color = FlintColors.TextMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
 
             Text(
                 "Preferences are stored locally. Options that need the in-game native window/input bridge are saved as defaults but are not applied to Minecraft in this build.",
