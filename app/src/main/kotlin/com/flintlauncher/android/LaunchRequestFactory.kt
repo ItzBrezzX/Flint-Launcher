@@ -77,7 +77,8 @@ object LaunchRequestFactory {
         if (!gameDirectory.isDirectory || !gameDirectory.canWrite()) {
             throw LaunchConfigurationException("Selected game directory is not writable")
         }
-        if (!nativesDirectory.isDirectory) {
+        val effectiveNativesDirectory = installed.nativesDirectory ?: nativesDirectory
+        if (!effectiveNativesDirectory.isDirectory) {
             throw LaunchConfigurationException("Native library directory has not been prepared")
         }
 
@@ -116,7 +117,7 @@ object LaunchRequestFactory {
             gameDirectory = gameDirectory.absolutePath,
             assetsRoot = installed.assetsRoot.absolutePath,
             assetsIndexName = installed.assetIndexId,
-            nativesDirectory = nativesDirectory.absolutePath,
+            nativesDirectory = effectiveNativesDirectory.absolutePath,
             libraryDirectory = layout.librariesDir.absolutePath,
             classpath = installed.classpath.joinToString(File.pathSeparator) { it.absolutePath },
             launcherVersion = launcherVersion,
@@ -142,7 +143,7 @@ object LaunchRequestFactory {
             gameDir = gameDirectory,
             assetsDir = installed.assetsRoot,
             classpath = installed.classpath,
-            nativeDir = nativesDirectory,
+            nativeDir = effectiveNativesDirectory,
             mainClass = command.mainClass,
             jvmArgs = command.jvmArguments,
             gameArgs = command.gameArguments,

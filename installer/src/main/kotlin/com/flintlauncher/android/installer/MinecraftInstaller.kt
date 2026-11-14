@@ -44,6 +44,8 @@ data class InstalledVersion(
     /** `-Dlog4j.configurationFile=...`, or null for versions without a log config. Must be passed to the game. */
     val loggingJvmArgument: String?,
     val requiredJavaMajor: Int,
+    /** Extracted Android/Linux .so files for java.library.path. */
+    val nativesDirectory: File? = null,
 )
 
 sealed interface InstallResult {
@@ -159,6 +161,20 @@ class MinecraftInstaller(
             // Legacy versions do not read the content-addressed object store directly.
             // Materialize their old path-based assets before marking the version installed.
             LegacyAssetMaterializer.materialize(index, layout)
+            // Native classifier JARs are separate from the Java classpath. Extract
+            // them before writing the install marker so an installed version always
+            // has a complete java.library.path directory.
+            val nativesDirectory = layout.nativesDirectory(versionId)
+            layout.installMarker(versionId).delete()
+            if (nativesDirectory.exists() && !nativesDirectory.deleteRecursively()) {
+                return InstallResult.Failed("Could not clear the previous native libraries for $versionId")
+            }
+            try {
+                NativesExtractor.extract(plan.nativeJars, nativesDirectory)
+            } catch (nativeError: Exception) {
+                nativesDirectory.deleteRecursively()
+                return InstallResult.Failed("Could not extract native libraries for $versionId: ${nativeError.message ?: nativeError.javaClass.simpleName}")
+            }
             layout.installMarker(versionId).apply { parentFile?.mkdirs() }.writeText(vanillaId)
             onStage(InstallStage.FINAL_VERIFICATION)
             // Marker is written only after existence + size (+ client hash) checks pass
@@ -174,6 +190,7 @@ class MinecraftInstaller(
                     assetIndexId = version.assetIndex?.id ?: "",
                     loggingJvmArgument = plan.logConfig?.jvmArgument,
                     requiredJavaMajor = version.javaVersion?.majorVersion ?: 8,
+                    nativesDirectory = nativesDirectory,
                 ),
             )
         } catch (e: CancellationException) {

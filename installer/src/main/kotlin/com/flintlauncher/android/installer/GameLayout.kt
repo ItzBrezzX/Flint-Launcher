@@ -18,6 +18,8 @@ class GameLayout(root: File) {
     fun versionJar(id: String): File = safeChild(versionsDir, "$id/$id.jar")
     fun versionJson(id: String): File = safeChild(versionsDir, "$id/$id.json")
     fun library(path: String): File = safeChild(librariesDir, path)
+    /** Extracted Android/Linux shared libraries required by this exact version. */
+    fun nativesDirectory(id: String): File = safeChild(File(root, "natives"), id)
     fun assetIndex(id: String): File = safeChild(assetsDir, "indexes/$id.json")
     /** Written only after an install fully succeeded; its presence means "installed". */
     fun installMarker(id: String): File = safeChild(versionsDir, "$id/.flint-installed")
