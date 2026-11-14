@@ -60,7 +60,11 @@ object LibraryResolver {
             val nativeClassifier = library.natives?.get(env.osName)?.replace("\${arch}", env.bitness)
             if (nativeClassifier != null) {
                 val info = library.downloads?.classifiers?.get(nativeClassifier)
-                if (info != null && coordinate != null) {
+                if (info == null || coordinate == null) {
+                    // A native declared for this platform is required. Do not silently
+                    // accept the library just because its ordinary artifact exists.
+                    unresolved += "${library.name} (missing native classifier $nativeClassifier)"
+                } else {
                     val path = info.path ?: coordinate.copy(classifier = nativeClassifier).path
                     files += LibraryFile(coordinate.key + ":" + nativeClassifier, path, info.url, info.sha1, info.size, isNative = true)
                     resolvedAny = true
