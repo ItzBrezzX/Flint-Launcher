@@ -88,10 +88,21 @@ object LaunchRequestFactory {
         }
         val userType = if (account.type == AccountType.MICROSOFT) "msa" else "legacy"
 
-        val unsafeProfileArguments = profileJvmArguments.filter(ProfileSecurity::isRisky)
+        val unsafeProfileArguments = profileJvmArguments.filter { argument ->
+            val normalized = argument.lowercase()
+            ProfileSecurity.isRisky(argument) ||
+                normalized.startsWith("-xmx") ||
+                normalized.startsWith("-xms") ||
+                normalized == "-cp" ||
+                normalized == "-classpath" ||
+                normalized == "--class-path" ||
+                normalized == "-jar" ||
+                argument.startsWith("@") ||
+                argument.any { it == '\\u0000' || it == '\\n' || it == '\\r' }
+        }
         if (unsafeProfileArguments.isNotEmpty()) {
             throw LaunchConfigurationException(
-                "Profile contains blocked JVM arguments: ${unsafeProfileArguments.joinToString()}",
+                "Profile contains blocked or launcher-managed JVM arguments: ${unsafeProfileArguments.joinToString()}",
             )
         }
 
