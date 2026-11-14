@@ -40,6 +40,19 @@ object NativeBridge {
 
     external fun nativeShutdown()
 
+    /**
+     * Create an Android ANativeWindow-backed EGL/GLES2 surface.
+     * Call create/swap/destroy from the same dedicated render thread.
+     */
+    external fun nativeCreateWindowSurface(surface: android.view.Surface): String
+
+    /** Present the current GLES back buffer to the Android window. */
+    external fun nativeSwapWindowBuffers(): Boolean
+
+    /** Release EGL context, surface, display and the retained ANativeWindow. */
+    external fun nativeDestroyWindowSurface()
+
+
     fun safeSmokeTest(): String =
         if (!loaded) "native-not-loaded: $loadError"
         else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
