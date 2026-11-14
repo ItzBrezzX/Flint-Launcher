@@ -22,6 +22,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(mojoexec)
 
+# Pinned MojoExec uses C99 bool/true/false in fake_dlfcn.c without
+# including <stdbool.h>. Force the standard header for its C compilation.
+target_compile_options(mojoexec PRIVATE
+    "$<$<COMPILE_LANGUAGE:C>:-include>"
+    "$<$<COMPILE_LANGUAGE:C>:stdbool.h>"
+)
+
 FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/MojoLauncher/glfw.git
