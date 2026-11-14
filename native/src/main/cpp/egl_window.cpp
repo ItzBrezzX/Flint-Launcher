@@ -33,11 +33,20 @@ static Gl4esClear g_gl4es_clear = nullptr;
 static Gl4esFinish g_gl4es_finish = nullptr;
 static Gl4esGetError g_gl4es_get_error = nullptr;
 static Gl4esGetString g_gl4es_get_string = nullptr;
+static void *g_gles_library = nullptr;
 
 static void *flint_gl4es_get_proc_address(const char *name) {
     if (name == nullptr) return nullptr;
-    void *symbol = dlsym(RTLD_DEFAULT, name);
-    if (symbol != nullptr) return symbol;
+    // Resolve raw driver entry points from libGLESv2 directly. RTLD_DEFAULT
+    // could resolve GL4ES's own exported desktop wrappers and recurse back
+    // into the translator instead of reaching the Android GLES driver.
+    if (g_gles_library == nullptr) {
+        g_gles_library = dlopen("libGLESv2.so", RTLD_NOW | RTLD_LOCAL);
+    }
+    if (g_gles_library != nullptr) {
+        void *symbol = dlsym(g_gles_library, name);
+        if (symbol != nullptr) return symbol;
+    }
     const auto proc = eglGetProcAddress(name);
     return reinterpret_cast<void *>(proc);
 }
