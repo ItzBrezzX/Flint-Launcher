@@ -107,4 +107,31 @@ class LaunchCommandBuilderTest {
         val command = LaunchCommandBuilder.build(modern, context)
         assertFalse(command.toArgumentList().any { it.contains("token") })
     }
+    @Test
+    fun runtimeSettingsAreAppliedBeforeVersionJvmArguments() {
+        val command = LaunchCommandBuilder.build(
+            modern,
+            context,
+            runtimeHeapMb = 1024,
+            customJvmArguments = """-Duser.language=en -XX:+UseG1GC""",
+        )
+
+        assertEquals(
+            listOf("-Xmx1024M", "-Duser.language=en", "-XX:+UseG1GC", "-Dlinux.only=true"),
+            command.jvmArguments.take(4),
+        )
+    }
+
+    @Test
+    fun customJvmArgumentsCanBeAppliedWithoutOverridingManagedHeap() {
+        val command = LaunchCommandBuilder.build(
+            modern,
+            context,
+            customJvmArguments = "-Dfile.encoding=UTF-8",
+        )
+
+        assertEquals("-Dfile.encoding=UTF-8", command.jvmArguments.first())
+        assertFalse(command.jvmArguments.any { it.startsWith("-Xmx") })
+    }
+
 }
