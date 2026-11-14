@@ -142,6 +142,7 @@ class MainActivity : ComponentActivity() {
                         Destination.SETTINGS -> RuntimeSettingsScreen(
                             state = runtimeSettingsState,
                             actions = runtimeSettingsActions,
+                            onShareDiagnostics = { shareDiagnostics() },
                         )
                         else -> NotImplementedScreen(destination.label)
                     }
@@ -197,6 +198,17 @@ class MainActivity : ComponentActivity() {
                 preferredDisplayModeId = preferredModeId
             }
         }
+    }
+
+
+    private fun shareDiagnostics() {
+        val report = CrashDiagnostics.readReport()
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "Flint Launcher diagnostics")
+            putExtra(Intent.EXTRA_TEXT, report)
+        }
+        startActivity(Intent.createChooser(intent, "Share Flint diagnostics"))
     }
 
     private fun requestNotificationPermissionIfNeeded() {
