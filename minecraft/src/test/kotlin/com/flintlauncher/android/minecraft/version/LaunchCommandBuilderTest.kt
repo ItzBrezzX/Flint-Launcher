@@ -176,7 +176,7 @@ class LaunchCommandBuilderTest {
             id = "1.2.5",
             mainClass = "net.minecraft.client.Minecraft",
             minecraftArguments =
-                "--username \"Player One\" --gameDir \"\${game_directory}\" --title \"A \\\"quoted\\\" title\"",
+                "--username \"Player One\" --gameDir \"\${game_directory}\" --title \"A \"quoted\" title\"",
         )
 
         val command = LaunchCommandBuilder.build(
@@ -215,7 +215,7 @@ class LaunchCommandBuilderTest {
     fun b173LegacyMetadataBuildsQuotedLaunchArguments() {
         val beta = VersionJsonParser.parse(
             """{"id":"b1.7.3","type":"old_beta","mainClass":"net.minecraft.client.Minecraft",
-                "minecraftArguments":"--username \\\"${'$'}{auth_player_name}\\\" --session \\\"${'$'}{auth_session}\\\" --gameDir \\\"${'$'}{game_directory}\\\" --assetsDir \\\"${'$'}{game_assets}\\\""}""",
+                "minecraftArguments":"--username \"${'$'}{auth_player_name}\" --session \"${'$'}{auth_session}\" --gameDir \"${'$'}{game_directory}\" --assetsDir \"${'$'}{game_assets}\""}""",
         )
 
         val command = LaunchCommandBuilder.build(
