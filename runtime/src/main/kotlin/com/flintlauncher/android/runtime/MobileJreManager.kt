@@ -83,6 +83,11 @@ class MobileJreManager(
     @Volatile
     private var verifiedRuntimeCanonicalPath: String? = null
 
+    /** Last detailed failure from the real JNI/JLI probe; null after success. */
+    @Volatile
+    var lastVerificationError: String? = null
+        private set
+
     init {
         require(RuntimeArchitecture.normalize(deviceArch) != null) {
             "Unsupported Android process architecture: " + deviceArch
@@ -253,20 +258,40 @@ class MobileJreManager(
      * never call it while enumerating all installed runtimes.
      */
     override suspend fun verify(runtime: JavaRuntimeInfo): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            val detected = probe(runtime.homeDir)
+        lastVerificationError = null
+        try {
+            val detected = try {
+                probe(runtime.homeDir)
+            } catch (error: Exception) {
+                lastVerificationError = "Runtime metadata check failed: " +
+                    (error.message ?: error.javaClass.simpleName)
+                return@withContext false
+            }
             val filesMatch = detected.verified &&
                 detected.majorVersion == runtime.majorVersion &&
                 detected.arch == deviceArch &&
                 detected.homeDir.canonicalFile == runtime.homeDir.canonicalFile
-            if (!filesMatch || !NativeBridge.isNativeLoaded) return@runCatching false
+            if (!filesMatch) {
+                lastVerificationError = "Runtime metadata does not match the selected Java version or app ABI."
+                return@withContext false
+            }
+            if (!NativeBridge.isNativeLoaded) {
+                lastVerificationError = "Flint native bridge failed to load: " +
+                    (NativeBridge.nativeLoadError ?: "unknown linker error")
+                return@withContext false
+            }
 
             val canonicalPath = runtime.homeDir.canonicalPath
-            if (verifiedRuntimeCanonicalPath == canonicalPath) return@runCatching true
+            if (verifiedRuntimeCanonicalPath == canonicalPath) return@withContext true
 
             // HotSpot cannot be safely unloaded. If another runtime was already
             // loaded in this process, do not try to start a second VM.
-            if (NativeBridge.safeJreStatus().startsWith("jre-loaded:")) return@runCatching false
+            val nativeStatus = NativeBridge.safeJreStatus()
+            if (nativeStatus.startsWith("jre-loaded:")) {
+                lastVerificationError =
+                    "A JVM is already loaded in this Flint process. Restart Flint before verifying another runtime."
+                return@withContext false
+            }
 
             val probeDir = File(
                 runtimesDir,
@@ -277,9 +302,24 @@ class MobileJreManager(
                 classpathDir = probeDir,
                 workingDir = probeDir,
             )
-            if (result.passed) verifiedRuntimeCanonicalPath = canonicalPath
-            result.passed
-        }.getOrDefault(false)
+            if (result.passed) {
+                verifiedRuntimeCanonicalPath = canonicalPath
+                lastVerificationError = null
+                true
+            } else {
+                lastVerificationError = (result.notes + listOfNotNull(result.nativeLoadError))
+                    .filter { it.isNotBlank() }
+                    .joinToString("; ")
+                    .ifBlank { "JVM probe failed without a native diagnostic." }
+                false
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Throwable) {
+            lastVerificationError = "JVM runtime verification crashed: " +
+                (error.message ?: error.javaClass.simpleName)
+            false
+        }
     }
 
     private fun probe(home: File): JavaRuntimeInfo {
