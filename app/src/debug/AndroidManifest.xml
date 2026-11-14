@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application>
-        <!-- Only the debug build exposes this diagnostics-only entry point to adb/CI. -->
+        <!-- Debug-only diagnostics entry point; release manifest remains non-exported. -->
         <activity
             android:name=".GameSurfaceActivity"
-            android:exported="true" />
+            android:exported="true"
+            tools:replace="android:exported" />
     </application>
 </manifest>
