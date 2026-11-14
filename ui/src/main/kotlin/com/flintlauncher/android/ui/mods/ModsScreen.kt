@@ -274,10 +274,10 @@ private fun FilterRow(onComingSoon: (String) -> Unit) {
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        FilterDropdown("Platform", "All Platforms") { onComingSoon("Platform filter") }
-        FilterDropdown("Mod Loader", "All Loaders") { onComingSoon("Loader filter") }
-        FilterDropdown("Minecraft Version", "All Versions") { onComingSoon("Version filter") }
-        FilterDropdown("Sort By", "Most Downloaded") { onComingSoon("Sort") }
+        FilterDropdown("Platform", "All Platforms", Modifier.weight(1f)) { onComingSoon("Platform filter") }
+        FilterDropdown("Mod Loader", "All Loaders", Modifier.weight(1f)) { onComingSoon("Loader filter") }
+        FilterDropdown("Minecraft Version", "All Versions", Modifier.weight(1f)) { onComingSoon("Version filter") }
+        FilterDropdown("Sort By", "Most Downloaded", Modifier.weight(1f)) { onComingSoon("Sort") }
     }
 }
 
