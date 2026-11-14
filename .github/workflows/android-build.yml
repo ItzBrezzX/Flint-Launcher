@@ -82,7 +82,7 @@ jobs:
       - name: Compile native module (arm64-v8a)
         run: |
           set -euo pipefail
-          gradle :native:assembleDebug --stacktrace --info | tee "${RUNNER_TEMP}/native-build.log"
+          gradle :native:assembleDebug --stacktrace 2>&1 | tee "${RUNNER_TEMP}/native-build.log"
 
       - name: Verify native library for every packaged ABI
         run: |
