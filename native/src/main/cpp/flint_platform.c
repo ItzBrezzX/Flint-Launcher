@@ -39,8 +39,8 @@ void *flint_acquire_vulkan_handle(void) {
 
 void flint_set_display_params(int width, int height, float refresh_rate) {
     pthread_mutex_lock(&g_loader_mutex);
-    flint_render_spec.display_width_px = width > 0 ? width : 0;
-    flint_render_spec.display_height_px = height > 0 ? height : 0;
-    flint_render_spec.display_refresh_hz = refresh_rate > 0.0f ? refresh_rate : 0.0f;
+    flint_render_config.display_width_px = width > 0 ? width : 0;
+    flint_render_config.display_height_px = height > 0 ? height : 0;
+    flint_render_config.display_refresh_hz = refresh_rate > 0.0f ? refresh_rate : 0.0f;
     pthread_mutex_unlock(&g_loader_mutex);
 }
