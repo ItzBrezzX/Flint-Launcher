@@ -4,7 +4,6 @@ import com.flintlauncher.android.nativebridge.NativeBridge
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
