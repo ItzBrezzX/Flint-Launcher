@@ -1,9 +1,11 @@
 package com.flintlauncher.android.runtime
 
 import com.flintlauncher.android.nativebridge.NativeBridge
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Game launcher following the PojavLauncher in-process JVM model:
@@ -16,7 +18,9 @@ class PojavStyleGameLauncher(
     private val runtimeManager: JavaRuntimeManager,
 ) : GameLauncher {
 
-    @Volatile private var running = false
+    // JLI_Launch is synchronous. Keep this true for the entire native call so a
+    // second launch cannot replace the JRE or race nativeShutdown().
+    private val launchActive = AtomicBoolean(false)
     private val logBuffer = StringBuilder()
 
     override suspend fun launch(request: LaunchRequest): LaunchResult = withContext(Dispatchers.IO) {
@@ -32,52 +36,57 @@ class PojavStyleGameLauncher(
             return@withContext LaunchResult.BlockedMissingRuntime
         }
 
-        val loaded = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
-        if (!loaded) {
-            return@withContext LaunchResult.Failed(
-                "Failed to dlopen libjli.so under ${runtime.homeDir}. " +
-                    "Is this a mobile OpenJDK layout with aarch64 libs?",
-            )
+        if (!launchActive.compareAndSet(false, true)) {
+            return@withContext LaunchResult.Failed("A Minecraft JVM launch is already active.")
         }
 
-        // Build argv the way JLI_Launch expects (program name first)
-        val args = mutableListOf<String>()
-        args += "java"
-        args += request.jvmArgs
-        args += "-cp"
-        args += request.classpath.joinToString(File.pathSeparator) { it.absolutePath }
-        args += request.mainClass
-        args += request.gameArgs
+        try {
+            val loaded = NativeBridge.nativeLoadJre(runtime.homeDir.absolutePath)
+            if (!loaded) {
+                return@withContext LaunchResult.Failed(
+                    "Failed to dlopen libjli.so under ${runtime.homeDir}. " +
+                        "Is this a mobile OpenJDK layout with aarch64 libs?",
+                )
+            }
 
-        // Account identity (offline or Microsoft)
-        // Already expected to be present in gameArgs / jvmArgs from the caller.
+            // Build argv the way JLI_Launch expects (program name first).
+            val args = mutableListOf<String>()
+            args += "java"
+            args += request.jvmArgs
+            args += "-cp"
+            args += request.classpath.joinToString(File.pathSeparator) { it.absolutePath }
+            args += request.mainClass
+            args += request.gameArgs
 
-        logBuffer.appendLine("Launch argv (${args.size} entries):")
-        args.take(12).forEach { logBuffer.appendLine("  $it") }
-        if (args.size > 12) logBuffer.appendLine("  ...")
+            // Account identity (offline or Microsoft) is already expected in gameArgs / jvmArgs.
+            logBuffer.appendLine("Launch argv (${args.size} entries):")
+            args.take(12).forEach { logBuffer.appendLine("  $it") }
+            if (args.size > 12) logBuffer.appendLine("  ...")
 
-        running = true
-        val code = try {
-            NativeBridge.nativeLaunchJvm(args.toTypedArray())
+            val code = NativeBridge.nativeLaunchJvm(args.toTypedArray())
+
+            // JLI_Launch returns only after the Java application exits. A zero
+            // return code is not evidence of a live game session.
+            mapJvmExit(code, logBuffer.toString())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (t: Throwable) {
-            running = false
-            NativeBridge.nativeShutdown()
-            return@withContext LaunchResult.Failed("JNI launch threw: ${t.message}", logBuffer.toString())
+            LaunchResult.Failed("JNI launch threw: ${t.message}", logBuffer.toString())
+        } finally {
+            // The JVM has returned (or launch failed), so unloading is now safe.
+            runCatching { NativeBridge.nativeShutdown() }
+            launchActive.set(false)
         }
-
-        running = false
-        NativeBridge.nativeShutdown()
-
-        // JLI_Launch is synchronous: it returns after the Java application exits.
-        // A zero exit code therefore means "the game exited cleanly", not "the
-        // game is now running". Never report Started from this blocking API.
-        mapJvmExit(code, logBuffer.toString())
     }
 
-    override suspend fun isRunning(): Boolean = running
+    override suspend fun isRunning(): Boolean = launchActive.get()
+
     override suspend fun stop() {
-        running = false
-        NativeBridge.nativeShutdown()
+        // nativeShutdown() only unloads/defer-unloads libjli; it does NOT stop
+        // a JVM inside JLI_Launch. Do not clear launchActive or unload underneath it.
+        if (!launchActive.get()) {
+            NativeBridge.nativeShutdown()
+        }
     }
 
     override fun stdout(): String = logBuffer.toString()
