@@ -10,7 +10,6 @@ object NativeBridge {
     private var loaded = false
     private var loadError: String? = null
     private var lwjglLoaded = false
-    private var lwjglLoadError: String? = null
 
     init {
         try {
@@ -105,11 +104,9 @@ object NativeBridge {
             System.loadLibrary("lwjgl_glfw")
             System.loadLibrary("lwjgl_opengl")
             lwjglLoaded = true
-            lwjglLoadError = null
             "flint-lwjgl-native-ok"
         } catch (error: Throwable) {
-            lwjglLoadError = error.message ?: error.javaClass.simpleName
-            "lwjgl-native-load-failed: $lwjglLoadError"
+            "lwjgl-native-load-failed: ${error.message ?: error.javaClass.simpleName}"
         }
     }
 
