@@ -52,19 +52,15 @@ set(LWJGL_GLFW "${FLINT_LWJGL_ROOT}/modules/lwjgl/glfw")
 set(LWJGL_OPENGL "${FLINT_LWJGL_ROOT}/modules/lwjgl/opengl")
 
 if(FLINT_ABI STREQUAL "arm64-v8a")
-    set(FLINT_FFI_ARCH "aarch64")
     set(FLINT_LWJGL_ARCH "arm64")
 elseif(FLINT_ABI STREQUAL "armeabi-v7a")
-    set(FLINT_FFI_ARCH "arm")
     set(FLINT_LWJGL_ARCH "arm32")
 elseif(FLINT_ABI STREQUAL "x86")
-    set(FLINT_FFI_ARCH "x86")
     set(FLINT_LWJGL_ARCH "x86")
 elseif(FLINT_ABI STREQUAL "x86_64")
-    set(FLINT_FFI_ARCH "x86")
     set(FLINT_LWJGL_ARCH "x64")
 else()
-    message(FATAL_ERROR "No LWJGL libffi target header for ${FLINT_ABI}")
+    message(FATAL_ERROR "No LWJGL architecture definition for ${FLINT_ABI}")
 endif()
 
 file(GLOB CORE_GENERATED CONFIGURE_DEPENDS
@@ -101,7 +97,6 @@ set_target_properties(lwjgl PROPERTIES OUTPUT_NAME lwjgl)
 target_include_directories(lwjgl PRIVATE
     "${LWJGL_CORE}/src/main/c"
     "${LWJGL_CORE}/src/main/c/libffi"
-    "${LWJGL_CORE}/src/main/c/libffi/${FLINT_FFI_ARCH}"
     "${LWJGL_CORE}/src/generated/c"
     "${LWJGL_CORE}/src/generated/c/linux"
     "${FLINT_LIBFFI_OUT}/install/include"
