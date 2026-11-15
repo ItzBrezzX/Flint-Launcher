@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.22.1)
 
 set(FLINT_LWJGL_VERSION "3.3.3" CACHE INTERNAL "Pinned LWJGL native ABI")
 set(FLINT_LWJGL_ROOT "${CMAKE_CURRENT_LIST_DIR}/_work/lwjgl3-${FLINT_LWJGL_VERSION}")
+set(FLINT_GLFW_SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/_work/glfw-3.3.8")
 execute_process(
     COMMAND bash "${CMAKE_CURRENT_LIST_DIR}/prepare.sh"
     WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
@@ -114,6 +115,7 @@ target_include_directories(lwjgl_glfw PRIVATE
     "${LWJGL_CORE}/src/generated/c"
     "${LWJGL_GLFW}/src/main/c"
     "${LWJGL_GLFW}/src/generated/c"
+    "${FLINT_GLFW_SOURCE_ROOT}/include"
 )
 target_compile_definitions(lwjgl_glfw PRIVATE LWJGL_LINUX)
 target_compile_options(lwjgl_glfw PRIVATE -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
