@@ -49,6 +49,9 @@ object NativeBridge {
     /** Update the GLES viewport after Android reports a surface size change. */
     external fun nativeResizeWindowSurface(width: Int, height: Int): Boolean
 
+    /** Render a visible diagnostic frame to prove the Android EGL window is presenting. */
+    external fun nativeRenderWindowTestFrame(): Boolean
+
     /** Present the current GLES back buffer to the Android window. */
     external fun nativeSwapWindowBuffers(): Boolean
 
