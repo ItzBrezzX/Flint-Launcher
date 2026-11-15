@@ -22,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.flintlauncher.android.ui.accounts.AccountsScreen
 import com.flintlauncher.android.ui.home.HomeScreen
 import com.flintlauncher.android.ui.mods.ModsScreen
 import com.flintlauncher.android.ui.settings.RuntimeSettingsScreen
@@ -38,6 +39,7 @@ import com.flintlauncher.android.ui.versions.InstallationsScreen
 class MainActivity : ComponentActivity() {
 
     private val factory get() = AppViewModelFactory((application as FlintApplication).container)
+    private val accountViewModel: AccountViewModel by viewModels { factory }
     private val homeViewModel: HomeViewModel by viewModels { factory }
     private val versionsViewModel: VersionsViewModel by viewModels { factory }
     private val modsViewModel: ModsViewModel by viewModels { factory }
@@ -54,6 +56,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             FlintTheme {
                 var destination by rememberSaveable { mutableStateOf(Destination.PLAY) }
+                val accountState by accountViewModel.state.collectAsStateWithLifecycle()
                 val homeState by homeViewModel.state.collectAsStateWithLifecycle()
                 val versionsState by versionsViewModel.state.collectAsStateWithLifecycle()
                 val modsState by modsViewModel.state.collectAsStateWithLifecycle()
@@ -131,6 +134,14 @@ class MainActivity : ComponentActivity() {
                         Destination.PLAY -> HomeScreen(state = homeState, actions = homeActions)
                         Destination.PROFILES -> InstallationsScreen(state = versionsState, actions = versionsActions)
                         Destination.MODS -> ModsScreen(state = modsState, actions = modsActions)
+                        Destination.ACCOUNTS -> AccountsScreen(
+                            state = accountState,
+                            onUsernameChange = { accountViewModel.setUsername(it) },
+                            onAddOffline = { accountViewModel.addOffline() },
+                            onSelect = { accountViewModel.select(it) },
+                            onRemove = { accountViewModel.remove(it) },
+                            onDismissMessage = { accountViewModel.dismissMessage() },
+                        )
                         Destination.SETTINGS -> RuntimeSettingsScreen(
                             state = runtimeSettingsState,
                             actions = runtimeSettingsActions,
