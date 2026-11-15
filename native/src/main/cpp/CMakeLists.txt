@@ -44,7 +44,9 @@ set_target_properties(GL PROPERTIES
     C_VISIBILITY_PRESET default
 )
 target_compile_options(GL PRIVATE -fvisibility=default)
-target_link_libraries(GL PRIVATE ${log-lib} ${android-lib} ${egl-lib} ${gles-lib} ${dl-lib} ${m-lib})
+# Upstream GL4ES uses the plain target_link_libraries signature for GL;
+# keep this call plain as well (CMake forbids mixing plain/keyword signatures).
+target_link_libraries(GL ${log-lib} ${android-lib} ${egl-lib} ${gles-lib} ${dl-lib} ${m-lib})
 
 add_library(flint_native SHARED
     flint_jni.cpp
