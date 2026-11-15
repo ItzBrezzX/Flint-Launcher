@@ -42,6 +42,19 @@ jobs:
       - name: Compile all modules (debug)
         run: gradle assembleDebug --no-parallel --max-workers=2 --stacktrace
 
+      - name: Verify debug APK is installable
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -s "$APK"
+          apksigner verify --verbose "$APK"
+          BADGING="$(aapt dump badging "$APK")"
+          echo "$BADGING" | grep -F "package: name='com.flintlauncher.android'"
+          echo "$BADGING" | grep -F "sdkVersion:'26'"
+          echo "$BADGING" | grep -F "targetSdkVersion:'35'"
+          unzip -t "$APK" >/dev/null
+          echo "APK signature, package metadata, SDK levels and ZIP integrity verified."
+
       - name: Verify native libraries are packaged in the debug APK
         run: |
           set -euo pipefail
