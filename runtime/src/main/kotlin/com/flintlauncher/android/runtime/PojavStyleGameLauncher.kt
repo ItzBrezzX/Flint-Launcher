@@ -68,19 +68,10 @@ class PojavStyleGameLauncher(
         running = false
         NativeBridge.nativeShutdown()
 
-        if (code == -2) {
-            // Expected until full JLI path is enabled
-            return@withContext LaunchResult.Failed(
-                "JLI_Launch path not fully enabled in this Spike 0 build. " +
-                    "Native load of libjli succeeded; complete argv/signal handling next. " +
-                    "Exit code=$code",
-                logBuffer.toString(),
-            )
-        }
-        if (code != 0) {
-            return@withContext LaunchResult.Failed("JVM exited with code $code", logBuffer.toString())
-        }
-        LaunchResult.Started(pid = null, logFile = null)
+        // JLI_Launch is synchronous: it returns after the Java application exits.
+        // A zero exit code therefore means "the game exited cleanly", not "the
+        // game is now running". Never report Started from this blocking API.
+        mapJvmExit(code, logBuffer.toString())
     }
 
     override suspend fun isRunning(): Boolean = running
@@ -92,3 +83,18 @@ class PojavStyleGameLauncher(
     override fun stdout(): String = logBuffer.toString()
     override fun stderr(): String = logBuffer.toString()
 }
+
+
+/**
+ * Maps the return from synchronous JLI_Launch. This API only returns after the
+ * Java main application has terminated, so no return code can prove a live session.
+ */
+internal fun mapJvmExit(exitCode: Int, log: String): LaunchResult =
+    LaunchResult.Failed(
+        reason = if (exitCode == 0) {
+            "JVM exited normally. A live game session cannot be reported by the synchronous JLI_Launch bridge."
+        } else {
+            "JVM exited with code $exitCode"
+        },
+        logSnippet = log,
+    )
