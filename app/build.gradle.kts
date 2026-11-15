@@ -67,6 +67,11 @@ android {
         buildConfig = true
     }
 
+    androidResources {
+        // LwjglComponentStore uses AssetManager.openFd() to size and copy these jars.
+        noCompress += "jar"
+    }
+
     packaging {
         jniLibs {
             // The launcher dlopen()s libGL.so (GL4ES), LWJGL and the GLFW shim by absolute path from

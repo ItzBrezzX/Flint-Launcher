@@ -85,7 +85,7 @@ class FlintGameActivity : Activity() {
         setContentView(root)
 
         if (!GlfwBridge.isLoaded) {
-            showProblem("Flint's GLFW library (libglfw.so) did not load: ${GlfwBridge.error ?: "unknown error"}")
+            showProblem("Flint's game GLFW library (libflint_game_glfw.so) did not load: ${GlfwBridge.error ?: "unknown error"}")
             return
         }
         surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
