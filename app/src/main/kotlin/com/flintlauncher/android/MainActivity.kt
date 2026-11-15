@@ -6,7 +6,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
+import android.net.Uri\nimport androidx.core.content.FileProvider\nimport java.io.File
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -23,7 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flintlauncher.android.ui.accounts.AccountsScreen
-import com.flintlauncher.android.ui.controls.ControlEditorScreen
+import com.flintlauncher.android.ui.controls.ControlEditorScreen\nimport com.flintlauncher.android.ui.files.GameFilesScreen
 import com.flintlauncher.android.ui.home.HomeScreen
 import com.flintlauncher.android.ui.mods.ModsScreen
 import com.flintlauncher.android.ui.settings.RuntimeSettingsScreen
@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
 
     private val factory get() = AppViewModelFactory((application as FlintApplication).container)
     private val accountViewModel: AccountViewModel by viewModels { factory }
-    private val controlEditorViewModel: ControlEditorViewModel by viewModels { factory }
+    private val controlEditorViewModel: ControlEditorViewModel by viewModels { factory }\n    private val gameFilesViewModel: GameFilesViewModel by viewModels { factory }
     private val homeViewModel: HomeViewModel by viewModels { factory }
     private val versionsViewModel: VersionsViewModel by viewModels { factory }
     private val modsViewModel: ModsViewModel by viewModels { factory }
@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
             FlintTheme {
                 var destination by rememberSaveable { mutableStateOf(Destination.PLAY) }
                 val accountState by accountViewModel.state.collectAsStateWithLifecycle()
-                val controlsState by controlEditorViewModel.state.collectAsStateWithLifecycle()
+                val controlsState by controlEditorViewModel.state.collectAsStateWithLifecycle()\n                val gameFilesState by gameFilesViewModel.state.collectAsStateWithLifecycle()
                 val homeState by homeViewModel.state.collectAsStateWithLifecycle()
                 val versionsState by versionsViewModel.state.collectAsStateWithLifecycle()
                 val modsState by modsViewModel.state.collectAsStateWithLifecycle()
@@ -138,6 +138,15 @@ class MainActivity : ComponentActivity() {
                         Destination.PLAY -> HomeScreen(state = homeState, actions = homeActions)
                         Destination.PROFILES -> InstallationsScreen(state = versionsState, actions = versionsActions)
                         Destination.MODS -> ModsScreen(state = modsState, actions = modsActions)
+                        Destination.FILES -> GameFilesScreen(
+                            state = gameFilesState,
+                            actions = com.flintlauncher.android.ui.state.GameFilesActions(
+                                onRefresh = { gameFilesViewModel.refresh() },
+                                onCategoryChange = { gameFilesViewModel.setCategory(it) },
+                                onShare = { shareGameFile(it) },
+                                onDelete = { gameFilesViewModel.delete(it) },
+                            ),
+                        )
                         Destination.CONTROLS -> if (controlsState.loaded) ControlEditorScreen(
                             initial = controlsState.layout,
                             onSave = { controlEditorViewModel.save(it) },
