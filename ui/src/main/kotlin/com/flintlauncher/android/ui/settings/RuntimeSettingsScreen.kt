@@ -69,12 +69,12 @@ fun RuntimeSettingsScreen(
                     }
                 }
                 item { RuntimeCard(state, actions) }
-                item { GraphicsCard(state) }
+                item { GraphicsCard(state, actions) }
                 item { CompatibilityCard() }
             } else {
                 item { DeviceCard(state, Modifier.fillMaxWidth()) }
                 item { RuntimeCard(state, actions) }
-                item { GraphicsCard(state) }
+                item { GraphicsCard(state, actions) }
                 item { PerformanceCard(state, Modifier.fillMaxWidth()) }
                 item { CompatibilityCard() }
             }
@@ -168,7 +168,7 @@ private fun RuntimeCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsA
 }
 
 @Composable
-private fun GraphicsCard(state: RuntimeSettingsUiState) {
+private fun GraphicsCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsActions) {
     SettingsCard("GRAPHICS & RENDERER") {
         SettingLine("Renderer default", "Auto (not available in this build)")
         SettingLine("Compatibility renderer", "GL4ES · not bundled yet")
@@ -182,6 +182,18 @@ private fun GraphicsCard(state: RuntimeSettingsUiState) {
             "This probe reports the device's system EGL/GLES driver only. It does not detect or enable GL4ES, Zink, SDL, or LWJGL. " +
                 "Renderer choices stay unavailable until their native libraries and game window bridge are included and tested on-device.",
             color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedButton(
+            onClick = { actions.onOpenRendererTest?.invoke() },
+            enabled = actions.onOpenRendererTest != null,
+        ) {
+            Text("Open GL4ES window test")
+        }
+        Text(
+            "This test opens a real Android Surface, initializes EGL and GL4ES, draws a test frame, and swaps buffers. " +
+                "It does not launch Minecraft yet.",
+            color = FlintColors.TextMuted,
             style = MaterialTheme.typography.bodySmall,
         )
     }
