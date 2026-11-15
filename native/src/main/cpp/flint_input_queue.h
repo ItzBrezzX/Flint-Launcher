@@ -14,6 +14,7 @@ enum class InputEventType : int32_t {
     Focus = 6,
     WindowSize = 7,
     FramebufferSize = 8,
+    Wake = 9,
 };
 
 struct InputEvent {
@@ -27,6 +28,7 @@ struct InputEvent {
 
 void push_input_event(const InputEvent &event);
 std::vector<InputEvent> poll_input_events(int32_t maximum);
+bool wait_for_input_event(double timeout_seconds);
 uint64_t dropped_input_event_count();
 
 } // namespace flint
