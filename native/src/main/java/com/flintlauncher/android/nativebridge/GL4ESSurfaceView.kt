@@ -1,54 +1,140 @@
 package com.flintlauncher.android.nativebridge
 
 import android.content.Context
-import android.opengl.GLSurfaceView
+import android.graphics.PixelFormat
 import android.util.AttributeSet
 import android.util.Log
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import java.io.File
-import javax.microedition.khronos.egl.EGLConfig
-import javax.microedition.khronos.opengles.GL10
+import java.util.concurrent.locks.LockSupport
 
 /**
- * EGL/GLES2 surface that boots GL4ES on the render thread.
- * The GL4ES context is the same context that subsequent game rendering must use.
+ * Owns a real Android Surface and a dedicated EGL render thread.
+ *
+ * EGL creation, GL4ES initialization, rendering, buffer swaps and teardown
+ * all happen on this one thread. This is a renderer/window integration test
+ * surface; Minecraft's LWJGL window callbacks are a separate integration step.
  */
 class GL4ESSurfaceView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-) : GLSurfaceView(context, attrs) {
+) : SurfaceView(context, attrs), SurfaceHolder.Callback {
 
     @Volatile
-    var rendererStatus: String = "Waiting for EGL surface"
+    var rendererStatus: String = "Waiting for Android surface"
         private set
 
+    @Volatile
+    var onStatusChanged: ((String) -> Unit)? = null
+
+    @Volatile private var renderRequested = false
+    @Volatile private var surfaceWidth = 0
+    @Volatile private var surfaceHeight = 0
+    private var renderThread: Thread? = null
+
     init {
-        setEGLContextClientVersion(2)
-        preserveEGLContextOnPause = true
-        setRenderer(object : Renderer {
-            override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-                val library = File(context.applicationInfo.nativeLibraryDir, "libGL.so")
-                val initialized = NativeBridge.nativeLoadGL4ES(library.absolutePath)
-                rendererStatus = if (initialized) {
-                    val version = NativeBridge.nativeGL4ESVersion()
-                    if (NativeBridge.nativeGL4ESClear()) "GL4ES ready · $version"
-                    else "GL4ES loaded; GLES operation failed · $version"
-                } else {
-                    "GL4ES initialization failed: ${library.absolutePath}"
-                }
-                Log.i(TAG, rendererStatus)
-            }
-
-            override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) = Unit
-
-            override fun onDrawFrame(gl: GL10?) {
-                if (rendererStatus.startsWith("GL4ES ready")) {
-                    NativeBridge.nativeGL4ESClear()
-                }
-            }
-        })
+        holder.setFormat(PixelFormat.RGBA_8888)
+        holder.addCallback(this)
     }
 
-    companion object {
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        if (renderThread?.isAlive == true) return
+        renderRequested = true
+        val thread = Thread({ renderLoop(holder) }, "Flint-GL4ES-Render")
+        renderThread = thread
+        thread.start()
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        surfaceWidth = width
+        surfaceHeight = height
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        renderRequested = false
+        renderThread?.interrupt()
+        try {
+            renderThread?.join(3000)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+        renderThread = null
+        updateStatus("Android surface destroyed")
+    }
+
+    private fun renderLoop(holder: SurfaceHolder) {
+        var eglCreated = false
+        try {
+            val eglStatus = NativeBridge.nativeCreateWindowSurface(holder.surface)
+            if (eglStatus != "egl-window-ready") {
+                updateStatus("EGL window creation failed: $eglStatus")
+                return
+            }
+            eglCreated = true
+            updateStatus("EGL window ready; loading GL4ES")
+
+            val glLibrary = File(context.applicationInfo.nativeLibraryDir, "libGL.so")
+            if (!glLibrary.isFile) {
+                updateStatus("GL4ES library missing: ${glLibrary.absolutePath}")
+                return
+            }
+            if (!NativeBridge.nativeLoadGL4ES(glLibrary.absolutePath)) {
+                updateStatus("GL4ES initialization failed; inspect FlintNative logcat")
+                return
+            }
+
+            val version = NativeBridge.nativeGL4ESVersion()
+            if (version.startsWith("gl4es-")) {
+                updateStatus("GL4ES version query failed: $version")
+                return
+            }
+            updateStatus("GL4ES active · $version")
+
+            var lastWidth = 0
+            var lastHeight = 0
+            while (renderRequested && holder.surface.isValid) {
+                val width = surfaceWidth
+                val height = surfaceHeight
+                if (width > 0 && height > 0 && (width != lastWidth || height != lastHeight)) {
+                    if (!NativeBridge.nativeResizeWindowSurface(width, height)) {
+                        updateStatus("EGL viewport update failed")
+                        break
+                    }
+                    lastWidth = width
+                    lastHeight = height
+                }
+
+                if (!NativeBridge.nativeGL4ESClear()) {
+                    updateStatus("GL4ES draw call failed")
+                    break
+                }
+                if (!NativeBridge.nativeSwapWindowBuffers()) {
+                    updateStatus("EGL buffer swap failed")
+                    break
+                }
+                LockSupport.parkNanos(FRAME_INTERVAL_NS)
+                if (Thread.interrupted() && !renderRequested) break
+            }
+        } catch (error: Throwable) {
+            updateStatus("Renderer thread failed: ${error.message ?: error.javaClass.simpleName}")
+            Log.e(TAG, "GL4ES render loop failed", error)
+        } finally {
+            if (eglCreated) {
+                runCatching { NativeBridge.nativeDestroyWindowSurface() }
+                    .onFailure { Log.e(TAG, "EGL teardown failed", it) }
+            }
+        }
+    }
+
+    private fun updateStatus(status: String) {
+        rendererStatus = status
+        Log.i(TAG, status)
+        onStatusChanged?.invoke(status)
+    }
+
+    private companion object {
         private const val TAG = "FlintGL4ES"
+        private const val FRAME_INTERVAL_NS = 16_666_667L
     }
 }
