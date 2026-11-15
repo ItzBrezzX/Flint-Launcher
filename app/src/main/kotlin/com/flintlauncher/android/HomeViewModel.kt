@@ -41,7 +41,7 @@ class HomeViewModel(
     private val installer: MinecraftInstaller,
     private val runtimeManager: MobileJreManager?,
     private val deviceArch: String?,
-    launcherVersion: String,
+    private val launcherVersion: String,
     private val accountManager: AccountManager,
     private val profileRepository: ProfileRepository,
     private val gameLauncher: GameLauncher?,
