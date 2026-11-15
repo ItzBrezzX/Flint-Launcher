@@ -1,4 +1,5 @@
 #include "flint_glfw_backend.h"
+#include "flint_input_queue.h"
 #include <jni.h>
 #include <android/log.h>
 #include <EGL/egl.h>
@@ -298,4 +299,45 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwDestroyWindow
     GLFWwindow *window = flint_glfw_android_window();
     if (window) glfwDestroyWindow(window);
     flint_glfw_detach_android_surface();
+}
+
+
+/* JNI input functions belong to libflint_native.so, which NativeBridge loads. */
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativePushInputEvent(
+    JNIEnv *, jclass, jint type, jint code, jint action, jint mods, jdouble x, jdouble y
+) {
+    flint::push_input_event({type, code, action, mods, x, y});
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativePollInputEvents(
+    JNIEnv *env, jclass, jint maximum
+) {
+    const auto events = flint::poll_input_events(maximum > 0 && maximum < 1024 ? maximum : 1024);
+    jlongArray output = env->NewLongArray(static_cast<jsize>(events.size() * 6));
+    if (!output || events.empty()) return output;
+
+    std::vector<jlong> packed;
+    packed.reserve(events.size() * 6);
+    for (const auto &event : events) {
+        union { double d; uint64_t u; } x{}, y{};
+        x.d = event.x;
+        y.d = event.y;
+        packed.push_back(static_cast<jlong>(event.type));
+        packed.push_back(static_cast<jlong>(event.code));
+        packed.push_back(static_cast<jlong>(event.action));
+        packed.push_back(static_cast<jlong>(event.mods));
+        packed.push_back(static_cast<jlong>(x.u));
+        packed.push_back(static_cast<jlong>(y.u));
+    }
+    env->SetLongArrayRegion(output, 0, static_cast<jsize>(packed.size()), packed.data());
+    return output;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeDroppedInputEventCount(
+    JNIEnv *, jclass
+) {
+    return static_cast<jlong>(flint::dropped_input_event_count());
 }
