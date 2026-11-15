@@ -220,10 +220,11 @@ class PojavStyleGameLauncher(
             // The JLI worker owns native resources after it starts. Ask GLFW to close;
             // never destroy EGL here from the coroutine thread.
             requestGracefulClose()
+            if (launchThread?.isAlive != true) launchReserved.set(false)
             throw cancelled
         } catch (error: Throwable) {
             requestGracefulClose()
-            launchReserved.set(false)
+            if (launchThread?.isAlive != true) launchReserved.set(false)
             LaunchResult.Failed(
                 "Could not start Minecraft JVM: " + (error.message ?: error.javaClass.simpleName),
                 stdout(),
