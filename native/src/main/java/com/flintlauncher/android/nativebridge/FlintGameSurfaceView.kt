@@ -30,6 +30,7 @@ class FlintGameSurfaceView @JvmOverloads constructor(
         holder.setFormat(android.graphics.PixelFormat.OPAQUE)
         isFocusable = true
         isFocusableInTouchMode = true
+        isClickable = true
     }
 
     fun makeEglContextCurrent(): Boolean =
@@ -78,12 +79,12 @@ class FlintGameSurfaceView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val index = event.actionIndex
                 postInput(FlintGlfwEvent.cursor(event.getX(index), event.getY(index)))
-                postInput(FlintGlfwEvent.mouseButton(index, GLFW_PRESS, modifiers(event.metaState)))
+                postInput(FlintGlfwEvent.mouseButton(0, GLFW_PRESS, modifiers(event.metaState)))
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val index = event.actionIndex
                 postInput(FlintGlfwEvent.cursor(event.getX(index), event.getY(index)))
-                postInput(FlintGlfwEvent.mouseButton(index, GLFW_RELEASE, modifiers(event.metaState)))
+                postInput(FlintGlfwEvent.mouseButton(0, GLFW_RELEASE, modifiers(event.metaState)))
             }
             MotionEvent.ACTION_MOVE -> {
                 val index = event.actionIndex.coerceIn(0, event.pointerCount - 1)
@@ -103,6 +104,10 @@ class FlintGameSurfaceView @JvmOverloads constructor(
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val key = toGlfwKey(keyCode) ?: return super.onKeyDown(keyCode, event)
         postInput(FlintGlfwEvent.key(key, event.scanCode, if (event.repeatCount > 0) GLFW_REPEAT else GLFW_PRESS, modifiers(event.metaState)))
+        val codePoint = event.unicodeChar
+        if (codePoint > 0 && !event.isCtrlPressed && !event.isAltPressed) {
+            postInput(FlintGlfwEvent.character(codePoint))
+        }
         return true
     }
 
@@ -135,7 +140,7 @@ class FlintGameSurfaceView @JvmOverloads constructor(
     private fun toGlfwKey(code: Int): Int? = when (code) {
         in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z -> GLFW_KEY_A + (code - KeyEvent.KEYCODE_A)
         in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> {
-            val digit = (code - KeyEvent.KEYCODE_0 + 1) % 10
+            val digit = (code - KeyEvent.KEYCODE_0) % 10
             GLFW_KEY_0 + digit
         }
         KeyEvent.KEYCODE_SPACE -> GLFW_KEY_SPACE
