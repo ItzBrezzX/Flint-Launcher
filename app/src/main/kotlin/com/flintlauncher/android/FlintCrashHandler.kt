@@ -71,7 +71,7 @@ object FlintCrashHandler {
             append("Time: ").append(java.time.Instant.ofEpochMilli(stamp)).append('\n')
             append("Thread: ").append(thread.name).append(" (").append(thread.id).append(")\n")
             append("Android: ").append(android.os.Build.VERSION.RELEASE).append('\n')
-            append("Device: ").append(android.os.Build.MODEL).append('\n\n')
+            append("Device: ").append(android.os.Build.MODEL).append("\n\n")
             append(error.stackTraceToString())
         }
         val report = redactSecrets(raw).take(MAX_REPORT_CHARS)
