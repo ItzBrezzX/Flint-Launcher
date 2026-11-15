@@ -11,6 +11,12 @@ if [ ! -d "${SOURCE}/.git" ]; then
     rm -rf "${SOURCE}"
     git clone --depth 1 --branch 3.3.3 https://github.com/LWJGL/lwjgl3.git "${SOURCE}"
 fi
+if [ ! -f "${GLFW_SOURCE}/include/GLFW/glfw3.h" ]; then
+    rm -rf "${GLFW_SOURCE}"
+    git clone --depth 1 --branch 3.3.8 https://github.com/glfw/glfw.git "${GLFW_SOURCE}"
+fi
+test -f "${GLFW_SOURCE}/include/GLFW/glfw3.h"
+
 GENERATED="${SOURCE}/modules/lwjgl/glfw/src/generated/c"
 if [ ! -d "${GENERATED}" ] || [ -z "$(find "${GENERATED}" -maxdepth 1 -name '*.c' -print -quit 2>/dev/null)" ]; then
     if ! command -v ant >/dev/null 2>&1; then
