@@ -58,6 +58,14 @@ jobs:
           done
           echo "All Flint native backends are packaged for all configured ABIs."
 
+      - name: Verify LWJGL GLFW symbol exports
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
+            python3 native/tools/verify_glfw_exports.py "$APK" --abi "$ABI"
+          done
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
