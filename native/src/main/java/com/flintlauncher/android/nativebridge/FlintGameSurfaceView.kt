@@ -21,7 +21,10 @@ class FlintGameSurfaceView @JvmOverloads constructor(
 ) : SurfaceView(context, attrs) {
 
     private var activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
-    private var touchButtonDown = false
+    private var touchStartX = 0f
+    private var touchStartY = 0f
+    private var touchMoved = false
+    private val touchSlopPx = 8f * resources.displayMetrics.density
 
     init {
         isFocusable = true
@@ -38,16 +41,10 @@ class FlintGameSurfaceView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 val index = event.actionIndex
                 activeTouchPointerId = event.getPointerId(index)
-                enqueueCursor(event.getX(index), event.getY(index))
-                enqueue(
-                    FlintInputEvent.MOUSE_BUTTON,
-                    code = 0,
-                    action = 1,
-                    modifiers = modifiers,
-                    x = event.getX(index).toDouble(),
-                    y = event.getY(index).toDouble(),
-                )
-                touchButtonDown = true
+                touchStartX = event.getX(index)
+                touchStartY = event.getY(index)
+                touchMoved = false
+                enqueueCursor(touchStartX, touchStartY)
                 requestFocus()
             }
 
@@ -57,7 +54,14 @@ class FlintGameSurfaceView @JvmOverloads constructor(
                 } else {
                     event.findPointerIndex(activeTouchPointerId)
                 }
-                if (index >= 0) enqueueCursor(event.getX(index), event.getY(index))
+                if (index >= 0) {
+                    val x = event.getX(index)
+                    val y = event.getY(index)
+                    val dx = x - touchStartX
+                    val dy = y - touchStartY
+                    if (dx * dx + dy * dy > touchSlopPx * touchSlopPx) touchMoved = true
+                    enqueueCursor(x, y)
+                }
             }
 
             MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP -> {
@@ -66,7 +70,7 @@ class FlintGameSurfaceView @JvmOverloads constructor(
                     event.getPointerId(index) == activeTouchPointerId
                 ) {
                     enqueueCursor(event.getX(index), event.getY(index))
-                    releaseTouchButton(event.getX(index), event.getY(index), modifiers)
+                    if (!touchMoved) enqueueTap(event.getX(index), event.getY(index), modifiers)
                     activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
                 }
             }
@@ -78,10 +82,8 @@ class FlintGameSurfaceView @JvmOverloads constructor(
                     event.findPointerIndex(activeTouchPointerId)
                 }
                 val safeIndex = index.takeIf { it in 0 until event.pointerCount }
-                if (safeIndex != null) {
-                    releaseTouchButton(event.getX(safeIndex), event.getY(safeIndex), modifiers)
-                } else {
-                    releaseTouchButton(0f, 0f, modifiers)
+                if (!touchMoved && safeIndex != null) {
+                    enqueueTap(event.getX(safeIndex), event.getY(safeIndex), modifiers)
                 }
                 activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
             }
@@ -184,8 +186,16 @@ class FlintGameSurfaceView @JvmOverloads constructor(
         enqueue(FlintInputEvent.CURSOR, x = x.toDouble(), y = y.toDouble())
     }
 
-    private fun releaseTouchButton(x: Float, y: Float, modifiers: Int) {
-        if (!touchButtonDown) return
+    private fun enqueueTap(x: Float, y: Float, modifiers: Int) {
+        enqueueCursor(x, y)
+        enqueue(
+            FlintInputEvent.MOUSE_BUTTON,
+            code = 0,
+            action = 1,
+            modifiers = modifiers,
+            x = x.toDouble(),
+            y = y.toDouble(),
+        )
         enqueue(
             FlintInputEvent.MOUSE_BUTTON,
             code = 0,
@@ -194,7 +204,6 @@ class FlintGameSurfaceView @JvmOverloads constructor(
             x = x.toDouble(),
             y = y.toDouble(),
         )
-        touchButtonDown = false
     }
 
     private fun enqueue(
