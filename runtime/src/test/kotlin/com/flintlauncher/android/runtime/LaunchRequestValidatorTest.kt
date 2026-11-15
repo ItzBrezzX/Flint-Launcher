@@ -18,7 +18,14 @@ class LaunchRequestValidatorTest {
     @Test
     fun rejectsCommandWhenJvmClasspathDoesNotMatchInstalledClasspath() {
         val root = Files.createTempDirectory("flint-launch-mismatch").toFile()
-        val request = request(root).copy(jvmArgs = listOf("-cp", File(root, "wrong.jar").absolutePath))
+        val valid = request(root)
+        val request = valid.copy(
+            jvmArgs = listOf(
+                "-Djava.library.path=${valid.nativeDir.absolutePath}",
+                "-cp",
+                File(root, "wrong.jar").absolutePath,
+            ),
+        )
 
         val error = LaunchRequestValidator.validate(request)
 
@@ -28,7 +35,10 @@ class LaunchRequestValidatorTest {
     @Test
     fun rejectsCommandWithoutClasspathOption() {
         val root = Files.createTempDirectory("flint-launch-no-cp").toFile()
-        val request = request(root).copy(jvmArgs = listOf("-Xmx1G"))
+        val valid = request(root)
+        val request = valid.copy(
+            jvmArgs = listOf("-Djava.library.path=${valid.nativeDir.absolutePath}", "-Xmx1G"),
+        )
 
         val error = LaunchRequestValidator.validate(request)
 
