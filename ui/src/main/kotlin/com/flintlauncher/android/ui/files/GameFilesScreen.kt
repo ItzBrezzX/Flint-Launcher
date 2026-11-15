@@ -33,7 +33,7 @@ import java.util.Date
       Text("${item.category.name.replace('_',' ')} · ${formatSize(item.sizeBytes)} · ${DateFormat.getDateTimeInstance().format(Date(item.modifiedAt))}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
       Text(item.path,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
       Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-       OutlinedButton(onClick={actions.onShare?.invoke(item.path)},enabled=actions.onShare!=null) { Text("Share") }
+       OutlinedButton(onClick={actions.onOpen?.invoke(item.path)},enabled=actions.onOpen!=null) { Text("Open") }\n       OutlinedButton(onClick={actions.onShare?.invoke(item.path)},enabled=actions.onShare!=null) { Text("Share") }
        OutlinedButton(onClick={actions.onDelete?.invoke(item.path)},enabled=actions.onDelete!=null) { Text("Delete") }
       }
      }
