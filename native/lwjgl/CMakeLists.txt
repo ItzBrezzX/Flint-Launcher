@@ -65,7 +65,7 @@ file(GLOB CORE_GENERATED CONFIGURE_DEPENDS
     "${LWJGL_CORE}/src/generated/c/*.c"
     "${LWJGL_CORE}/src/generated/c/linux/*.c"
 )
-list(FILTER CORE_GENERATED EXCLUDE REGEX "/liburing/")
+list(FILTER CORE_GENERATED EXCLUDE REGEX "liburing")
 file(GLOB CORE_MAIN CONFIGURE_DEPENDS
     "${LWJGL_CORE}/src/main/c/*.c"
 )
