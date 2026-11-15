@@ -58,6 +58,7 @@ enum class Destination(val label: String, val icon: ImageVector) {
     ACCOUNTS("Accounts", Icons.Filled.AccountCircle),
     CONTROLS("Touch Controls", Icons.Filled.Gamepad),
     FILES("Game Files", Icons.Filled.FolderOpen),
+    WINDOW("Game Window", Icons.Filled.Gamepad),
     SETTINGS("Settings", Icons.Filled.Settings),
     ABOUT("About", Icons.Filled.Info),
 }
