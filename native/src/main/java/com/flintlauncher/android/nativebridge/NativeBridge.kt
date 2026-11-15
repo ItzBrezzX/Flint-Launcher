@@ -50,6 +50,15 @@ object NativeBridge {
     /** Release EGL resources and the retained ANativeWindow reference. */
     external fun nativeSurfaceDestroyed()
 
+    /** Enqueue one Flint GLFW-compatibility event (internal event ID 1..8). */
+    external fun nativePostGlfwEvent(type: Int, a: Int, b: Int, c: Int, d: Int)
+
+    /** Drain pending events as flat groups of five integers. */
+    external fun nativeDrainGlfwEvents(): IntArray?
+
+    /** Total number of events dropped because the bounded queue was full. */
+    external fun nativeGlfwDroppedEventCount(): Long
+
     /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
 
