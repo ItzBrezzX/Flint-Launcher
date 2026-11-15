@@ -2,6 +2,8 @@ package com.flintlauncher.android
 
 import com.flintlauncher.android.account.AccountManager
 import com.flintlauncher.android.account.AccountType
+import com.flintlauncher.android.auth.AuthError
+import com.flintlauncher.android.auth.AuthException
 import com.flintlauncher.android.installer.MinecraftInstaller
 import com.flintlauncher.android.installer.NativesExtractor
 import com.flintlauncher.android.minecraft.manifest.VersionType
@@ -11,8 +13,10 @@ import com.flintlauncher.android.minecraft.version.LaunchContext
 import com.flintlauncher.android.nativebridge.NativeBridge
 import com.flintlauncher.android.runtime.AndroidLwjglNativesInstaller
 import com.flintlauncher.android.runtime.GameLauncher
+import com.flintlauncher.android.runtime.JvmEnvironment
 import com.flintlauncher.android.runtime.KnownJreArtifacts
 import com.flintlauncher.android.runtime.LaunchRequest
+import com.flintlauncher.android.runtime.LwjglAndroid
 import com.flintlauncher.android.runtime.LaunchResult
 import com.flintlauncher.android.runtime.MobileJreManager
 import com.flintlauncher.android.runtime.PojavStyleGameLauncher
@@ -25,9 +29,9 @@ import java.security.MessageDigest
 /**
  * Prepares a real Minecraft launch request and delegates it to the Pojav-style in-process JVM.
  *
- * This is deliberately conservative: Microsoft accounts are blocked until Flint can exchange
- * their stored refresh token for a live Minecraft access token. Offline accounts use the
- * standard offline identity and never receive a fabricated Microsoft credential.
+ * Microsoft accounts trade their stored refresh token for a fresh Minecraft access token right
+ * before launch (see [MinecraftSessionProvider]). Offline accounts use the standard offline
+ * identity and never receive a fabricated Microsoft credential.
  */
 class PlayLaunchCoordinator(
     private val installer: MinecraftInstaller,
@@ -38,6 +42,11 @@ class PlayLaunchCoordinator(
     private val cacheDir: File,
     private val nativeLibraryDir: File,
     private val launcherVersion: String,
+    private val microsoftSessions: MinecraftSessionProvider? = null,
+    /** Jars of LWJGL built for Android (extracted from the APK). Empty when the APK has none. */
+    private val androidLwjglJars: () -> List<File> = { emptyList() },
+    /** Where the JVM's stdout/stderr go. Null disables redirection. */
+    private val gameLogFile: File? = null,
 ) {
     private val gameLauncher: GameLauncher? = runtimeManager?.let(::PojavStyleGameLauncher)
 
@@ -50,10 +59,8 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Could not read the selected account: ${error.message ?: "storage error"}")
         } ?: return LaunchResult.BlockedNotReady
 
-        if (account.type == AccountType.MICROSOFT) {
-            return LaunchResult.Failed(
-                "Microsoft account is selected, but access-token refresh and Minecraft session exchange are not connected yet. Select an offline account or finish Microsoft authentication first.",
-            )
+        if (account.type == AccountType.MICROSOFT && microsoftSessions == null) {
+            return LaunchResult.Failed(AuthError.ClientIdMissing.userMessage)
         }
 
         val manager = runtimeManager ?: return LaunchResult.BlockedMissingRuntime
@@ -66,8 +73,8 @@ class PlayLaunchCoordinator(
             )
         }
 
-        // The APK must contain the GL4ES shared library. The launch path stages its Android
-        // ELF libraries into the per-game LWJGL search directory after native extraction.
+        // The APK must contain the GL4ES shared library. This verifies the packaged renderer
+        // artifact, not a live LWJGL/Android-GLFW window; that hand-off remains a separate step.
         val gl4esLibrary = File(nativeLibraryDir, "libGL.so")
         if (!gl4esLibrary.isFile) {
             return LaunchResult.BlockedMissingRenderer
@@ -127,8 +134,8 @@ class PlayLaunchCoordinator(
             if (!nativeDirectory.mkdirs() && !nativeDirectory.isDirectory) {
                 return LaunchResult.Failed("Could not create the native extraction directory.")
             }
-            // Keep desktop Linux .so files out of this Android load path, then stage
-            // version-pinned Bionic LWJGL/GLFW/GL4ES binaries from the installed APK.
+            // Do not extract Linux/GLIBC natives into Android's Bionic load path.
+            // Stage only ABI-checked Android libraries shipped in this APK.
             NativesExtractor.extract(installed.nativeJars, nativeDirectory, excludeSharedObjects = true)
             AndroidLwjglNativesInstaller.install(nativeLibraryDir, nativeDirectory, arch)
         } catch (cancelled: CancellationException) {
@@ -137,16 +144,43 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Could not extract Minecraft native libraries: ${error.message ?: "invalid native archive"}")
         }
 
-        val classpath = installed.classpath.joinToString(File.pathSeparator) { it.absolutePath }
+        // Fetched this late on purpose: the Java runtime download above can take minutes and a
+        // Minecraft access token should be as fresh as possible when the game starts.
+        val identity: LaunchIdentity = if (account.type == AccountType.MICROSOFT) {
+            val provider = microsoftSessions ?: return LaunchResult.Failed(AuthError.ClientIdMissing.userMessage)
+            val session = try {
+                provider.sessionFor(account)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: AuthException) {
+                return LaunchResult.Failed(error.error.userMessage)
+            } catch (error: Exception) {
+                return LaunchResult.Failed("Microsoft sign-in failed: ${error.message ?: "unknown error"}")
+            }
+            LaunchIdentity(
+                username = session.profile.name,
+                uuid = account.uuid,
+                accessToken = session.accessToken,
+                userType = "msa",
+            )
+        } else {
+            LaunchIdentity(account.username, account.uuid, accessToken = "0", userType = "legacy")
+        }
+
+        val launchClasspath = when (val swap = LwjglAndroid.substitute(installed.classpath, androidLwjglJars())) {
+            is LwjglAndroid.Substitution.Ready -> swap.classpath
+            is LwjglAndroid.Substitution.Unsupported -> return LaunchResult.Failed(swap.reason)
+        }
+        val classpath = launchClasspath.joinToString(File.pathSeparator) { it.absolutePath }
         val environment = Environment(
             osName = "linux",
             osArch = arch,
         )
         val context = LaunchContext(
-            playerName = account.username,
-            uuid = account.uuid.replace("-", ""),
-            accessToken = "0",
-            userType = "legacy",
+            playerName = identity.username,
+            uuid = identity.uuid.replace("-", ""),
+            accessToken = identity.accessToken,
+            userType = identity.userType,
             versionName = installed.version.id,
             versionType = when (installed.version.type) {
                 VersionType.RELEASE -> "release"
@@ -165,12 +199,14 @@ class PlayLaunchCoordinator(
         )
 
         val extraJvmArguments = buildList {
-            add("-Djava.library.path=${nativeDirectory.absolutePath}")
-            add("-Dorg.lwjgl.librarypath=${nativeDirectory.absolutePath}")
+            add("-Djava.library.path=${nativeLibraryDir.absolutePath}${File.pathSeparator}${nativeDirectory.absolutePath}")
+            addAll(LwjglAndroid.jvmArguments(nativeLibraryDir))
             add("-Djava.io.tmpdir=${File(cacheDir, "minecraft-tmp").absolutePath}")
             add("-Duser.home=${gameDirectory.absolutePath}")
             installed.loggingJvmArgument?.let { add(it) }
         }
+
+        File(cacheDir, "minecraft-tmp").mkdirs()
 
         val command = try {
             LaunchCommandBuilder.build(
@@ -188,23 +224,32 @@ class PlayLaunchCoordinator(
             kind = RendererKind.GL4ES,
             displayName = "GL4ES",
             available = gl4esLibrary.isFile,
-            notes = "Android GLFW/LWJGL native libraries are staged; production EGL context hand-off is still pending.",
+            notes = "GL4ES with the separate Flint Android game GLFW backend. Device rendering still requires runtime verification.",
         )
         val request = LaunchRequest(
             versionId = installed.versionId,
             gameDir = gameDirectory,
             assetsDir = installed.assetsRoot,
-            classpath = installed.classpath,
+            classpath = launchClasspath,
             nativeDir = nativeDirectory,
             mainClass = command.mainClass,
             jvmArgs = command.jvmArguments,
             gameArgs = command.gameArguments,
-            accountUsername = account.username,
-            accountUuid = account.uuid,
-            accessToken = "0",
-            userType = "legacy",
+            accountUsername = identity.username,
+            accountUuid = identity.uuid,
+            accessToken = identity.accessToken,
+            userType = identity.userType,
             runtime = runtime,
             renderer = renderer,
+            environment = JvmEnvironment.build(
+                runtimeHome = runtime.homeDir,
+                gameNativeDirectory = nativeDirectory,
+                appNativeLibraryDirectory = nativeLibraryDir,
+                gameDirectory = gameDirectory,
+                temporaryDirectory = File(cacheDir, "minecraft-tmp"),
+                inheritedLdLibraryPath = System.getenv("LD_LIBRARY_PATH"),
+            ),
+            stdioLogFile = gameLogFile,
         )
         return launcher.launch(request)
     }
@@ -214,4 +259,14 @@ class PlayLaunchCoordinator(
             .digest(value.toByteArray(Charsets.UTF_8))
             .take(12)
             .joinToString("") { "%02x".format(it) }
+}
+
+/** The player identity handed to Minecraft. [accessToken] must never be logged. */
+private data class LaunchIdentity(
+    val username: String,
+    val uuid: String,
+    val accessToken: String,
+    val userType: String,
+) {
+    override fun toString() = "LaunchIdentity(username=$username, userType=$userType)"
 }

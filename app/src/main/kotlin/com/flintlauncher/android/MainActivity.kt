@@ -100,6 +100,10 @@ class MainActivity : ComponentActivity() {
                         onSelect = { accountsViewModel.select(it) },
                         onRemove = { accountsViewModel.remove(it) },
                         onDismissMessage = { accountsViewModel.dismissMessage() },
+                        onMicrosoftSignIn = { accountsViewModel.startMicrosoftSignIn() },
+                        onMicrosoftCancel = { accountsViewModel.cancelMicrosoftSignIn() },
+                        onOpenVerificationPage = { url -> openWebsite(url) },
+                        onCopyCode = { code -> copyText("Microsoft sign-in code", code) },
                     )
                 }
 
@@ -182,6 +186,14 @@ class MainActivity : ComponentActivity() {
         // Android 13+ shows its own confirmation.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             Toast.makeText(this, R.string.address_copied, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun copyText(label: String, text: String) {
+        val clipboard = getSystemService(ClipboardManager::class.java)
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            Toast.makeText(this, R.string.code_copied, Toast.LENGTH_SHORT).show()
         }
     }
 

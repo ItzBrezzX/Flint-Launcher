@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.flintlauncher.android.account.AccountManager
 import com.flintlauncher.android.account.AndroidKeystoreTokenVault
 import com.flintlauncher.android.account.FileAccountRepository
+import com.flintlauncher.android.auth.MicrosoftAuthClient
 import com.flintlauncher.android.download.DownloadConfig
 import com.flintlauncher.android.download.DownloadManager
 import com.flintlauncher.android.installer.GameLayout
@@ -79,6 +80,24 @@ class AppContainer(private val app: Application) {
     val tokenVault = AndroidKeystoreTokenVault(File(app.filesDir, "account-tokens.enc"))
     val microsoftAccountStore = MicrosoftAccountStore(accountManager, tokenVault)
 
+    private val lwjglComponents = LwjglComponentStore(app)
+
+    /** Everything the JVM prints (and Java crash messages) land here. Shared with the launcher process. */
+    val gameLogFile: File = File(app.getExternalFilesDir("logs") ?: File(app.filesDir, "logs"), "last-game.log")
+
+    // Null when the build has no Azure client ID. The device-code flow needs no redirect URI;
+    // the value below only satisfies the client's constructor for the browser (PKCE) flow.
+    val microsoftAuthClient: MicrosoftAuthClient? = BuildConfig.MS_CLIENT_ID.takeIf { it.isNotBlank() }?.let { id ->
+        MicrosoftAuthClient(
+            http = http,
+            clientId = id,
+            redirectUri = "https://login.microsoftonline.com/common/oauth2/nativeclient",
+        )
+    }
+    private val microsoftSessionProvider: MinecraftSessionProvider? = microsoftAuthClient?.let {
+        MicrosoftSessionProvider(it, microsoftAccountStore)
+    }
+
     // Game files can be over a gigabyte: prefer app-specific external storage, which is larger.
     private val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
     private val layout = GameLayout(gameRoot)
@@ -134,6 +153,9 @@ class AppContainer(private val app: Application) {
         cacheDir = app.cacheDir,
         nativeLibraryDir = File(app.applicationInfo.nativeLibraryDir),
         launcherVersion = launcherVersion,
+        microsoftSessions = microsoftSessionProvider,
+        androidLwjglJars = { lwjglComponents.jars() },
+        gameLogFile = gameLogFile,
     )
 
     val installCoordinator = InstallCoordinator(
@@ -142,6 +164,14 @@ class AppContainer(private val app: Application) {
         pending = FilePendingInstallStore(File(app.filesDir, "pending-install.txt")),
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     )
+
+    fun startGameActivity(versionId: String) {
+        app.startActivity(
+            Intent(app, FlintGameActivity::class.java)
+                .putExtra(FlintGameActivity.EXTRA_VERSION_ID, versionId)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
 
     fun startInstallService() {
         ContextCompat.startForegroundService(app, Intent(app, InstallService::class.java))
@@ -158,13 +188,14 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.accountManager,
                 container.playLaunchCoordinator,
                 container.launcherVersion,
+                container::startGameActivity,
             )
         modelClass.isAssignableFrom(VersionsViewModel::class.java) ->
             VersionsViewModel(container.installer, container.installCoordinator, container::startInstallService)
         modelClass.isAssignableFrom(ModsViewModel::class.java) ->
             ModsViewModel(container.modrinthRepository, container.profileRepository)
         modelClass.isAssignableFrom(AccountsViewModel::class.java) ->
-            AccountsViewModel(container.accountManager, container.microsoftAccountStore)
+            AccountsViewModel(container.accountManager, container.microsoftAccountStore, container.microsoftAuthClient)
         modelClass.isAssignableFrom(RuntimeSettingsViewModel::class.java) ->
             RuntimeSettingsViewModel(
                 container.mobileJreManager,

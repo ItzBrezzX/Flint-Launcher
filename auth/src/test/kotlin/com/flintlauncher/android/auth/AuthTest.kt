@@ -91,6 +91,7 @@ class MicrosoftAuthClientTest {
             endpoints = AuthEndpoints(
                 msaAuthorize = url("/msa/authorize"),
                 msaToken = url("/msa/token"),
+                msaDeviceCode = url("/msa/devicecode"),
                 xboxUserAuth = url("/xbl"),
                 xsts = url("/xsts"),
                 minecraftLogin = url("/mc/login"),
@@ -219,5 +220,106 @@ class MicrosoftAuthClientTest {
         val session = MinecraftSession("SECRET_MC", 60, MinecraftProfile("id", "Notch", emptyList()), true)
         assertFalse(session.toString().contains("SECRET"))
         assertNull(MinecraftProfile("id", "n", emptyList()).activeSkin)
+    }
+
+    // ------------------------------------------------------ device-code flow
+
+    private fun deviceInfo(expiresIn: Long = 900, interval: Long = 5) = DeviceCodeInfo(
+        deviceCode = "DEVICE_SECRET",
+        userCode = "ABCD1234",
+        verificationUri = "https://microsoft.com/link",
+        expiresInSeconds = expiresIn,
+        intervalSeconds = interval,
+    )
+
+    @Test
+    fun deviceCodeRequestSendsClientIdAndScopeAndParsesTheReply() = runBlocking {
+        reply(
+            "/msa/devicecode",
+            """{"device_code":"DEVICE_SECRET","user_code":"ABCD1234","verification_uri":"https://microsoft.com/link","expires_in":900,"interval":5}""",
+        )
+        val info = client().requestDeviceCode()
+
+        assertEquals("ABCD1234", info.userCode)
+        assertEquals("https://microsoft.com/link", info.verificationUri)
+        assertEquals(5L, info.intervalSeconds)
+        val body = requests.single().body.readUtf8()
+        assertTrue(body.contains("client_id=test-client-id"))
+        assertTrue(body.contains("scope=XboxLive.signin"))
+        assertFalse(info.toString().contains("DEVICE_SECRET"))
+    }
+
+    @Test
+    fun pollingKeepsWaitingWhilePendingThenReturnsTokens() = runBlocking {
+        val answers = java.util.concurrent.atomic.AtomicInteger(0)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                requests.add(request)
+                if (request.path != "/msa/token") return MockResponse().setResponseCode(404)
+                return if (answers.getAndIncrement() < 2) {
+                    MockResponse().setResponseCode(400).setBody("""{"error":"authorization_pending"}""")
+                } else {
+                    MockResponse().setResponseCode(200)
+                        .setBody("""{"access_token":"MSA_TOKEN","refresh_token":"REFRESH","expires_in":3600}""")
+                }
+            }
+        }
+        val pauses = mutableListOf<Long>()
+        val tokens = client().awaitDeviceCode(deviceInfo()) { pauses += it }
+
+        assertEquals("REFRESH", tokens.refreshToken)
+        assertEquals(3, requests.size)
+        assertEquals(listOf(5000L, 5000L, 5000L), pauses)
+        val body = requests.first().body.readUtf8()
+        assertTrue(body.contains("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code"))
+        assertTrue(body.contains("device_code=DEVICE_SECRET"))
+    }
+
+    @Test
+    fun slowDownIncreasesTheInterval() = runBlocking {
+        val answers = java.util.concurrent.atomic.AtomicInteger(0)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                requests.add(request)
+                return if (answers.getAndIncrement() == 0) {
+                    MockResponse().setResponseCode(400).setBody("""{"error":"slow_down"}""")
+                } else {
+                    MockResponse().setResponseCode(200).setBody("""{"access_token":"A","refresh_token":"R","expires_in":1}""")
+                }
+            }
+        }
+        val pauses = mutableListOf<Long>()
+        client().awaitDeviceCode(deviceInfo()) { pauses += it }
+        assertEquals(listOf(5000L, 10000L), pauses)
+    }
+
+    @Test
+    fun declinedAndExpiredCodesMapToReadableErrors() {
+        reply("/msa/token", """{"error":"authorization_declined"}""", code = 400)
+        assertEquals(AuthError.AuthorizationDeclined, error { client().awaitDeviceCode(deviceInfo()) { } })
+
+        reply("/msa/token", """{"error":"expired_token"}""", code = 400)
+        assertEquals(AuthError.DeviceCodeExpired, error { client().awaitDeviceCode(deviceInfo()) { } })
+    }
+
+    @Test
+    fun pollingGivesUpWhenTheCodeLifetimeRunsOut() {
+        reply("/msa/token", """{"error":"authorization_pending"}""", code = 400)
+        assertEquals(
+            AuthError.DeviceCodeExpired,
+            error { client().awaitDeviceCode(deviceInfo(expiresIn = 10, interval = 5)) { } },
+        )
+    }
+
+    @Test
+    fun refreshTokenSignInProducesAFreshSessionAndKeepsTheRotatedToken() = runBlocking {
+        val (tokens, session) = client().signInWithRefreshToken("OLD_REFRESH")
+
+        assertEquals("REFRESH", tokens.refreshToken)
+        assertEquals("MC_TOKEN", session.accessToken)
+        assertEquals("Notch", session.profile.name)
+        val first = requests.first().body.readUtf8()
+        assertTrue(first.contains("grant_type=refresh_token"))
+        assertTrue(first.contains("refresh_token=OLD_REFRESH"))
     }
 }

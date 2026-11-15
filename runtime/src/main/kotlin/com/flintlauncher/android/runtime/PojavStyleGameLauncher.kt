@@ -71,6 +71,20 @@ class PojavStyleGameLauncher(
                 )
             }
 
+            request.stdioLogFile?.let { log ->
+                log.parentFile?.mkdirs()
+                if (!NativeBridge.nativeRedirectStdio(log.absolutePath)) {
+                    return@withContext fail("Could not open the game log file: ${log.absolutePath}")
+                }
+            }
+
+            // The JVM lives in this process, so its environment must be in place before JLI_Launch.
+            for ((key, value) in request.environment) {
+                if (!NativeBridge.nativeSetEnv(key, value)) {
+                    return@withContext fail("Could not set the process environment variable $key for the JVM.")
+                }
+            }
+
             // LaunchCommandBuilder already supplies -cp for modern and legacy versions.
             // Add it only for a direct caller that did not build a complete Mojang command.
             val args = mutableListOf<String>()
@@ -122,7 +136,7 @@ class PojavStyleGameLauncher(
                 return@withContext fail("Minecraft launch thread did not start.")
             }
 
-            LaunchResult.Started(pid = null, logFile = null)
+            LaunchResult.Started(pid = null, logFile = request.stdioLogFile)
         } catch (cancelled: CancellationException) {
             launchReserved.set(false)
             throw cancelled

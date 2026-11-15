@@ -84,3 +84,26 @@ target_link_libraries(flint_native
 )
 target_compile_options(flint_native PRIVATE -Wall -Wextra -fvisibility=hidden)
 add_dependencies(flint_native flint_lwjgl_opengl)
+
+
+# ---------------------------------------------------------------------------
+# libflint_game_glfw.so: Surface-driven GLFW backend used by FlintGameActivity.
+# Keep it separate from libglfw.so (the main-branch native preview backend)
+# so the two GLFW implementations never export duplicate symbols into one ELF.
+# ---------------------------------------------------------------------------
+add_library(flint_game_glfw SHARED
+    glfw/flint_glfw_core.c
+    glfw/flint_glfw_api.c
+    glfw/flint_glfw_android.c
+    glfw/flint_glfw_jni.c
+)
+set_target_properties(flint_game_glfw PROPERTIES
+    OUTPUT_NAME "flint_game_glfw"
+    PREFIX "lib"
+    SUFFIX ".so"
+    C_STANDARD 11
+    LIBRARY_OUTPUT_DIRECTORY "${FLINT_LIBRARY_OUTPUT_DIRECTORY}"
+)
+target_compile_definitions(flint_game_glfw PRIVATE _GNU_SOURCE)
+target_compile_options(flint_game_glfw PRIVATE -Wall -Wextra -fvisibility=hidden)
+target_link_libraries(flint_game_glfw ${log-lib} ${android-lib} ${egl-lib} ${dl-lib})

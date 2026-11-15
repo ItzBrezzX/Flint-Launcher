@@ -28,6 +28,11 @@ class HomeViewModel(
     private val accounts: AccountManager,
     private val playLaunchCoordinator: PlayLaunchCoordinator,
     launcherVersion: String,
+    /**
+     * Opens the game screen for a version. The game runs in a separate process (see FlintGameActivity),
+     * so PLAY must hand off to it instead of launching the JVM inside the launcher's own process.
+     */
+    private val startGame: ((String) -> Unit)? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -102,6 +107,12 @@ class HomeViewModel(
         val selected = _state.value.selected
         if (selected == null) {
             _state.update { it.copy(launchMessage = "Install a Minecraft version first.") }
+            return
+        }
+
+        startGame?.let { open ->
+            _state.update { it.copy(launchMessage = null) }
+            open(selected.minecraftVersion)
             return
         }
 

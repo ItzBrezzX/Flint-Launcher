@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #define LOG_TAG "FlintNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -103,6 +105,48 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     LOGI("JRE native symbols resolved (JLI_Launch ready)");
     return JNI_TRUE;
 }
+
+// The JVM writes to file descriptors 1 and 2 of this process, which Android points at /dev/null.
+// Redirecting them to a file is the only way the person can ever see Minecraft's output or a
+// Java crash message.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeRedirectStdio(
+    JNIEnv *env, jclass, jstring jpath
+) {
+    if (!jpath) return JNI_FALSE;
+    const char *path = env->GetStringUTFChars(jpath, nullptr);
+    if (!path) return JNI_FALSE;
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    jboolean ok = JNI_FALSE;
+    if (fd >= 0) {
+        ok = (dup2(fd, STDOUT_FILENO) >= 0 && dup2(fd, STDERR_FILENO) >= 0) ? JNI_TRUE : JNI_FALSE;
+        close(fd);
+    }
+    if (!ok) LOGE("Could not redirect stdout/stderr to %s", path);
+    env->ReleaseStringUTFChars(jpath, path);
+    return ok;
+}
+
+// A process environment variable can only be changed from native code: the JVM that
+// JLI_Launch starts in this same process reads JAVA_HOME / LD_LIBRARY_PATH and friends
+// from the C environment, not from anything Kotlin can set.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSetEnv(
+    JNIEnv *env, jclass, jstring jkey, jstring jvalue
+) {
+    if (!jkey || !jvalue) return JNI_FALSE;
+    const char *key = env->GetStringUTFChars(jkey, nullptr);
+    const char *value = env->GetStringUTFChars(jvalue, nullptr);
+    jboolean ok = JNI_FALSE;
+    if (key && value && key[0] != '\0' && strchr(key, '=') == nullptr) {
+        ok = setenv(key, value, 1) == 0 ? JNI_TRUE : JNI_FALSE;
+        if (!ok) LOGE("setenv failed for %s", key);
+    }
+    if (key) env->ReleaseStringUTFChars(jkey, key);
+    if (value) env->ReleaseStringUTFChars(jvalue, value);
+    return ok;
+}
+
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(

@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -36,52 +34,50 @@ private val Accent = Color(0xFF35D12C)
 private val MainText = Color(0xFFE8F0E8)
 private val Muted = Color(0xFF8A9A8E)
 private val Border = Color(0xFF1A2A1E)
-private val PanelShape = RoundedCornerShape(12.dp)
 
 @Composable
 fun AccountsScreen(state: AccountsUiState, actions: AccountsActions) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Bg),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(22.dp),
+    Column(
+        Modifier.fillMaxSize().background(Bg).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item {
-            Text("Accounts", color = MainText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+        Text("Accounts", color = MainText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+        Text("Choose the identity Flint uses when starting Minecraft.", color = Muted, fontSize = 13.sp)
+
+        Column(
+            Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(12.dp))
+                .border(1.dp, Border, RoundedCornerShape(12.dp)).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Add offline account", color = MainText, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                value = state.usernameInput,
+                onValueChange = actions.onUsernameChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Minecraft username") },
+                supportingText = { Text("3–16 letters, numbers or underscore", color = Muted) },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
+            )
+            Button(
+                onClick = actions.onAddOffline,
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg),
+                enabled = state.usernameInput.isNotBlank(),
+            ) { Text("Add account", fontWeight = FontWeight.Bold) }
         }
-        item {
-            Text("Choose the identity Flint uses when starting Minecraft.", color = Muted, fontSize = 13.sp)
-        }
-        item {
-            Column(
-                Modifier.fillMaxWidth().background(Panel, PanelShape)
-                    .border(1.dp, Border, PanelShape).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text("Add offline account", color = MainText, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
-                    value = state.usernameInput,
-                    onValueChange = actions.onUsernameChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Minecraft username") },
-                    supportingText = { Text("3–16 letters, numbers or underscore", color = Muted) },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
-                )
-                Button(
-                    onClick = actions.onAddOffline,
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg),
-                    enabled = state.usernameInput.isNotBlank(),
-                ) { Text("Add account", fontWeight = FontWeight.Bold) }
+
+        Column(
+            Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(12.dp))
+                .border(1.dp, Border, RoundedCornerShape(12.dp)).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Saved accounts", color = MainText, fontWeight = FontWeight.SemiBold)
+            if (state.accounts.isEmpty()) {
+                Text("No accounts added yet.", color = Muted, fontSize = 13.sp)
             }
-        }
-        item { Text("Saved accounts", color = MainText, fontWeight = FontWeight.SemiBold) }
-        if (state.accounts.isEmpty()) {
-            item { Text("No accounts added yet.", color = Muted, fontSize = 13.sp) }
-        } else {
-            items(state.accounts, key = { it.id }) { account ->
+            state.accounts.forEach { account ->
                 Row(
-                    Modifier.fillMaxWidth().background(Panel, PanelShape)
-                        .border(1.dp, Border, PanelShape).padding(12.dp),
+                    Modifier.fillMaxWidth().background(Bg, RoundedCornerShape(9.dp)).padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -100,24 +96,62 @@ fun AccountsScreen(state: AccountsUiState, actions: AccountsActions) {
                 }
             }
         }
-        item {
-            Column(
-                Modifier.fillMaxWidth().background(Panel, PanelShape)
-                    .border(1.dp, Border, PanelShape).padding(16.dp),
-            ) {
-                Text("Microsoft account", color = MainText, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Microsoft OAuth is not connected to the account screen yet. No fake sign-in button is shown.",
-                    color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp),
+
+        Column(
+            Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(12.dp))
+                .border(1.dp, Border, RoundedCornerShape(12.dp)).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Microsoft account", color = MainText, fontWeight = FontWeight.SemiBold)
+            val microsoft = state.microsoft
+            when {
+                !microsoft.configured -> Text(
+                    "Microsoft sign-in is not configured in this build. Register an Azure app with " +
+                        "\"Allow public client flows\" enabled, then rebuild with FLINT_MS_CLIENT_ID set. " +
+                        "Offline accounts work without it.",
+                    color = Muted, fontSize = 12.sp,
                 )
+                microsoft.userCode != null && microsoft.verificationUri != null -> {
+                    Text("1. Open the Microsoft page and enter this code:", color = Muted, fontSize = 12.sp)
+                    Text(
+                        microsoft.userCode,
+                        color = Accent, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth().background(Bg, RoundedCornerShape(9.dp)).padding(14.dp),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { actions.onCopyCode(microsoft.userCode) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Border, contentColor = MainText),
+                        ) { Text("Copy code") }
+                        Button(
+                            onClick = { actions.onOpenVerificationPage(microsoft.verificationUri) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg),
+                        ) { Text("Open page", fontWeight = FontWeight.Bold) }
+                    }
+                    Text("2. Sign in and approve. Flint continues automatically.", color = Muted, fontSize = 12.sp)
+                    TextButton(onClick = actions.onMicrosoftCancel) { Text("Cancel") }
+                }
+                microsoft.busy -> {
+                    Text("Contacting Microsoft…", color = Muted, fontSize = 12.sp)
+                    TextButton(onClick = actions.onMicrosoftCancel) { Text("Cancel") }
+                }
+                else -> {
+                    Text(
+                        "Sign in with the account that owns Minecraft: Java Edition. Your password is never seen by Flint.",
+                        color = Muted, fontSize = 12.sp,
+                    )
+                    Button(
+                        onClick = actions.onMicrosoftSignIn,
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg),
+                    ) { Text("Sign in with Microsoft", fontWeight = FontWeight.Bold) }
+                }
             }
         }
+
         state.message?.let { message ->
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(message, color = Color(0xFFFFC27A), modifier = Modifier.weight(1f), fontSize = 12.sp)
-                    TextButton(onClick = actions.onDismissMessage) { Text("Dismiss") }
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(message, color = Color(0xFFFFC27A), modifier = Modifier.weight(1f), fontSize = 12.sp)
+                TextButton(onClick = actions.onDismissMessage) { Text("Dismiss") }
             }
         }
     }

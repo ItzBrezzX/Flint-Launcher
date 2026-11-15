@@ -1,6 +1,7 @@
 package com.flintlauncher.android.auth
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -26,6 +27,7 @@ import kotlin.coroutines.cancellation.CancellationException
 data class AuthEndpoints(
     val msaAuthorize: String = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize",
     val msaToken: String = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
+    val msaDeviceCode: String = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode",
     val xboxUserAuth: String = "https://user.auth.xboxlive.com/user/authenticate",
     val xsts: String = "https://xsts.auth.xboxlive.com/xsts/authorize",
     val minecraftLogin: String = "https://api.minecraftservices.com/authentication/login_with_xbox",
@@ -83,6 +85,77 @@ class MicrosoftAuthClient(
             .build(),
     )
 
+
+    // ------------------------------------------------------- device-code flow
+
+    /**
+     * Step 1 of the device-code flow, the sign-in path used on phones: no redirect URI and
+     * no embedded browser. The person opens [DeviceCodeInfo.verificationUri] in any browser
+     * and types [DeviceCodeInfo.userCode]. Requires "Allow public client flows" on the Azure app.
+     */
+    suspend fun requestDeviceCode(): DeviceCodeInfo {
+        val form = FormBody.Builder()
+            .add("client_id", clientId)
+            .add("scope", SCOPE)
+            .build()
+        val response = send("microsoft", Request.Builder().url(endpoints.msaDeviceCode).post(form).build(), allowErrorBody = true)
+        if (response.code !in 200..299) throw AuthException(AuthError.Http("microsoft", response.code))
+        val body = parse("microsoft", response.body)
+        return DeviceCodeInfo(
+            deviceCode = body.string("device_code", "microsoft"),
+            userCode = body.string("user_code", "microsoft"),
+            verificationUri = body.string("verification_uri", "microsoft"),
+            expiresInSeconds = body["expires_in"]?.jsonPrimitive?.long ?: DEFAULT_DEVICE_CODE_LIFETIME_SECONDS,
+            intervalSeconds = (body["interval"]?.jsonPrimitive?.long ?: DEFAULT_POLL_INTERVAL_SECONDS).coerceAtLeast(1L),
+        )
+    }
+
+    /**
+     * Step 2: polls the token endpoint until the person finishes signing in, declines, or the
+     * code expires. [pause] is injectable so tests do not really wait.
+     */
+    suspend fun awaitDeviceCode(
+        info: DeviceCodeInfo,
+        pause: suspend (millis: Long) -> Unit = { delay(it) },
+    ): MicrosoftTokens {
+        var intervalSeconds = info.intervalSeconds
+        var waitedSeconds = 0L
+        while (waitedSeconds <= info.expiresInSeconds) {
+            pause(intervalSeconds * 1000L)
+            waitedSeconds += intervalSeconds
+            val form = FormBody.Builder()
+                .add("client_id", clientId)
+                .add("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+                .add("device_code", info.deviceCode)
+                .build()
+            val response = send("microsoft", Request.Builder().url(endpoints.msaToken).post(form).build(), allowErrorBody = true)
+            if (response.code in 200..299) return tokensFrom(parse("microsoft", response.body))
+
+            val error = try {
+                json.parseToJsonElement(response.body).jsonObject["error"]?.jsonPrimitive?.contentOrNull
+            } catch (e: Exception) {
+                null
+            }
+            when (error) {
+                "authorization_pending" -> Unit
+                "slow_down" -> intervalSeconds += 5L
+                "authorization_declined" -> throw AuthException(AuthError.AuthorizationDeclined)
+                "expired_token", "bad_verification_code" -> throw AuthException(AuthError.DeviceCodeExpired)
+                else -> throw AuthException(AuthError.Http("microsoft", response.code))
+            }
+        }
+        throw AuthException(AuthError.DeviceCodeExpired)
+    }
+
+    /**
+     * Refreshes a stored login into a live Minecraft session. Returns the session together with
+     * the tokens so the caller can persist a rotated refresh token.
+     */
+    suspend fun signInWithRefreshToken(refreshToken: String): Pair<MicrosoftTokens, MinecraftSession> {
+        val tokens = refresh(refreshToken)
+        return tokens to loginMinecraft(tokens.accessToken)
+    }
+
     /** Runs Xbox, XSTS, Minecraft login, entitlement and profile steps for a Microsoft access token. */
     suspend fun loginMinecraft(microsoftAccessToken: String): MinecraftSession {
         val xbl = xboxUserToken(microsoftAccessToken)
@@ -108,13 +181,14 @@ class MicrosoftAuthClient(
             if (error == "invalid_grant") throw AuthException(AuthError.InvalidGrant)
             throw AuthException(AuthError.Http("microsoft", response.code))
         }
-        val body = parse("microsoft", response.body)
-        return MicrosoftTokens(
-            accessToken = body.string("access_token", "microsoft"),
-            refreshToken = body["refresh_token"]?.jsonPrimitive?.contentOrNull,
-            expiresInSeconds = body["expires_in"]?.jsonPrimitive?.long ?: 0L,
-        )
+        return tokensFrom(parse("microsoft", response.body))
     }
+
+    private fun tokensFrom(body: JsonObject): MicrosoftTokens = MicrosoftTokens(
+        accessToken = body.string("access_token", "microsoft"),
+        refreshToken = body["refresh_token"]?.jsonPrimitive?.contentOrNull,
+        expiresInSeconds = body["expires_in"]?.jsonPrimitive?.long ?: 0L,
+    )
 
     /** Returns (token, userHash). */
     private suspend fun xboxUserToken(msaToken: String): Pair<String, String> {
@@ -241,6 +315,10 @@ class MicrosoftAuthClient(
     }
 
     companion object {
+        private const val SCOPE = "XboxLive.signin offline_access"
+        private const val DEFAULT_DEVICE_CODE_LIFETIME_SECONDS = 900L
+        private const val DEFAULT_POLL_INTERVAL_SECONDS = 5L
+
         /**
          * XSTS error codes as widely documented by the community. Recalled, not read from a
          * primary source in this project yet: verify against current documentation before release.

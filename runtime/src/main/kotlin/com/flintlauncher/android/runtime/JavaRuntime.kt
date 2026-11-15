@@ -97,6 +97,10 @@ data class LaunchRequest(
     val userType: String,
     val runtime: JavaRuntimeInfo,
     val renderer: RendererInfo,
+    /** Process environment applied (setenv) right before the JVM starts. See [JvmEnvironment]. */
+    val environment: Map<String, String> = emptyMap(),
+    /** When set, the JVM's stdout and stderr are redirected here before it starts. */
+    val stdioLogFile: File? = null,
 )
 
 /**

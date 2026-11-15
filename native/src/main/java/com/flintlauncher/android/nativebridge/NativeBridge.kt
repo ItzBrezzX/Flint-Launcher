@@ -22,6 +22,13 @@ object NativeBridge {
     external fun nativeEglCapabilities(): String
     external fun nativeLoadJre(jreHomePath: String): Boolean
     external fun nativeLaunchJvm(args: Array<String>): Int
+
+    /** Redirect JVM stdout/stderr to a persistent per-game log file. */
+    external fun nativeRedirectStdio(path: String): Boolean
+
+    /** Configure the process environment before JLI_Launch starts the JVM. */
+    external fun nativeSetEnv(key: String, value: String): Boolean
+
     external fun nativeShutdown()
 
     /** Must be called on the thread where the Android EGL context is current. */

@@ -19,16 +19,18 @@ Flint is an unofficial project and is not affiliated with Mojang or Microsoft.
 | Server list: 5 default public servers, live status via mcstatus.io, Copy IP, Visit | Written with tests |
 | **Minecraft download and install**: version catalog (Release/Snapshot/Beta, search, sort), manifest and version-JSON handling with SHA-1 checks, client jar, libraries, assets, log4j config, parallel resumable verified downloads, pause/resume/cancel/retry, storage check, foreground service and notification | Written with tests, including an end-to-end test against a fake Mojang server. Lives under the PROFILES tab ("Installations") for now |
 | Launch argument building (rules, placeholders, legacy and modern formats) | Written with tests, not connected to a runtime |
-| Microsoft login chain (PKCE, Xbox, XSTS, Minecraft, entitlement, profile) | Client written with tests. No sign-in screen, no secure token storage, no Azure app yet |
+| Microsoft login (device code, Xbox, XSTS, Minecraft, entitlement, profile, refresh) | Written with tests. Sign-in card on the Accounts screen, Keystore token vault and PLAY session hand-off are wired. Needs your own Azure client ID: see [docs/MICROSOFT_LOGIN.md](docs/MICROSOFT_LOGIN.md). Never run against Microsoft |
 | Profiles (validation, isolated folders, clone, import/export with unsafe-argument stripping) | Domain and storage written with tests. No profiles screen |
 | Fabric/Quilt metadata and compatibility check | Written with tests. Not exposed in the UI |
 | Forge, NeoForge, mods, modpacks, news, friends, skins, settings | **Not started** |
 | Offline accounts (UUID convention, validation, persistence, manager) | **Implemented** with unit tests. UI screen not fully wired |
-| Microsoft auth client (PKCE chain) | Written with tests. No Keystore token store, no sign-in UI, no live Azure app |
 | Launch readiness resolver (explicit states, runtime/renderer/account gates) | **Implemented** (pure logic) |
 | Real-time install UI + stages + READY TO PLAY gate | **Implemented** in Compose (driven by real DownloadManager) |
 | Touch control models / editor / overlay | **Implemented** in Compose. Input bridge to game process **not implemented** |
 | Java runtime and rendering on Android (so the game can actually start) | **Interfaces only** (`JavaRuntimeManager`, `GameLauncher`, `UnimplementedGameLauncher`). No ARM64 JRE, no JNI, no renderer libs. **BLOCKED** on Spike 0 |
+
+How the game is meant to reach the screen: [docs/GAME_PIPELINE.md](docs/GAME_PIPELINE.md).
+Full item-by-item status: [docs/CHECKLIST_STATUS.md](docs/CHECKLIST_STATUS.md).
 
 ## Build
 

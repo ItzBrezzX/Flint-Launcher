@@ -9,6 +9,18 @@ data class MicrosoftTokens(
     override fun toString() = "MicrosoftTokens(expiresInSeconds=$expiresInSeconds)"
 }
 
+/** Result of the device-code request: show [userCode] and [verificationUri] to the person. */
+data class DeviceCodeInfo(
+    val deviceCode: String,
+    val userCode: String,
+    val verificationUri: String,
+    val expiresInSeconds: Long,
+    val intervalSeconds: Long,
+) {
+    // The device code is a secret until the sign-in completes.
+    override fun toString() = "DeviceCodeInfo(userCode=$userCode, verificationUri=$verificationUri)"
+}
+
 data class SkinInfo(val url: String, val variant: String?, val active: Boolean)
 
 data class MinecraftProfile(val id: String, val name: String, val skins: List<SkinInfo>) {
@@ -28,6 +40,9 @@ data class MinecraftSession(
 /** Every failure the sign-in chain can report, each with text that is safe to show. */
 sealed class AuthError(val userMessage: String) {
     data object InvalidGrant : AuthError("Your Microsoft sign-in expired. Please sign in again.")
+    data object ClientIdMissing : AuthError("Microsoft sign-in is not configured in this build. Set FLINT_MS_CLIENT_ID (an Azure app ID with public client flows enabled) and rebuild.")
+    data object DeviceCodeExpired : AuthError("The sign-in code expired before it was entered. Start again.")
+    data object AuthorizationDeclined : AuthError("The sign-in request was declined on the Microsoft page.")
     data object NoXboxAccount : AuthError("This Microsoft account has no Xbox profile. Create one at xbox.com, then try again.")
     data object XboxUnavailableInCountry : AuthError("Xbox Live is not available in this account's country or region.")
     data object AdultVerificationRequired : AuthError("This account needs adult verification on Xbox before it can sign in.")

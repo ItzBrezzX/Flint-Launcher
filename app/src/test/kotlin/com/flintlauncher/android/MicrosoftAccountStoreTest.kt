@@ -100,4 +100,18 @@ class MicrosoftAccountStoreTest {
         assertEquals(0, manager.list().size)
         assertEquals(0, vault.values.size)
     }
+
+    @Test
+    fun signingInAgainWithTheSameProfileUpdatesTheAccountInsteadOfDuplicatingIt() = runBlocking {
+        val (store, manager, vault) = fixture()
+        val first = store.saveLogin(tokens("first-refresh"), session())
+        val second = store.saveLogin(tokens("second-refresh"), session())
+
+        assertEquals(first.id, second.id)
+        assertEquals(first.tokenRef, second.tokenRef)
+        assertEquals(1, manager.list().size)
+        assertEquals(1, vault.values.size)
+        assertEquals("second-refresh", store.refreshToken(second.id))
+        assertEquals(second.id, manager.selected()?.id)
+    }
 }

@@ -9,6 +9,16 @@ plugins {
 // unsigned APK.
 val releaseKeystorePath: String? = System.getenv("FLINT_KEYSTORE_PATH")
 
+// Azure app (client) ID used for Microsoft sign-in. It is an identifier, not a secret, but it is
+// still supplied from outside the repository: -PFLINT_MS_CLIENT_ID=..., the environment
+// variable of the same name, or flint.msClientId in ~/.gradle/gradle.properties.
+// Empty means "not configured": the Accounts screen then says so instead of failing silently.
+val microsoftClientId: String =
+    (findProperty("FLINT_MS_CLIENT_ID") as String?)
+        ?: System.getenv("FLINT_MS_CLIENT_ID")
+        ?: (findProperty("flint.msClientId") as String?)
+        ?: ""
+
 android {
     namespace = "com.flintlauncher.android"
     compileSdk = 35
@@ -19,6 +29,7 @@ android {
         targetSdk = 35
         versionCode = (findProperty("flintVersionCode") as String?)?.toInt() ?: 1
         versionName = (findProperty("flintVersionName") as String?) ?: "0.1.0-dev"
+        buildConfigField("String", "MS_CLIENT_ID", "\"${microsoftClientId.trim()}\"")
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
         }
@@ -53,6 +64,17 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    packaging {
+        jniLibs {
+            // The launcher dlopen()s libGL.so (GL4ES), LWJGL and the GLFW shim by absolute path from
+            // applicationInfo.nativeLibraryDir, and PLAY checks libGL.so with File.isFile(). With the
+            // default for minSdk >= 23 the .so files stay inside the APK and that directory is empty,
+            // which made every launch report a missing renderer.
+            useLegacyPackaging = true
+        }
     }
 }
 

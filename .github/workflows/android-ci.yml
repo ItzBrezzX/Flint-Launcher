@@ -36,6 +36,9 @@ jobs:
         if: ${{ hashFiles('gradle/wrapper/gradle-wrapper.jar') != '' }}
         uses: gradle/actions/wrapper-validation@v4
 
+      - name: GLFW shim host tests
+        run: bash native/src/test/c/run.sh
+
       - name: Dependency resolution check
         run: gradle :app:dependencies --configuration releaseRuntimeClasspath --quiet --no-parallel --max-workers=2 > /dev/null
 
@@ -65,7 +68,7 @@ jobs:
           APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$APK"
           for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
-            for LIB in libflint_native.so libglfw.so libGL.so liblwjgl.so liblwjgl_opengl.so; do
+            for LIB in libflint_native.so libglfw.so libflint_game_glfw.so libGL.so liblwjgl.so liblwjgl_opengl.so; do
               ENTRY="lib/$ABI/$LIB"
               if ! unzip -Z1 "$APK" | grep -Fxq "$ENTRY"; then
                 echo "Missing native library in APK: $ENTRY"
@@ -74,6 +77,13 @@ jobs:
             done
           done
           echo "All Flint native backends are packaged for all configured ABIs."
+
+      - name: Verify NativeBridge JNI exports in packaged ELF libraries
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -s "$APK"
+          python3 native/tools/verify_jni_exports.py "$APK" --abis arm64-v8a armeabi-v7a x86 x86_64
 
       - name: Verify LWJGL GLFW symbol exports
         run: |

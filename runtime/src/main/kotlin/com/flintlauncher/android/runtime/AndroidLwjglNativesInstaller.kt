@@ -23,6 +23,7 @@ object AndroidLwjglNativesInstaller {
         "liblwjgl.so",
         "liblwjgl_opengl.so",
         "libglfw.so",
+        "libflint_game_glfw.so",
         "libGL.so",
     )
 
@@ -39,7 +40,7 @@ object AndroidLwjglNativesInstaller {
     )
 
     /**
-     * Copies the four runtime-critical libraries from the APK's nativeLibraryDir.
+     * Copies the five runtime-critical libraries from the APK's nativeLibraryDir.
      * Throws with a specific reason when an ABI artifact is missing or mismatched.
      */
     fun install(
