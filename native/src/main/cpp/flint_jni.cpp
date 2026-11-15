@@ -4,6 +4,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdio.h>
+#include <atomic>
+#include <mutex>
+#include <thread>
+#include <exception>
 
 #define LOG_TAG "FlintNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -34,6 +39,11 @@ typedef int (*JLI_Launch_func)(
 static void *g_libjli = nullptr;
 static JLI_Launch_func g_jli_launch = nullptr;
 static char g_jre_home[4096] = {0};
+static std::mutex g_jvm_mutex;
+static std::thread g_launch_thread;
+static std::atomic<int> g_jvm_state{0}; // 0=IDLE, 1=STARTING, 2=RUNNING, 3=EXITED, 4=FAILED
+static std::atomic<int> g_jvm_exit_code{-1};
+static bool g_jvm_ever_started = false;
 
 static void reset_signal_handlers(void) {
     /* Give the JVM a clean slate for its own signal detection (Pojav pattern). */
@@ -107,62 +117,110 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     return JNI_TRUE;
 }
 
-extern "C" JNIEXPORT jint JNICALL
-Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeStartJvm(
     JNIEnv *env, jclass, jobjectArray argsArray
 ) {
-    if (!g_jli_launch) {
-        LOGE("nativeLaunchJvm: JRE not loaded");
-        return -1;
-    }
     if (argsArray == nullptr) {
-        LOGE("nativeLaunchJvm: null args");
-        return -3;
+        LOGE("nativeStartJvm: null args");
+        return JNI_FALSE;
     }
 
-    jsize argc = env->GetArrayLength(argsArray);
+    std::lock_guard<std::mutex> lock(g_jvm_mutex);
+    if (!g_jli_launch) {
+        LOGE("nativeStartJvm: JRE not loaded");
+        return JNI_FALSE;
+    }
+    if (g_jvm_ever_started) {
+        LOGE("nativeStartJvm: embedded JVM can only be started once per Android process");
+        return JNI_FALSE;
+    }
+
+    const jsize argc = env->GetArrayLength(argsArray);
     if (argc <= 0 || argc > 512) {
-        LOGE("nativeLaunchJvm: bad argc %d", (int)argc);
-        return -4;
+        LOGE("nativeStartJvm: invalid argc %d", (int)argc);
+        return JNI_FALSE;
     }
 
     char **argv = (char **) calloc((size_t)argc + 1, sizeof(char *));
-    if (!argv) return -5;
+    if (!argv) return JNI_FALSE;
 
     for (jsize i = 0; i < argc; ++i) {
         auto jstr = (jstring) env->GetObjectArrayElement(argsArray, i);
         if (!jstr) {
             argv[i] = strdup("");
-            continue;
+        } else {
+            const char *utf = env->GetStringUTFChars(jstr, nullptr);
+            if (!utf) {
+                env->DeleteLocalRef(jstr);
+                for (jsize j = 0; j < i; ++j) free(argv[j]);
+                free(argv);
+                return JNI_FALSE;
+            }
+            argv[i] = strdup(utf);
+            env->ReleaseStringUTFChars(jstr, utf);
+            env->DeleteLocalRef(jstr);
         }
-        const char *utf = env->GetStringUTFChars(jstr, nullptr);
-        argv[i] = strdup(utf ? utf : "");
-        env->ReleaseStringUTFChars(jstr, utf);
-        env->DeleteLocalRef(jstr);
+        if (!argv[i]) {
+            for (jsize j = 0; j < i; ++j) free(argv[j]);
+            free(argv);
+            return JNI_FALSE;
+        }
     }
 
-    LOGI("Calling JLI_Launch with argc=%d argv0=%s", (int)argc, argv[0] ? argv[0] : "(null)");
-    reset_signal_handlers();
+    const JLI_Launch_func launch = g_jli_launch;
+    g_jvm_exit_code.store(-1);
+    g_jvm_state.store(1); // STARTING
+    try {
+        g_launch_thread = std::thread([argc, argv, launch]() {
+            g_jvm_state.store(2); // RUNNING: JLI_Launch is executing on this worker.
+            LOGI("Starting embedded JVM on native worker thread (argc=%d)", (int)argc);
+            reset_signal_handlers();
 
-    int code = g_jli_launch(
-        (int)argc, argv,
-        0, nullptr,
-        0, nullptr,
-        "1.8.0-internal",
-        "1.8",
-        argv[0],
-        argv[0],
-        JNI_FALSE,
-        JNI_TRUE,
-        JNI_FALSE,
-        0
-    );
+            const int code = launch(
+                (int)argc, argv,
+                0, nullptr,
+                0, nullptr,
+                "1.8.0-internal",
+                "1.8",
+                argv[0],
+                argv[0],
+                JNI_FALSE,
+                JNI_TRUE,
+                JNI_FALSE,
+                0
+            );
 
-    LOGI("JLI_Launch returned %d", code);
+            LOGI("JLI_Launch returned %d", code);
+            for (jsize i = 0; i < argc; ++i) free(argv[i]);
+            free(argv);
+            g_jvm_exit_code.store(code);
+            g_jvm_state.store(3); // EXITED
+        });
+    } catch (const std::exception &error) {
+        LOGE("Failed to create JVM worker: %s", error.what());
+        for (jsize i = 0; i < argc; ++i) free(argv[i]);
+        free(argv);
+        g_jvm_state.store(4); // FAILED
+        return JNI_FALSE;
+    }
 
-    for (jsize i = 0; i < argc; ++i) free(argv[i]);
-    free(argv);
-    return code;
+    g_jvm_ever_started = true;
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeJvmState(
+    JNIEnv *, jclass
+) {
+    return g_jvm_state.load();
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeJvmExitCode(
+    JNIEnv *, jclass
+) {
+    return g_jvm_exit_code.load();
 }
 
 extern "C" JNIEXPORT void JNICALL
