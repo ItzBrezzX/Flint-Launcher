@@ -51,6 +51,7 @@ target_link_libraries(GL ${log-lib} ${android-lib} ${egl-lib} ${gles-lib} ${dl-l
 add_library(flint_native SHARED
     flint_jni.cpp
     egl_smoke.cpp
+    flint_input_queue.cpp
 )
 target_link_libraries(flint_native
     GL
