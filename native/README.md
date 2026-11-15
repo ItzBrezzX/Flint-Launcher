@@ -4,11 +4,12 @@ Flint fetches upstream [GL4ES](https://github.com/ptitSeb/gl4es.git) at the
 pinned revision `8b1a3da5d2331d0f88b70be25963182d46eed857` and builds it as
 `libGL.so` for each configured ABI.
 
-Flint also builds its own GLFW-compatible Android platform layer as
-`libglfw.so`. This is original Flint code: it adapts an Android Surface and
-EGL context to a bounded input/event queue and exports a documented subset of
-the GLFW 3.3 C ABI. It is not a copied PojavLauncher implementation and is
-not yet a complete replacement for all GLFW APIs.
+Flint also builds its own Android GLFW-compatible platform layer as
+`libglfw.so`. It exports the 117 GLFW function names used by the pinned
+LWJGL 3.3.x generated binding table and reports GLFW 3.3.8 compatibility.
+This is symbol-level compatibility; several desktop-only facilities have
+explicit Android fallbacks (no-op or unavailable values). It is original
+Flint code, not a copied PojavLauncher implementation.
 
 ## Surface and event path
 
@@ -23,27 +24,34 @@ variable, allowing `glfwWaitEvents` and `glfwWaitEventsTimeout` to sleep
 until new input is queued. Input callbacks are dispatched only by the thread
 that calls the GLFW event pump.
 
-## Current compatibility boundary
+## Android capability boundary
 
 The C ABI includes core window lifecycle, input state, callback registration,
 event polling/waiting, timing, monitor/video-mode queries, context-current,
-GL proc lookup and EGL swap operations. Android-controlled operations such as
-physical window placement, actual Surface resizing, cursor lock/raw motion,
-system clipboard and monitor DPI are limited or placeholders.
+GL proc lookup and EGL swap operations. Android-controlled physical window
+placement/resizing, system cursor capture, raw mouse motion, monitor gamma,
+joystick/gamepad discovery and system clipboard are limited or unavailable.
+The process-local clipboard string and no-op methods only keep the symbol
+table resolvable; they are not full implementations.
 
-The C ABI is now available in `libglfw.so`, but a version-matched
-Android/Bionic `liblwjgl_glfw.so` JNI binding is not yet built or packaged.
-Minecraft's `natives-linux` shared libraries target Linux/GLIBC and cannot
-be loaded as Android libraries. The existing EGL context is owned by the
-SurfaceView render thread; the production Minecraft render thread still needs
-an explicit context handoff.
+CI verifies that every GLFW symbol declared in
+`flint_glfw_backend.h` is exported from `libglfw.so` for all four configured
+Android ABIs.
 
-Consequently, the current preview validates the Flint GLFW event loop and
-GL4ES buffer path, not the complete LWJGL-to-Minecraft launch path.
+## LWJGL/Minecraft runtime is not ready yet
 
-## Build
+The GLFW C ABI is present and global symbol lookup is prepared for an
+Android-built LWJGL GLFW JNI adapter. However, Flint does **not** yet build
+or package Android/Bionic versions of `liblwjgl.so` and
+`liblwjgl_opengl.so`. Minecraft's `natives-linux` libraries target
+Linux/GLIBC and cannot be used as Android shared libraries. Flint still needs
+the version-matched Android LWJGL native build and native library resolution.
 
-A clean native build fetches the pinned GL4ES revision, so GitHub network
-access is required on the first build. Gradle/CMake dependency caches can be
-reused on subsequent builds. Both `libGL.so`, `libglfw.so` and
-`libflint_native.so` are built per configured Android ABI.
+The EGL context is currently owned by the SurfaceView render thread; the
+Minecraft JLI launcher runs on a separate JVM thread. Production rendering
+still needs an explicit EGL context-owner handoff or a render-loop architecture
+that preserves single-thread EGL ownership.
+
+Therefore the current CI proves APK packaging and GLFW symbol exports, while
+the preview proves the Flint GLFW event loop and GL4ES swap path. Neither
+proves that Minecraft has reached its title screen or is playable.
