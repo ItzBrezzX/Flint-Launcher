@@ -34,6 +34,9 @@ find_library(gles-lib GLESv2)
 find_library(dl-lib dl)
 find_library(m-lib m)
 
+# Build the Android/Bionic LWJGL natives against the exact pinned Java ABI.
+include(${CMAKE_CURRENT_LIST_DIR}/flint_lwjgl_android.cmake)
+
 # LWJGL resolves desktop OpenGL symbols dynamically. Package GL4ES as libGL.so
 # and expose its entry points process-wide after the Android EGL context exists.
 set_target_properties(GL PROPERTIES
@@ -80,3 +83,4 @@ target_link_libraries(flint_native
     ${dl-lib}
 )
 target_compile_options(flint_native PRIVATE -Wall -Wextra -fvisibility=hidden)
+add_dependencies(flint_native flint_lwjgl_opengl)
