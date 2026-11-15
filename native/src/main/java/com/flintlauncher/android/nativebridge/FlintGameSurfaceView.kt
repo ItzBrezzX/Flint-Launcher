@@ -20,6 +20,11 @@ class FlintGameSurfaceView @JvmOverloads constructor(
     var isEglWindowReady: Boolean = false
         private set
 
+    /** Flint-owned GLFW-compatible state facade for this Android game window. */
+    val glfwWindow: FlintGlfwWindow by lazy(LazyThreadSafetyMode.NONE) {
+        FlintGlfwWindow(this)
+    }
+
     /** Assign before attaching [FlintRenderSession] to this view. */
     var renderSession: FlintRenderSession? = null
 
