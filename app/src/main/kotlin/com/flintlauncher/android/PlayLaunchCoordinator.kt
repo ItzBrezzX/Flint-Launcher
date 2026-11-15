@@ -216,4 +216,13 @@ class PlayLaunchCoordinator(
             .digest(value.toByteArray(Charsets.UTF_8))
             .take(12)
             .joinToString("") { "%02x".format(it) }
+
+    /** True while the in-process JVM launch thread is alive. False before launch and after exit. */
+    suspend fun isRunning(): Boolean = gameLauncher?.isRunning() ?: false
+
+    /** Tail of the launcher's captured stdout/stderr. Never contains tokens. */
+    fun stdout(): String = gameLauncher?.stdout().orEmpty()
+
+    /** Requests the JVM to stop; the native bridge does not yet expose a termination hook. */
+    suspend fun stop() { gameLauncher?.stop() }
 }

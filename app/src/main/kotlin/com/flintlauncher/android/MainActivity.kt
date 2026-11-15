@@ -76,6 +76,18 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                LaunchedEffect(Unit) {
+                    homeViewModel.events.collect { event ->
+                        when (event) {
+                            is HomeEvent.StartGameSession -> {
+                                startActivity(
+                                    Intent(this@MainActivity, GameSessionActivity::class.java)
+                                        .putExtra(GameSessionActivity.EXTRA_VERSION_ID, event.versionId),
+                                )
+                            }
+                        }
+                    }
+                }
 
                 // Only capabilities that really exist are wired. Every other action stays
                 // null, which the UI renders as a disabled control.
