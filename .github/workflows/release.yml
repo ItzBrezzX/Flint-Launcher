@@ -11,7 +11,7 @@ jobs:
   release:
     name: Build and publish release
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       HAS_SIGNING: ${{ secrets.FLINT_KEYSTORE_BASE64 != '' }}
     steps:
@@ -29,6 +29,15 @@ jobs:
           java-version: "17"
 
       - uses: android-actions/setup-android@v4
+
+      - name: Install Android NDK and LWJGL build tools
+        run: |
+          set -euo pipefail
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          sudo apt-get update
+          sudo apt-get install -y ant autoconf automake libtool
 
       - uses: gradle/actions/setup-gradle@v4
         with:
