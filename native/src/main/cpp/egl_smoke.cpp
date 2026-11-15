@@ -240,6 +240,18 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeCreateWindowSurfa
         return env->NewStringUTF("egl-window-config-unavailable");
     }
 
+    // Match the ANativeWindow buffer format to the selected EGLConfig.
+    // Without this, some Android GPU drivers reject eglCreateWindowSurface.
+    EGLint native_visual_id = 0;
+    if (!eglGetConfigAttrib(g_window_display, config, EGL_NATIVE_VISUAL_ID, &native_visual_id) ||
+        ANativeWindow_setBuffersGeometry(g_native_window, 0, 0, native_visual_id) != 0) {
+        const EGLint error = eglGetError();
+        destroy_window_egl(env);
+        char message[64];
+        snprintf(message, sizeof(message), "egl-window-buffer-format-failed:0x%x", error);
+        return env->NewStringUTF(message);
+    }
+
     g_window_surface = eglCreateWindowSurface(g_window_display, config, g_native_window, nullptr);
     if (g_window_surface == EGL_NO_SURFACE) {
         const EGLint error = eglGetError();
