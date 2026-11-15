@@ -55,7 +55,7 @@ enum class Destination(val label: String, val icon: ImageVector) {
     PROFILES("Instances", Icons.Filled.SportsEsports),
     MODS("Mod Menu", Icons.Filled.Extension),
     ACCOUNTS("Accounts", Icons.Filled.AccountCircle),
-    CONTROLS("Touch Controls", Icons.Filled.Gamepad),\n    FILES("Game Files", Icons.Filled.FolderOpen),
+    CONTROLS("Touch Controls", Icons.Filled.Gamepad),\n    FILES("Game Files", Icons.Filled.FolderOpen),\n    FILES("Game Files", Icons.Filled.FolderOpen),
     SETTINGS("Settings", Icons.Filled.Settings),
     ABOUT("About", Icons.Filled.Info),
 }
