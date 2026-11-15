@@ -13,6 +13,22 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+
+/*
+ * Promote the packaged GLFW C ABI dependency into the process-global symbol
+ * scope. An Android-built LWJGL GLFW JNI adapter can then resolve glfw* from
+ * this library instead of loading a desktop/Linux GLFW implementation.
+ */
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *, void *) {
+    void *glfw = dlopen("libglfw.so", RTLD_NOW | RTLD_GLOBAL);
+    if (!glfw) {
+        LOGE("Could not promote Flint libglfw.so: %s", dlerror());
+    } else {
+        LOGI("Flint libglfw.so exported in process-global symbol scope");
+    }
+    return JNI_VERSION_1_6;
+}
+
 typedef int (*JLI_Launch_func)(
     int argc, char **argv,
     int jargc, const char **jargv,
