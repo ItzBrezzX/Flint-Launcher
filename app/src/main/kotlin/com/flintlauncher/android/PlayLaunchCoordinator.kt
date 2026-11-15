@@ -18,6 +18,7 @@ import com.flintlauncher.android.runtime.MobileJreManager
 import com.flintlauncher.android.runtime.PojavStyleGameLauncher
 import com.flintlauncher.android.runtime.RendererInfo
 import com.flintlauncher.android.runtime.RendererKind
+import android.view.Surface
 import kotlinx.coroutines.CancellationException
 import java.io.File
 import java.security.MessageDigest
@@ -41,7 +42,28 @@ class PlayLaunchCoordinator(
 ) {
     private val gameLauncher: GameLauncher? = runtimeManager?.let(::PojavStyleGameLauncher)
 
-    suspend fun launch(versionId: String): LaunchResult {
+    /** A game launch must be bound to the Activity-owned Android Surface. */
+    suspend fun launch(versionId: String): LaunchResult =
+        LaunchResult.Failed("A live Android game Surface is required. Open Minecraft from the PLAY screen.")
+
+    suspend fun isGameRunning(): Boolean = gameLauncher?.isRunning() == true
+
+    suspend fun gameLogs(): String = gameLauncher?.stdout().orEmpty()
+
+    suspend fun stopGame() {
+        gameLauncher?.stop()
+    }
+
+    suspend fun launch(
+        versionId: String,
+        surface: Surface,
+        width: Int,
+        height: Int,
+    ): LaunchResult {
+        if (!surface.isValid) return LaunchResult.Failed("The Android game Surface is no longer valid.")
+        if (width <= 0 || height <= 0) {
+            return LaunchResult.Failed("The Android game Surface has invalid dimensions: ${width}x${height}.")
+        }
         val account = try {
             accounts.selected()
         } catch (cancelled: CancellationException) {
@@ -205,6 +227,10 @@ class PlayLaunchCoordinator(
             userType = "legacy",
             runtime = runtime,
             renderer = renderer,
+            windowSurface = surface,
+            windowWidth = width,
+            windowHeight = height,
+            rendererLibrary = gl4esLibrary,
         )
         return launcher.launch(request)
     }
