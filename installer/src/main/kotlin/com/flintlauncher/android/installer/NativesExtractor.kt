@@ -4,11 +4,17 @@ import java.io.File
 import java.util.zip.ZipFile
 
 /**
- * Extracts shared libraries from legacy native jars (versions before 1.19 ship natives as
- * separate jars). Entries that would land outside [target] abort the extraction.
+ * Extracts non-native resources from Minecraft's platform-classified native jars.
+ * Android builds use Flint's own Bionic .so files, so Linux/GLIBC shared objects
+ * from Mojang's "natives-linux" archives must never enter the Android load path.
  */
 object NativesExtractor {
-    fun extract(jars: List<File>, target: File, excludePrefixes: List<String> = listOf("META-INF/")): List<File> {
+    fun extract(
+        jars: List<File>,
+        target: File,
+        excludePrefixes: List<String> = listOf("META-INF/"),
+        excludeSharedObjects: Boolean = true,
+    ): List<File> {
         target.mkdirs()
         val extracted = mutableListOf<File>()
         for (jar in jars) {
@@ -16,6 +22,7 @@ object NativesExtractor {
                 for (entry in zip.entries()) {
                     if (entry.isDirectory) continue
                     if (excludePrefixes.any { entry.name.startsWith(it) }) continue
+                    if (excludeSharedObjects && isSharedObject(entry.name)) continue
                     val out = GameLayout.safeChild(target, entry.name)
                     out.parentFile?.mkdirs()
                     zip.getInputStream(entry).use { input -> out.outputStream().use { input.copyTo(it) } }
@@ -24,5 +31,11 @@ object NativesExtractor {
             }
         }
         return extracted
+    }
+
+    private fun isSharedObject(entryName: String): Boolean {
+        val filename = entryName.substringAfterLast('/')
+        return filename.endsWith(".so", ignoreCase = true) ||
+            Regex("""\\.so\\.\\d+(?:\\.\\d+)*$""", RegexOption.IGNORE_CASE).containsMatchIn(filename)
     }
 }
