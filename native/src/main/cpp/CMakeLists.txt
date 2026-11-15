@@ -38,3 +38,7 @@ target_link_libraries(flint_glfw
     ${gles-lib}
 )
 target_compile_options(flint_glfw PRIVATE -Wall -Wextra -fvisibility=hidden)
+
+
+# Build pinned LWJGL 3.3.3 Android JNI modules against Flint's own GLFW ABI.
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../lwjgl ${CMAKE_CURRENT_BINARY_DIR}/lwjgl)
