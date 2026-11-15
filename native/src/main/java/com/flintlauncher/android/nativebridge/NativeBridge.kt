@@ -46,6 +46,9 @@ object NativeBridge {
      */
     external fun nativeCreateWindowSurface(surface: android.view.Surface): String
 
+    /** Update the GLES viewport after Android reports a surface size change. */
+    external fun nativeResizeWindowSurface(width: Int, height: Int): Boolean
+
     /** Present the current GLES back buffer to the Android window. */
     external fun nativeSwapWindowBuffers(): Boolean
 
