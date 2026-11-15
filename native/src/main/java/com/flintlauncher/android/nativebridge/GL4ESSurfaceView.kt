@@ -71,7 +71,6 @@ class GL4ESSurfaceView @JvmOverloads constructor(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!isEnabled) return false
-        val index = event.actionIndex.coerceIn(0, (event.pointerCount - 1).coerceAtLeast(0))
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 // GLFW has one cursor. The first touch pointer acts as the
@@ -143,7 +142,7 @@ class GL4ESSurfaceView @JvmOverloads constructor(
                             FlintInputEvent.MOUSE_BUTTON,
                             code = button,
                             action = if (pressed) 1 else 0,
-                            modifiers = event.metaState,
+                            modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
                             x = event.x.toDouble(),
                             y = event.y.toDouble(),
                         )
