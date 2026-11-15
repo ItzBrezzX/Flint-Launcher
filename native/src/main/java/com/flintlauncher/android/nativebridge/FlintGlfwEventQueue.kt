@@ -24,7 +24,7 @@ data class FlintGlfwEvent(
         WINDOW_CLOSE(8);
 
         companion object {
-            fun fromId(id: Int): Type? = entries.firstOrNull { it.id == id }
+            fun fromId(id: Int): Type? = values().firstOrNull { it.id == id }
         }
     }
 
