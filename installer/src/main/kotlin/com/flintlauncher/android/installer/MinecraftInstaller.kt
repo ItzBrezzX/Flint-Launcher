@@ -6,6 +6,7 @@ import com.flintlauncher.android.minecraft.manifest.VersionEntry
 import com.flintlauncher.android.minecraft.manifest.VersionManifest
 import com.flintlauncher.android.minecraft.manifest.VersionManifestParser
 import com.flintlauncher.android.minecraft.version.Environment
+import com.flintlauncher.android.minecraft.version.LwjglRuntimeSpec
 import com.flintlauncher.android.minecraft.version.VersionJson
 import com.flintlauncher.android.minecraft.version.VersionJsonParser
 import kotlinx.coroutines.CancellationException
@@ -37,6 +38,8 @@ data class InstalledVersion(
     /** `-Dlog4j.configurationFile=...`, or null for versions without a log config. Must be passed to the game. */
     val loggingJvmArgument: String?,
     val requiredJavaMajor: Int,
+    /** LWJGL generation/version selected from the merged profile metadata. */
+    val lwjglRuntimeSpec: LwjglRuntimeSpec?,
 )
 
 sealed interface InstallResult {
@@ -112,6 +115,7 @@ class MinecraftInstaller(
         } ?: child
 
         val plan = InstallPlanner.planCore(merged, vanillaId, layout, environment)
+        val lwjglRuntimeSpec = resolveLwjglRuntime(merged)
         if (plan.unresolvedLibraries.isNotEmpty()) {
             throw InstallPlanException("Missing library download metadata: ${plan.unresolvedLibraries.joinToString()}")
         }
@@ -150,6 +154,7 @@ class MinecraftInstaller(
             assetIndexId = assetIndexId,
             loggingJvmArgument = plan.logConfig?.jvmArgument,
             requiredJavaMajor = merged.javaVersion?.majorVersion ?: 8,
+            lwjglRuntimeSpec = lwjglRuntimeSpec,
         )
     }
 
@@ -180,6 +185,7 @@ class MinecraftInstaller(
             onStage(InstallStage.RESOLVING_METADATA)
             val (version, vanillaId) = resolveVersion(versionId)
             val plan = InstallPlanner.planCore(version, vanillaId, layout, environment)
+            val lwjglRuntimeSpec = resolveLwjglRuntime(version)
             if (plan.unresolvedLibraries.isNotEmpty()) {
                 return InstallResult.Failed("No download information for: ${plan.unresolvedLibraries.joinToString()}")
             }
@@ -248,6 +254,7 @@ class MinecraftInstaller(
                     assetIndexId = version.assetIndex?.id ?: "",
                     loggingJvmArgument = plan.logConfig?.jvmArgument,
                     requiredJavaMajor = version.javaVersion?.majorVersion ?: 8,
+                    lwjglRuntimeSpec = lwjglRuntimeSpec,
                 ),
             )
         } catch (e: CancellationException) {
@@ -318,6 +325,12 @@ class MinecraftInstaller(
                 delay(metadataRetryDelayMillis * (1L shl (attempt - 1)))
             }
         }
+    }
+
+    private fun resolveLwjglRuntime(version: VersionJson): LwjglRuntimeSpec? = try {
+        LwjglRuntimeSpec.resolve(version.libraries, environment)
+    } catch (error: IllegalArgumentException) {
+        throw InstallPlanException("Invalid LWJGL metadata for ${version.id}: ${error.message}")
     }
 
     private fun sha1(bytes: ByteArray): String =
