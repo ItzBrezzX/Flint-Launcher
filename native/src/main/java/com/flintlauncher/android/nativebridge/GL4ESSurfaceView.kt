@@ -73,29 +73,41 @@ class GL4ESSurfaceView @JvmOverloads constructor(
         if (!isEnabled) return false
         val index = event.actionIndex.coerceIn(0, (event.pointerCount - 1).coerceAtLeast(0))
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                val pointer = event.getPointerId(index)
-                enqueueInput(FlintInputEvent.CURSOR, code = pointer, x = event.getX(index).toDouble(), y = event.getY(index).toDouble())
-                enqueueInput(FlintInputEvent.MOUSE_BUTTON, code = 0, action = 1, modifiers = event.metaState, x = event.getX(index).toDouble(), y = event.getY(index).toDouble())
+            MotionEvent.ACTION_DOWN -> {
+                // GLFW has one cursor. The first touch pointer acts as the
+                // left mouse button; secondary fingers must not create extra
+                // presses/releases that would cancel the primary click.
+                enqueueInput(
+                    FlintInputEvent.CURSOR,
+                    x = event.getX(0).toDouble(),
+                    y = event.getY(0).toDouble(),
+                )
+                enqueueInput(
+                    FlintInputEvent.MOUSE_BUTTON,
+                    code = 0,
+                    action = 1,
+                    modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                    x = event.getX(0).toDouble(),
+                    y = event.getY(0).toDouble(),
+                )
             }
             MotionEvent.ACTION_MOVE -> {
-                for (pointerIndex in 0 until event.pointerCount) {
+                if (event.pointerCount > 0) {
                     enqueueInput(
                         FlintInputEvent.CURSOR,
-                        code = event.getPointerId(pointerIndex),
-                        x = event.getX(pointerIndex).toDouble(),
-                        y = event.getY(pointerIndex).toDouble(),
+                        x = event.getX(0).toDouble(),
+                        y = event.getY(0).toDouble(),
                     )
                 }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 enqueueInput(
                     FlintInputEvent.MOUSE_BUTTON,
                     code = 0,
                     action = 0,
-                    modifiers = event.metaState,
-                    x = event.getX(index).toDouble(),
-                    y = event.getY(index).toDouble(),
+                    modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                    x = event.getX(0).toDouble(),
+                    y = event.getY(0).toDouble(),
                 )
             }
         }
