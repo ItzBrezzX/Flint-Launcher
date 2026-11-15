@@ -77,6 +77,7 @@ add_library(flint_native SHARED
     glfw_stub.cpp
     gl_symbol_loader.cpp
     input_bridge.cpp
+    audio_openal.cpp
 )
 
 target_include_directories(flint_native PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
