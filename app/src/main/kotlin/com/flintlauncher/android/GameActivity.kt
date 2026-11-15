@@ -179,8 +179,14 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun stopGame(finishWhenStopped: Boolean) {
-        if (!gameThreadStarted && !coordinator.isGameRunning()) {
-            if (finishWhenStopped) finish() else statusView.text = "No active Minecraft session."
+        if (!gameThreadStarted) {
+            if (launchRequested) {
+                statusView.text = "Minecraft is still preparing its runtime and game Surface. Wait for setup to finish before closing."
+            } else if (finishWhenStopped) {
+                finish()
+            } else {
+                statusView.text = "No active Minecraft session."
+            }
             return
         }
         finishingAfterStop = finishWhenStopped
