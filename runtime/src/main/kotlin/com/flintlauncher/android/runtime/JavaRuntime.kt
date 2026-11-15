@@ -114,6 +114,11 @@ object LaunchRequestValidator {
         }
         if (!request.nativeDir.isDirectory) return "Minecraft native directory is missing"
         if (!request.gameDir.isDirectory) return "Minecraft game directory is missing"
+        val expectedNativePath = request.nativeDir.absolutePath
+        val nativePathArgument = request.jvmArgs.lastOrNull { it.startsWith("-Djava.library.path=") }
+        if (nativePathArgument != "-Djava.library.path=$expectedNativePath") {
+            return "Minecraft JVM native library path does not match the extracted native directory"
+        }
 
         val optionIndex = request.jvmArgs.indexOfFirst { it == "-cp" || it == "-classpath" }
         if (optionIndex < 0 || optionIndex + 1 >= request.jvmArgs.size) {
