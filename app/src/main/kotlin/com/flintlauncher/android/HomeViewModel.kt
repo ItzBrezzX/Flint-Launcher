@@ -2,10 +2,27 @@ package com.flintlauncher.android
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.flintlauncher.android.account.AccountManager
+import com.flintlauncher.android.account.AccountType
 import com.flintlauncher.android.partners.PartnersRepository
+import com.flintlauncher.android.installer.InstallPlanException
 import com.flintlauncher.android.installer.MinecraftInstaller
+import com.flintlauncher.android.minecraft.version.Environment
+import com.flintlauncher.android.minecraft.version.LaunchCommandBuilder
+import com.flintlauncher.android.minecraft.version.LaunchContext
+import com.flintlauncher.android.minecraft.version.VersionJsonParser
+import com.flintlauncher.android.profiles.Profile
+import com.flintlauncher.android.profiles.ProfileDirs
+import com.flintlauncher.android.profiles.ProfileRepository
+import com.flintlauncher.android.runtime.GameLauncher
 import com.flintlauncher.android.runtime.KnownJreArtifacts
+import com.flintlauncher.android.runtime.LaunchRequest
+import com.flintlauncher.android.runtime.LaunchResult
 import com.flintlauncher.android.runtime.MobileJreManager
+import com.flintlauncher.android.runtime.RendererInfo
+import com.flintlauncher.android.runtime.RendererKind
+import com.flintlauncher.android.ui.state.AccountKind
+import com.flintlauncher.android.ui.state.AccountUi
 import com.flintlauncher.android.ui.state.HomeUiState
 import com.flintlauncher.android.ui.state.Loadable
 import com.flintlauncher.android.ui.state.PartnerServerUi
@@ -18,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 class HomeViewModel(
     private val partners: PartnersRepository,
@@ -70,8 +88,8 @@ class HomeViewModel(
     }
 
     /**
-     * Prepare the closest compatible mobile JRE automatically. This build still
-     * refuses to launch the JVM until a real Minecraft renderer is bundled.
+     * Builds the complete command from the installed version JSON, account and profile,
+     * then hands that exact classpath/argument set to the native game launcher.
      */
     fun launchSelected() {
         val selected = _state.value.selected
@@ -79,16 +97,84 @@ class HomeViewModel(
             _state.update { it.copy(launchMessage = "Install a Minecraft version first.") }
             return
         }
-        launchJob?.cancel()
+        if (launchJob?.isActive == true) return
+
         launchJob = viewModelScope.launch {
-            _state.update { it.copy(launchMessage = "Checking Minecraft files and Java runtime…") }
-            val complete = withContext(Dispatchers.IO) {
-                installer.isInstalled(selected.minecraftVersion)
+            _state.update { it.copy(launchMessage = "Preparing Minecraft classpath and launch arguments…") }
+
+            val account = try {
+                accountManager.selected() ?: run {
+                    val existingOffline = accountManager.list().firstOrNull { it.type == AccountType.OFFLINE }
+                    if (existingOffline != null) {
+                        accountManager.select(existingOffline.id)
+                        existingOffline
+                    } else {
+                        accountManager.createOfflineAccount("FlintPlayer").getOrElse { error ->
+                            _state.update { it.copy(launchMessage = "Could not create an offline account: ${error.message}") }
+                            return@launch
+                        }
+                    }
+                }
+            } catch (error: Exception) {
+                _state.update { it.copy(launchMessage = "Could not load the selected account: ${error.message}") }
+                return@launch
             }
-            if (!complete) {
-                refreshInstallations()
+
+            _state.update {
+                it.copy(
+                    account = AccountUi(
+                        username = account.username,
+                        kind = if (account.type == AccountType.OFFLINE) AccountKind.OFFLINE else AccountKind.MICROSOFT,
+                    ),
+                )
+            }
+            if (account.type == AccountType.MICROSOFT) {
                 _state.update {
-                    it.copy(launchMessage = "Minecraft ${selected.minecraftVersion} is incomplete. Repair this instance before playing.")
+                    it.copy(launchMessage = "Microsoft account tokens are not connected to the JVM launch path yet. Select an offline account for local testing.")
+                }
+                return@launch
+            }
+
+            val profiles = profileRepository.list()
+            val profile = profiles.firstOrNull {
+                it.enabled && it.minecraftVersion == selected.minecraftVersion
+            } ?: try {
+                val baseName = "Minecraft ${selected.minecraftVersion}"
+                val name = if (profiles.none { it.name.equals(baseName, ignoreCase = true) }) {
+                    baseName
+                } else {
+                    "$baseName ${profiles.size + 1}"
+                }
+                profileRepository.create(
+                    Profile(
+                        name = name,
+                        minecraftVersion = selected.minecraftVersion,
+                    ),
+                )
+            } catch (error: Exception) {
+                _state.update { it.copy(launchMessage = "Could not load or create a game profile: ${error.message}") }
+                return@launch
+            }
+
+            val profileDirs = try {
+                ProfileDirs(gameRoot, profile.id).also { dirs ->
+                    withContext(Dispatchers.IO) { dirs.createAll() }
+                }
+            } catch (error: Exception) {
+                _state.update { it.copy(launchMessage = "Invalid game profile directory: ${error.message}") }
+                return@launch
+            }
+
+            val installed = try {
+                withContext(Dispatchers.IO) {
+                    installer.loadInstalled(selected.minecraftVersion, File(profileDirs.gameDir, "natives"))
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                val detail = error.message ?: "unknown installation error"
+                _state.update {
+                    it.copy(launchMessage = "Minecraft ${selected.minecraftVersion} is not launch-ready: $detail. Repair this installation first.")
                 }
                 return@launch
             }
@@ -103,7 +189,7 @@ class HomeViewModel(
             }
 
             val compatible = try {
-                manager.findCompatible(selected.javaMajor, arch)
+                manager.findCompatible(installed.requiredJavaMajor, arch)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -114,10 +200,10 @@ class HomeViewModel(
             val runtime = if (compatible != null) {
                 compatible
             } else {
-                val targetMajor = KnownJreArtifacts.compatibleMajor(selected.javaMajor, arch)
+                val targetMajor = KnownJreArtifacts.compatibleMajor(installed.requiredJavaMajor, arch)
                 if (targetMajor == null) {
                     _state.update {
-                        it.copy(launchMessage = "No published mobile Java runtime for ABI $arch satisfies Java ${selected.javaMajor}.")
+                        it.copy(launchMessage = "No published mobile Java runtime for ABI $arch satisfies Java ${installed.requiredJavaMajor}.")
                     }
                     return@launch
                 }
@@ -152,11 +238,106 @@ class HomeViewModel(
                 return@launch
             }
 
-            _state.update {
-                it.copy(
-                    launchMessage = "Java ${runtime.majorVersion} (${runtime.arch}) is verified for Minecraft ${selected.minecraftVersion}. Flint still cannot start the game: the GL4ES/OpenGL compatibility renderer and full game window bridge are not bundled yet.",
-                )
+            val commandAndRequest = try {
+                withContext(Dispatchers.IO) {
+                    val assetsRoot = installed.assetsRoot
+                    val indexFile = File(assetsRoot, "indexes/${installed.assetIndexId}.json")
+                    val assetIndex = VersionJsonParser.parseAssetIndex(indexFile.readText())
+                    val gameAssets = when {
+                        assetIndex.mapToResources -> File(gameRoot, "resources")
+                        assetIndex.virtual -> File(assetsRoot, "virtual/legacy")
+                        else -> assetsRoot
+                    }
+                    val classpath = installed.classpath.joinToString(File.pathSeparator) { it.absolutePath }
+                    val context = LaunchContext(
+                        playerName = account.username,
+                        uuid = account.uuid,
+                        accessToken = "0",
+                        userType = "legacy",
+                        versionName = installed.version.id,
+                        versionType = installed.version.type.name.lowercase(),
+                        gameDirectory = profileDirs.gameDir.absolutePath,
+                        assetsRoot = assetsRoot.absolutePath,
+                        assetsIndexName = installed.assetIndexId,
+                        nativesDirectory = File(profileDirs.gameDir, "natives").absolutePath,
+                        libraryDirectory = installer.librariesDirectory.absolutePath,
+                        classpath = classpath,
+                        launcherVersion = launcherVersion,
+                        launcherName = "Flint",
+                        gameAssets = gameAssets.absolutePath,
+                    )
+                    val extraJvm = buildList {
+                        add("-Xms256M")
+                        add("-Xmx${profile.memoryMb}M")
+                        installed.loggingJvmArgument?.let(::add)
+                        addAll(profile.jvmArguments)
+                    }
+                    val command = LaunchCommandBuilder.build(
+                        version = installed.version,
+                        context = context,
+                        environment = Environment(
+                            osName = "linux",
+                            osArch = runtime.arch,
+                        ),
+                        extraJvmArguments = extraJvm,
+                        extraGameArguments = profile.gameArguments,
+                    )
+                    val request = LaunchRequest(
+                        versionId = installed.version.id,
+                        gameDir = profileDirs.gameDir,
+                        assetsDir = assetsRoot,
+                        classpath = installed.classpath,
+                        nativeDir = File(profileDirs.gameDir, "natives"),
+                        mainClass = command.mainClass,
+                        jvmArgs = command.jvmArguments,
+                        gameArgs = command.gameArguments,
+                        accountUsername = account.username,
+                        accountUuid = account.uuid,
+                        accessToken = "0",
+                        userType = "legacy",
+                        runtime = runtime,
+                        renderer = RendererInfo(
+                            id = "renderer-unavailable",
+                            kind = RendererKind.UNKNOWN,
+                            displayName = "No Android Minecraft renderer bundled",
+                            available = false,
+                            notes = "The GL4ES / Android window bridge is not ready yet",
+                        ),
+                    )
+                    request
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _state.update {
+                    it.copy(launchMessage = "Could not build Minecraft JVM/game arguments: ${error.message ?: "invalid version metadata"}")
+                }
+                return@launch
             }
+
+            val launcher = gameLauncher
+            if (launcher == null) {
+                _state.update { it.copy(launchMessage = "The native Java game launcher is unavailable in this APK.") }
+                return@launch
+            }
+
+            _state.update { it.copy(launchMessage = "Classpath and Minecraft arguments are ready; checking renderer and native launch bridge…") }
+            val result = try {
+                launcher.launch(commandAndRequest)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                LaunchResult.Failed("Game launch failed: ${error.message ?: "unknown error"}")
+            }
+
+            val message = when (result) {
+                is LaunchResult.Started -> "Minecraft JVM session started."
+                is LaunchResult.Failed -> result.reason
+                LaunchResult.BlockedMissingRuntime -> "The selected Java runtime is not available."
+                LaunchResult.BlockedMissingRenderer -> "Minecraft classpath and arguments are connected, but PLAY is blocked until GL4ES/OpenGL and the Android game window bridge are bundled."
+                LaunchResult.BlockedNotReady -> "Minecraft installation is not ready to launch."
+            }
+            _state.update { it.copy(launchMessage = message) }
         }
     }
 
