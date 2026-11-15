@@ -527,7 +527,7 @@ extern "C" FLINT_GLFW_API void glfwSwapInterval(int) {}
 
 extern "C" FLINT_GLFW_API GLFWglproc glfwGetProcAddress(const char *procname) {
     if (!procname || !*procname) return nullptr;
-    __eglMustCastToProperFunctionPointerType eglProc = eglGetProcAddress(procname);
+    auto eglProc = eglGetProcAddress(procname);
     if (eglProc) return reinterpret_cast<GLFWglproc>(eglProc);
     return reinterpret_cast<GLFWglproc>(dlsym(RTLD_DEFAULT, procname));
 }
