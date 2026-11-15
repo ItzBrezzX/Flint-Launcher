@@ -14,6 +14,28 @@ extern "C" {
 
 typedef struct GLFWwindow GLFWwindow;
 typedef struct GLFWmonitor GLFWmonitor;
+typedef struct GLFWcursor GLFWcursor;
+typedef struct GLFWimage {
+    int width;
+    int height;
+    unsigned char *pixels;
+} GLFWimage;
+typedef struct GLFWgammaramp {
+    unsigned short *red;
+    unsigned short *green;
+    unsigned short *blue;
+    unsigned int size;
+} GLFWgammaramp;
+typedef struct GLFWgamepadstate {
+    unsigned char buttons[15];
+    float axes[6];
+} GLFWgamepadstate;
+typedef struct GLFWallocator {
+    void *(*allocate)(size_t size, void *user);
+    void *(*reallocate)(void *block, size_t size, void *user);
+    void (*deallocate)(void *block, void *user);
+    void *user;
+} GLFWallocator;
 typedef struct GLFWvidmode {
     int width;
     int height;
@@ -41,6 +63,9 @@ typedef void (*GLFWcursorposfun)(GLFWwindow *, double, double);
 typedef void (*GLFWcursorenterfun)(GLFWwindow *, int);
 typedef void (*GLFWscrollfun)(GLFWwindow *, double, double);
 typedef void (*GLFWdropfun)(GLFWwindow *, int, const char **);
+typedef void (*GLFWcharmodsfun)(GLFWwindow *, unsigned int, int);
+typedef void (*GLFWmonitorfun)(GLFWmonitor *, int);
+typedef void (*GLFWjoystickfun)(int, int);
 
 enum {
     GLFW_RELEASE = 0,
@@ -82,7 +107,8 @@ enum {
     GLFW_NOT_INITIALIZED = 0x00010001,
     GLFW_INVALID_VALUE = 0x00010004,
     GLFW_API_UNAVAILABLE = 0x00010006,
-    GLFW_PLATFORM_ERROR = 0x00010008
+    GLFW_PLATFORM_ERROR = 0x00010008,
+    GLFW_PLATFORM_NULL = 0x00060005
 };
 
 /* Flint-owned Android window attachment hooks. Call on the EGL owner thread. */
@@ -178,6 +204,49 @@ FLINT_GLFW_API GLFWcursorposfun glfwSetCursorPosCallback(GLFWwindow *window, GLF
 FLINT_GLFW_API GLFWcursorenterfun glfwSetCursorEnterCallback(GLFWwindow *window, GLFWcursorenterfun cbfun);
 FLINT_GLFW_API GLFWscrollfun glfwSetScrollCallback(GLFWwindow *window, GLFWscrollfun cbfun);
 FLINT_GLFW_API GLFWdropfun glfwSetDropCallback(GLFWwindow *window, GLFWdropfun cbfun);
+
+
+/* Additional GLFW symbols used by LWJGL 3.3.x. Unsupported Android-only
+ * desktop operations are safe no-ops or report unavailable device features. */
+FLINT_GLFW_API void glfwInitHint(int hint, int value);
+FLINT_GLFW_API void glfwInitAllocator(const GLFWallocator *allocator);
+FLINT_GLFW_API int glfwGetPlatform(void);
+FLINT_GLFW_API int glfwPlatformSupported(int platform);
+FLINT_GLFW_API void glfwSetMonitorUserPointer(GLFWmonitor *monitor, void *pointer);
+FLINT_GLFW_API void *glfwGetMonitorUserPointer(GLFWmonitor *monitor);
+FLINT_GLFW_API GLFWmonitorfun glfwSetMonitorCallback(GLFWmonitorfun callback);
+FLINT_GLFW_API void glfwSetGamma(GLFWmonitor *monitor, float gamma);
+FLINT_GLFW_API const GLFWgammaramp *glfwGetGammaRamp(GLFWmonitor *monitor);
+FLINT_GLFW_API void glfwSetGammaRamp(GLFWmonitor *monitor, const GLFWgammaramp *ramp);
+FLINT_GLFW_API void glfwWindowHintString(int hint, const char *value);
+FLINT_GLFW_API void glfwSetWindowIcon(GLFWwindow *window, int count, const GLFWimage *images);
+FLINT_GLFW_API void glfwSetWindowSizeLimits(GLFWwindow *window, int minWidth, int minHeight, int maxWidth, int maxHeight);
+FLINT_GLFW_API void glfwSetWindowAspectRatio(GLFWwindow *window, int numer, int denom);
+FLINT_GLFW_API void glfwGetWindowFrameSize(GLFWwindow *window, int *left, int *top, int *right, int *bottom);
+FLINT_GLFW_API float glfwGetWindowOpacity(GLFWwindow *window);
+FLINT_GLFW_API void glfwSetWindowOpacity(GLFWwindow *window, float opacity);
+FLINT_GLFW_API void glfwShowWindow(GLFWwindow *window);
+FLINT_GLFW_API void glfwHideWindow(GLFWwindow *window);
+FLINT_GLFW_API int glfwRawMouseMotionSupported(void);
+FLINT_GLFW_API GLFWcursor *glfwCreateCursor(const GLFWimage *image, int xhot, int yhot);
+FLINT_GLFW_API GLFWcursor *glfwCreateStandardCursor(int shape);
+FLINT_GLFW_API void glfwDestroyCursor(GLFWcursor *cursor);
+FLINT_GLFW_API void glfwSetCursor(GLFWwindow *window, GLFWcursor *cursor);
+FLINT_GLFW_API GLFWcharmodsfun glfwSetCharModsCallback(GLFWwindow *window, GLFWcharmodsfun callback);
+FLINT_GLFW_API int glfwJoystickPresent(int jid);
+FLINT_GLFW_API const float *glfwGetJoystickAxes(int jid, int *count);
+FLINT_GLFW_API const unsigned char *glfwGetJoystickButtons(int jid, int *count);
+FLINT_GLFW_API const unsigned char *glfwGetJoystickHats(int jid, int *count);
+FLINT_GLFW_API const char *glfwGetJoystickName(int jid);
+FLINT_GLFW_API const char *glfwGetJoystickGUID(int jid);
+FLINT_GLFW_API void glfwSetJoystickUserPointer(int jid, void *pointer);
+FLINT_GLFW_API void *glfwGetJoystickUserPointer(int jid);
+FLINT_GLFW_API int glfwJoystickIsGamepad(int jid);
+FLINT_GLFW_API GLFWjoystickfun glfwSetJoystickCallback(GLFWjoystickfun callback);
+FLINT_GLFW_API int glfwUpdateGamepadMappings(const char *string);
+FLINT_GLFW_API const char *glfwGetGamepadName(int jid);
+FLINT_GLFW_API int glfwGetGamepadState(int jid, GLFWgamepadstate *state);
+FLINT_GLFW_API int glfwExtensionSupported(const char *extension);
 
 #ifdef __cplusplus
 }
