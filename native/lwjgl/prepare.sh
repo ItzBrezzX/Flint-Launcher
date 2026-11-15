@@ -18,7 +18,7 @@ fi
 test -f "${GLFW_SOURCE}/include/GLFW/glfw3.h"
 
 GENERATED="${SOURCE}/modules/lwjgl/glfw/src/generated/c"
-if [ ! -d "${GENERATED}" ] || [ -z "$(find "${GENERATED}" -maxdepth 1 -name '*.c' -print -quit 2>/dev/null)" ]; then
+if [ ! -d "${GENERATED}" ] || [ -z "$(find -L "${GENERATED}" -maxdepth 1 -name '*.c' -print -quit 2>/dev/null)" ]; then
     if ! command -v ant >/dev/null 2>&1; then
         echo "Apache Ant is required to generate LWJGL JNI sources." >&2
         exit 2
