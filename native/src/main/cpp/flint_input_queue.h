@@ -26,9 +26,15 @@ struct InputEvent {
     double y;
 };
 
-void push_input_event(const InputEvent &event);
-std::vector<InputEvent> poll_input_events(int32_t maximum);
-bool wait_for_input_event(double timeout_seconds);
-uint64_t dropped_input_event_count();
+#if defined(__GNUC__)
+#define FLINT_QUEUE_API __attribute__((visibility("default")))
+#else
+#define FLINT_QUEUE_API
+#endif
+
+FLINT_QUEUE_API void push_input_event(const InputEvent &event);
+FLINT_QUEUE_API std::vector<InputEvent> poll_input_events(int32_t maximum);
+FLINT_QUEUE_API bool wait_for_input_event(double timeout_seconds);
+FLINT_QUEUE_API uint64_t dropped_input_event_count();
 
 } // namespace flint
