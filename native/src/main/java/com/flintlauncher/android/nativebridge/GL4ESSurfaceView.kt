@@ -211,7 +211,11 @@ class GL4ESSurfaceView @JvmOverloads constructor(
             if (event.action == KeyEvent.ACTION_DOWN) {
                 val codePoint = event.unicodeChar
                 if (codePoint != 0) {
-                    enqueueInput(FlintInputEvent.CHARACTER, code = codePoint)
+                    enqueueInput(
+                        FlintInputEvent.CHARACTER,
+                        code = codePoint,
+                        modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                    )
                 }
             }
         }
