@@ -48,7 +48,7 @@ object FlintCrashHandler {
 
     internal fun redactSecrets(value: String): String {
         val assignments = Regex(
-            """(?i)((?:access|refresh|xsts|client)[_-]?(?:token|secret)|authorization)\s*([:=])\s*("[^"]*"|'[^']*'|[^\s,;&]+)""",
+            """(?i)((?:access|refresh|xsts|client)[_-]?(?:token|secret)|authorization)["']?\s*([:=])\s*("[^"]*"|'[^']*'|[^\s,;&]+)""",
         )
         val bearer = Regex("""(?i)\bBearer\s+[^\s,;"']+""")
         val withoutBearerSecrets = bearer.replace(value, "Bearer <redacted>")
