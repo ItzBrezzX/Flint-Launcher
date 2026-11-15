@@ -300,6 +300,12 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLwjglAbiSmoke(
             char message[512];
             snprintf(message, sizeof(message), "glfw-symbol-missing: %s: %s",
                      glfwSymbols[i], error ? error : "unknown symbol error");
+            for (int j = 3; j >= 0; --j) {
+                if (g_lwjgl_abi_handles[j] != nullptr) {
+                    dlclose(g_lwjgl_abi_handles[j]);
+                    g_lwjgl_abi_handles[j] = nullptr;
+                }
+            }
             return env->NewStringUTF(message);
         }
     }
