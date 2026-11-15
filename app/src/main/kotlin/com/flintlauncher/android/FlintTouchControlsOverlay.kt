@@ -94,6 +94,14 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
         }
     }
 
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        if (!hasWindowFocus) {
+            releaseAllControls()
+            invalidate()
+        }
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -157,8 +165,9 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
             distanceSquared(x, y, point.first, point.second) <= radius * radius
         } ?: return false
 
+        val alreadyPressed = activeButtons.values.any { it == control }
         activeButtons[pointerId] = control
-        sendControl(control, pressed = true)
+        if (!alreadyPressed) sendControl(control, pressed = true)
         return true
     }
 
@@ -190,7 +199,11 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
             joystickPointer = MotionEvent.INVALID_POINTER_ID
             return
         }
-        activeButtons.remove(pointerId)?.let { sendControl(it, pressed = false) }
+        activeButtons.remove(pointerId)?.let { control ->
+            if (activeButtons.values.none { it == control }) {
+                sendControl(control, pressed = false)
+            }
+        }
     }
 
     private fun releaseAllControls() {
