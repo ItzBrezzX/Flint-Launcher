@@ -204,3 +204,88 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSmokeTest(JNIEnv 
     LOGI("Flint native smoke test OK");
     return env->NewStringUTF("flint-native-smoke-ok");
 }
+
+// ---------------------------------------------------------------------------
+// Crash handler (JVM crash recovery). Installed before JLI_Launch. On a fatal
+// native signal, writes a minimal crash report to the configured directory
+// (signal number, pid, timestamp) so the app can detect the crash on next
+// launch and offer restart. Then restores the default handler and re-raises.
+// ---------------------------------------------------------------------------
+#include <sys/types.h>
+#include <unistd.h>
+#include <time.h>
+#include <errno.h>
+
+static char g_crashDir[1024] = {0};
+
+static void crash_handler(int sig, siginfo_t* info, void* /*ucontext*/) {
+    if (g_crashDir[0]) {
+        char path[1200];
+        snprintf(path, sizeof(path), "%s/last_crash.txt", g_crashDir);
+        FILE* f = fopen(path, "w");
+        if (f) {
+            time_t now = time(nullptr);
+            char tbuf[64] = {0};
+            struct tm tm;
+            localtime_r(&now, &tm);
+            strftime(tbuf, sizeof(tbuf), "%Y-%m-%d %H:%M:%S", &tm);
+            fprintf(f, "signal=%d\npid=%d\ntime=%s\naddr=%p\n",
+                    sig, (int)getpid(), tbuf,
+                    info ? info->si_addr : (void*)0);
+            fclose(f);
+        }
+    }
+    // Restore default and re-raise so the process terminates (JVM cannot recover
+    // from a native SIGSEGV in-process; app offers restart on next launch).
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = SIG_DFL;
+    sigaction(sig, &sa, nullptr);
+    raise(sig);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeInstallCrashHandler(
+    JNIEnv *env, jclass, jstring crashDirPath) {
+    const char *dir = env->GetStringUTFChars(crashDirPath, nullptr);
+    if (!dir) return JNI_FALSE;
+    snprintf(g_crashDir, sizeof(g_crashDir), "%s", dir);
+    env->ReleaseStringUTFChars(crashDirPath, dir);
+    const int signals[] = { SIGSEGV, SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSYS, 0 };
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = crash_handler;
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    bool ok = true;
+    for (int i = 0; signals[i]; ++i) {
+        if (sigaction(signals[i], &sa, nullptr) != 0) {
+            LOGE("sigaction(%d) failed: %s", signals[i], strerror(errno));
+            ok = false;
+        }
+    }
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGetLastCrashReport(
+    JNIEnv *env, jclass) {
+    if (!g_crashDir[0]) return env->NewStringUTF("no-crash-dir-configured");
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/last_crash.txt", g_crashDir);
+    FILE* f = fopen(path, "r");
+    if (!f) return env->NewStringUTF("none");
+    char buf[4096];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = 0;
+    return env->NewStringUTF(buf);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeClearCrashReport(
+    JNIEnv *env, jclass) {
+    if (!g_crashDir[0]) return JNI_FALSE;
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/last_crash.txt", g_crashDir);
+    return remove(path) == 0 ? JNI_TRUE : JNI_FALSE;
+}
