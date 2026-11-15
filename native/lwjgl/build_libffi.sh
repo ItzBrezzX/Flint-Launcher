@@ -8,7 +8,7 @@ VERSION="3.4.6"
 TOOLCHAIN="${NDK}/toolchains/llvm/prebuilt/linux-x86_64"
 case "${ABI}" in
     arm64-v8a) HOST="aarch64-linux-android"; COMPILER="${HOST}${API}-clang" ;;
-    armeabi-v7a) HOST="armv7a-linux-androideabi"; COMPILER="${HOST}${API}-clang" ;;
+    armeabi-v7a) HOST="arm-linux-androideabi"; COMPILER="armv7a-linux-androideabi${API}-clang" ;;
     x86) HOST="i686-linux-android"; COMPILER="${HOST}${API}-clang" ;;
     x86_64) HOST="x86_64-linux-android"; COMPILER="${HOST}${API}-clang" ;;
     *) echo "Unsupported Android ABI: ${ABI}" >&2; exit 2 ;;
