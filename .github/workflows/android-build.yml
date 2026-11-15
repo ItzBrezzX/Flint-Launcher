@@ -87,16 +87,18 @@ jobs:
           set -euo pipefail
           : > "${RUNNER_TEMP}/so-path.txt"
           for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
-            SO=$(find native/build -name 'libflint_native.so' -path "*/${ABI}/*" | head -n1 || true)
-            if [ -z "${SO}" ]; then
-              echo "::error::libflint_native.so not found under native/build for ${ABI}"
-              find native/build -type f -name '*.so' -print || true
-              exit 1
-            fi
-            echo "Found ${ABI}: ${SO}"
-            ls -la "${SO}"
-            file "${SO}" || true
-            echo "${ABI}: ${SO}" >> "${RUNNER_TEMP}/so-path.txt"
+            for LIB in libflint_native.so libGL.so; do
+              SO=$(find native/build -name "${LIB}" -path "*/${ABI}/*" | head -n1 || true)
+              if [ -z "${SO}" ]; then
+                echo "::error::${LIB} not found under native/build for ${ABI}"
+                find native/build -type f -name '*.so' -print || true
+                exit 1
+              fi
+              echo "Found ${ABI}: ${SO}"
+              ls -la "${SO}"
+              file "${SO}" || true
+              echo "${ABI} ${LIB}: ${SO}" >> "${RUNNER_TEMP}/so-path.txt"
+            done
           done
 
       - name: Unit tests (host JVM)
@@ -124,14 +126,16 @@ jobs:
           # Every ABI advertised by app/build.gradle.kts must be present in the final APK.
           TMP=$(mktemp -d)
           for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
-            ENTRY="lib/${ABI}/libflint_native.so"
-            if ! unzip -l "${APK}" | grep -F "${ENTRY}"; then
-              echo "::error::APK is missing ${ENTRY}"
-              exit 1
-            fi
-            unzip -o -d "${TMP}" "${APK}" "${ENTRY}"
-            test -s "${TMP}/${ENTRY}"
-            echo "OK: ${ENTRY} is present and non-empty"
+            for LIB in libflint_native.so libGL.so; do
+              ENTRY="lib/${ABI}/${LIB}"
+              if ! unzip -l "${APK}" | grep -F "${ENTRY}"; then
+                echo "::error::APK is missing ${ENTRY}"
+                exit 1
+              fi
+              unzip -o -d "${TMP}" "${APK}" "${ENTRY}"
+              test -s "${TMP}/${ENTRY}"
+              echo "OK: ${ENTRY} is present and non-empty"
+            done
           done
 
       - name: Upload debug APK

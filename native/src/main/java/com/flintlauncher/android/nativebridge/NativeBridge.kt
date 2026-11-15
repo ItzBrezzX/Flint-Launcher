@@ -1,11 +1,5 @@
 package com.flintlauncher.android.nativebridge
 
-/**
- * JNI surface for the native runtime and graphics diagnostics.
- *
- * loadLibrary is attempted once; if the .so is missing, methods degrade
- * gracefully and report the failure instead of crashing the launcher.
- */
 object NativeBridge {
     private var loaded = false
     private var loadError: String? = null
@@ -23,22 +17,17 @@ object NativeBridge {
     val isNativeLoaded: Boolean get() = loaded
     val nativeLoadError: String? get() = loadError
 
-    /** Pure JNI smoke (no JRE). */
     external fun nativeSmokeTest(): String
-
-    /** EGL + GLES2 pbuffer clear test. */
     external fun nativeEglSmoke(): String
-
-    /** Actual EGL/GLES driver strings from a temporary pbuffer context. */
     external fun nativeEglCapabilities(): String
-
-    /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
-
-    /** Invoke JLI_Launch with the given argv. */
     external fun nativeLaunchJvm(args: Array<String>): Int
-
     external fun nativeShutdown()
+
+    /** Must be called on the thread where the Android EGL context is current. */
+    external fun nativeLoadGL4ES(libraryPath: String): Boolean
+    external fun nativeGL4ESVersion(): String
+    external fun nativeGL4ESClear(): Boolean
 
     fun safeSmokeTest(): String =
         if (!loaded) "native-not-loaded: $loadError"
