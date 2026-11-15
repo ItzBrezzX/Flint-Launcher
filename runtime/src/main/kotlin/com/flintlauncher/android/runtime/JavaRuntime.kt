@@ -132,6 +132,14 @@ object LaunchRequestValidator {
     }
 }
 
+/** Converts the validated request into the exact argv layout expected by JLI_Launch. */
+internal fun buildJliArguments(request: LaunchRequest): List<String> = buildList {
+    add("java")
+    addAll(request.jvmArgs)
+    add(request.mainClass)
+    addAll(request.gameArgs)
+}
+
 /**
  * Result of attempting to start the game process.
  * Started means a live game process/session has been attached and is believed
