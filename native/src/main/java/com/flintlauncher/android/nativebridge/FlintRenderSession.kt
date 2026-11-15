@@ -46,6 +46,24 @@ class FlintRenderSession(
         }
     }
 
+    /**
+     * Quiesce the render thread before the UI thread temporarily binds EGL to
+     * apply a Surface resize. This prevents competing eglMakeCurrent calls.
+     */
+    fun onSurfaceAboutToChange() {
+        synchronized(monitor) {
+            frameRequested = false
+            while (rendering) {
+                try {
+                    monitor.wait()
+                } catch (interrupted: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return
+                }
+            }
+        }
+    }
+
     /** A size change is a reason to render a frame, but not to spin continuously. */
     fun onSurfaceSizeChanged(width: Int, height: Int) {
         if (width <= 0 || height <= 0) return
