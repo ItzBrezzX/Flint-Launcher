@@ -71,9 +71,11 @@ class LaunchCoordinator(
 
             // Extract natives, dropping desktop LWJGL/GLFW/OpenAL (Flint replaces them).
             val extractedDir = File(File(cacheDir, "minecraft-natives"), safeDirName(input.versionId))
-            val extraction = extractNatives(installed.nativeJars, extractedDir)
-                .onFailure { return fail(session, FlintError.ConfigError("Native extraction failed: ${it.message}")) }
-                .getOrThrow()
+            val extraction = try {
+                extractNatives(installed.nativeJars, extractedDir).getOrThrow()
+            } catch (e: Exception) {
+                return fail(session, FlintError.ConfigError("Native extraction failed: ${e.message}"))
+            }
 
             val classpath = installed.classpath
             val libraryDir = layout.librariesDir
@@ -160,7 +162,7 @@ class LaunchCoordinator(
         installer.loadInstalledVersion(versionId)?.let { return it }
         return when (val result = installer.install(versionId)) {
             is InstallResult.Success -> result.installed
-            is InstallResult.Cancelled -> null
+            is InstallResult.Cancelled -> throw CancellationException("Install cancelled")
             is InstallResult.Failed -> throw InstallPlanException(result.message)
         }
     }
