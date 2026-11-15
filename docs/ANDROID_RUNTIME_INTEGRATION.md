@@ -17,7 +17,7 @@ The production path intentionally does not reuse the renderer-preview SurfaceVie
 
 ## Input path
 
-`FlintGameSurfaceView` sends Android key, Unicode, cursor, mouse-button, scroll and focus records to `FlintNativeWindowBridge`. The FIFO is bounded and C++ maps each record into the registered GLFW callback/state.
+`FlintGameSurfaceView` sends Android key, Unicode, cursor, mouse-button, scroll and focus records to `FlintNativeWindowBridge`. The FIFO is bounded and C++ maps each record into the registered GLFW callback/state. Under queue pressure, the oldest record may be evicted for key/button releases, focus-loss cleanup and window-close requests so a cursor-motion burst cannot strand pressed inputs or discard STOP.
 
 `FlintTouchControlsOverlay` adds a virtual WASD joystick and Attack, Use, Jump, Sneak, Inventory and Pause controls. Touch outside those controls falls through to the game Surface: taps become mouse clicks and drags become cursor movement. When GLFW has disabled the cursor, the native backend converts Android pointer movement into relative cursor deltas for camera movement.
 
