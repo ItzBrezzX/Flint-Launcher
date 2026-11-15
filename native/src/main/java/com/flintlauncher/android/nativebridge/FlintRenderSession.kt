@@ -52,6 +52,7 @@ class FlintRenderSession(
      */
     fun onSurfaceAboutToChange() {
         synchronized(monitor) {
+            surfaceReady = false
             frameRequested = false
             awaitRenderCompletionLocked()
         }
@@ -61,7 +62,8 @@ class FlintRenderSession(
     fun onSurfaceSizeChanged(width: Int, height: Int) {
         if (width <= 0 || height <= 0) return
         synchronized(monitor) {
-            if (!surfaceReady || stopping) return
+            if (stopping) return
+            surfaceReady = true
             frameRequested = true
             monitor.notifyAll()
         }
