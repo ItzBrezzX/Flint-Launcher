@@ -148,7 +148,8 @@ class MainActivity : ComponentActivity() {
                             actions = com.flintlauncher.android.ui.state.GameFilesActions(
                                 onRefresh = { gameFilesViewModel.refresh() },
                                 onCategoryChange = { gameFilesViewModel.setCategory(it) },
-                                onShare = { shareGameFile(it) },\n                                onOpen = { openGameFile(it) },
+                                onShare = { shareGameFile(it) },
+                                onOpen = { openGameFile(it) },
                                 onDelete = { gameFilesViewModel.delete(it) },
                             ),
                         )
