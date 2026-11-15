@@ -54,15 +54,23 @@ class AccountsViewModel(
 
     fun select(id: String) {
         viewModelScope.launch {
-            manager.select(id)
-            _state.value = _state.value.copy(message = "Account selected.")
+            runCatching { manager.select(id) }
+                .onSuccess { _state.value = _state.value.copy(message = "Account selected.") }
+                .onFailure { error ->
+                    _state.value = _state.value.copy(message = error.message ?: "Could not select account.")
+                }
         }
     }
 
     fun remove(id: String) {
         viewModelScope.launch {
-            microsoftAccountStore.removeAccount(id)
-            _state.value = _state.value.copy(message = "Account and any stored credentials removed.")
+            runCatching { microsoftAccountStore.removeAccount(id) }
+                .onSuccess {
+                    _state.value = _state.value.copy(message = "Account and any stored credentials removed.")
+                }
+                .onFailure { error ->
+                    _state.value = _state.value.copy(message = error.message ?: "Could not remove account.")
+                }
         }
     }
 
