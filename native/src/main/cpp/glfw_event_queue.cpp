@@ -1,4 +1,5 @@
 #include <jni.h>
+#include "flint_glfw_internal.h"
 #include <android/log.h>
 #include <array>
 #include <cstdint>
@@ -91,6 +92,80 @@ void enqueue(const Event& event) {
     ++g_size;
 }
 } // namespace
+
+extern "C" void flint_glfw_post_event(
+    int32_t type, int32_t a, int32_t b, int32_t c, int32_t d
+) {
+    flint_glfw_post_event(type, a, b, c, d);
+}
+
+extern "C" bool flint_glfw_poll_event(FlintGlfwEvent *event) {
+    if (event == nullptr) return false;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (g_size == 0) return false;
+    const Event &next = g_events[g_head];
+    event->type = next.type;
+    event->a = next.a;
+    event->b = next.b;
+    event->c = next.c;
+    event->d = next.d;
+    g_head = (g_head + 1) % kCapacity;
+    --g_size;
+    return true;
+}
+
+extern "C" void flint_glfw_reset_window_state() {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_window_width = 0;
+    g_window_height = 0;
+    g_window_focused = false;
+    g_window_should_close = false;
+    g_cursor_x = 0.0f;
+    g_cursor_y = 0.0f;
+    clear_input_state_locked();
+    g_head = 0;
+    g_size = 0;
+}
+
+extern "C" bool flint_glfw_window_should_close() {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    return g_window_should_close;
+}
+
+extern "C" void flint_glfw_set_window_should_close(bool should_close) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_window_should_close = should_close;
+}
+
+extern "C" void flint_glfw_get_window_state(int32_t *width, int32_t *height, bool *focused) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (width) *width = g_window_width;
+    if (height) *height = g_window_height;
+    if (focused) *focused = g_window_focused;
+}
+
+extern "C" int32_t flint_glfw_get_key_state(int32_t key) {
+    if (key < 0 || static_cast<size_t>(key) >= kKeyCount) return kRelease;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    return g_key_states[static_cast<size_t>(key)];
+}
+
+extern "C" int32_t flint_glfw_get_mouse_button_state(int32_t button) {
+    if (button < 0 || static_cast<size_t>(button) >= kMouseButtonCount) return kRelease;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    return g_mouse_states[static_cast<size_t>(button)];
+}
+
+extern "C" void flint_glfw_get_cursor_position(float *x, float *y) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (x) *x = g_cursor_x;
+    if (y) *y = g_cursor_y;
+}
+
+extern "C" uint64_t flint_glfw_dropped_event_count() {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    return g_dropped;
+}
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativePostGlfwEvent(
