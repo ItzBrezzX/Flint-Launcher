@@ -30,6 +30,7 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":account"))
     implementation(project(":installer"))
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.compose)
