@@ -137,7 +137,10 @@ class MainActivity : ComponentActivity() {
                     selected = destination,
                     onSelect = {
                         destination = it
-                        if (it == Destination.PLAY) homeViewModel.refreshInstallations()
+                        if (it == Destination.PLAY) {
+                            homeViewModel.refreshInstallations()
+                            homeViewModel.refreshAccount()
+                        }
                     },
                 ) {
                     when (destination) {
