@@ -11,6 +11,8 @@ Flint builds the Android graphics/runtime libraries through the `:native` module
 
 LWJGL's Java GLFW binding resolves the native GLFW C ABI functions from `libglfw.so`. It does not require a second JNI-per-method `liblwjgl_glfw.so` adapter. Flint's `libglfw.so` is therefore the actual window-system ABI used by LWJGL, while `liblwjgl.so` and `liblwjgl_opengl.so` provide LWJGL's Android native bindings.
 
+**Do not stage duplicate copies of `libglfw.so` or `libGL.so` into the per-game native directory.** `libflint_native.so` already depends on the APK's `libglfw.so`, and Flint initializes GL4ES from the APK's `libGL.so`. The launch arguments set `org.lwjgl.glfw.libname` and `org.lwjgl.opengl.libname` to those exact APK paths, so LWJGL reuses the same shared-library instances and their process-global state. Only `liblwjgl.so` and `liblwjgl_opengl.so` are copied into the per-game native directory.
+
 The backend exports the GLFW entry points declared in `flint_glfw_backend.h` and reports compatibility with the pinned binding version. Desktop-only facilities that Android cannot provide are explicitly unavailable or return safe fallback values; symbol presence is not a claim that every desktop feature works.
 
 ## Production Surface and thread ownership
