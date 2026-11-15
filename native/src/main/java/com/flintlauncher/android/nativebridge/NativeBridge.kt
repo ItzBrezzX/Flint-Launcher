@@ -59,6 +59,17 @@ object NativeBridge {
     /** Total number of events dropped because the bounded queue was full. */
     external fun nativeGlfwDroppedEventCount(): Long
 
+    /** Reset per-window state when a new Android Surface is attached. */
+    external fun nativeGlfwResetWindowState()
+
+    /** GLFW-style close flag for Flint's active game window. */
+    external fun nativeGlfwWindowShouldClose(): Boolean
+
+    external fun nativeGlfwSetWindowShouldClose(shouldClose: Boolean)
+
+    /** Returns [width, height, focused] for the active game window. */
+    external fun nativeGlfwGetWindowSize(): IntArray?
+
     /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
 
