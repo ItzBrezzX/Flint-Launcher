@@ -40,6 +40,16 @@ class AndroidEglWindowSession(
         }
     }
 
+    /** Apply the latest Android surface dimensions on the EGL owner thread. */
+    fun resize(width: Int, height: Int, onResult: (Boolean) -> Unit = {}): Boolean {
+        if (closed.get() || !attached.get() || width <= 0 || height <= 0) return false
+        return handler.post {
+            val resized = !closed.get() && attached.get() &&
+                runCatching { NativeBridge.nativeResizeWindowSurface(width, height) }.getOrDefault(false)
+            onResult(resized)
+        }
+    }
+
     /** Present one GLES frame. Invoke from the game/render loop, not every UI frame. */
     fun present(onResult: (Boolean) -> Unit = {}): Boolean {
         if (closed.get() || !attached.get()) return false
