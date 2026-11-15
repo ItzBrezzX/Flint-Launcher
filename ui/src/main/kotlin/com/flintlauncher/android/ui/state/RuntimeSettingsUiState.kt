@@ -35,4 +35,5 @@ data class RuntimeSettingsActions(
     val onRefresh: (() -> Unit)? = null,
     val onInstallJava: ((Int) -> Unit)? = null,
     val onDismissMessage: (() -> Unit)? = null,
+    val onOpenControls: (() -> Unit)? = null,
 )
