@@ -1,4 +1,6 @@
 #include <jni.h>
+#include "flint_glfw_internal.h"
+#include <dlfcn.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <android/log.h>
@@ -111,6 +113,38 @@ bool create_egl_locked() {
     return true;
 }
 } // namespace
+
+extern "C" bool flint_egl_window_is_ready() {
+    std::lock_guard<std::mutex> lock(g_surface_mutex);
+    return g_display != EGL_NO_DISPLAY && g_surface != EGL_NO_SURFACE &&
+        g_context != EGL_NO_CONTEXT && g_window != nullptr;
+}
+
+extern "C" bool flint_egl_window_make_current() {
+    std::lock_guard<std::mutex> lock(g_surface_mutex);
+    if (g_display == EGL_NO_DISPLAY || g_surface == EGL_NO_SURFACE ||
+        g_context == EGL_NO_CONTEXT) return false;
+    return eglMakeCurrent(g_display, g_surface, g_surface, g_context) == EGL_TRUE;
+}
+
+extern "C" bool flint_egl_window_swap_buffers() {
+    std::lock_guard<std::mutex> lock(g_surface_mutex);
+    if (g_display == EGL_NO_DISPLAY || g_surface == EGL_NO_SURFACE) return false;
+    return eglSwapBuffers(g_display, g_surface) == EGL_TRUE;
+}
+
+extern "C" void flint_egl_window_get_size(int32_t *width, int32_t *height) {
+    std::lock_guard<std::mutex> lock(g_surface_mutex);
+    if (width) *width = g_width;
+    if (height) *height = g_height;
+}
+
+extern "C" void *flint_egl_get_proc_address(const char *name) {
+    if (name == nullptr) return nullptr;
+    auto proc = eglGetProcAddress(name);
+    if (proc != nullptr) return reinterpret_cast<void *>(proc);
+    return dlsym(RTLD_DEFAULT, name);
+}
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSurfaceCreated(
