@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.flintlauncher.android.account.AccountManager
 import com.flintlauncher.android.account.AccountType
 import com.flintlauncher.android.partners.PartnersRepository
-import com.flintlauncher.android.installer.InstallPlanException
 import com.flintlauncher.android.installer.MinecraftInstaller
 import com.flintlauncher.android.minecraft.version.Environment
 import com.flintlauncher.android.minecraft.version.LaunchCommandBuilder
@@ -43,6 +42,10 @@ class HomeViewModel(
     private val runtimeManager: MobileJreManager?,
     private val deviceArch: String?,
     launcherVersion: String,
+    private val accountManager: AccountManager,
+    private val profileRepository: ProfileRepository,
+    private val gameLauncher: GameLauncher?,
+    private val gameRoot: File,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
