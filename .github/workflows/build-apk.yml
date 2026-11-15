@@ -49,7 +49,7 @@ jobs:
                 mkdir -p "native/src/main/jniLibs/$(basename "$abi")"
                 # CMake builds LWJGL core and OpenGL per ABI. Copy only
                 # auxiliary native bindings to avoid duplicate .so packaging.
-                for lib in liblwjgl_openal.so liblwjgl_stb.so libopenal.so; do
+                for lib in liblwjgl_stb.so libopenal.so; do
                   test -s "$abi/$lib"
                   cp -v "$abi/$lib" "native/src/main/jniLibs/$(basename "$abi")/$lib"
                 done
@@ -79,7 +79,7 @@ jobs:
           APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
           test -s "$APK"
           for abi in arm64-v8a armeabi-v7a x86 x86_64; do
-            for lib in libflint_native.so libglfw.so libflint_game_glfw.so libGL.so liblwjgl.so liblwjgl_opengl.so liblwjgl_openal.so liblwjgl_stb.so libopenal.so; do
+            for lib in libflint_native.so libglfw.so libflint_game_glfw.so libGL.so liblwjgl.so liblwjgl_opengl.so liblwjgl_stb.so libopenal.so; do
               entry="lib/$abi/$lib"
               unzip -Z1 "$APK" | grep -Fxq "$entry" || { echo "::error::Missing $entry"; exit 1; }
             done

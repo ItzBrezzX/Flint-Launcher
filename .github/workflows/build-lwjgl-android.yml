@@ -77,7 +77,7 @@ jobs:
           for f in lwjgl lwjgl-glfw lwjgl-opengl lwjgl-openal lwjgl-stb; do
             ls out/jars | grep -q "^$f" || { echo "::error::missing jar $f"; exit 1; }
           done
-          for f in liblwjgl.so liblwjgl_opengl.so liblwjgl_openal.so liblwjgl_stb.so libopenal.so; do
+          for f in liblwjgl.so liblwjgl_opengl.so liblwjgl_stb.so libopenal.so; do
             test -f out/jniLibs/${{ matrix.abi }}/$f || { echo "::error::missing native $f"; exit 1; }
           done
 
