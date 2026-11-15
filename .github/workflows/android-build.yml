@@ -54,6 +54,8 @@ jobs:
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
           test -d "${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
+          sudo apt-get update
+          sudo apt-get install -y ant autoconf automake libtool
           sdkmanager --list_installed | tee "${RUNNER_TEMP}/sdk-installed.txt"
 
       # Official behavior: when gradle-version is set, that distribution is
