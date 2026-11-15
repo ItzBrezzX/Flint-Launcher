@@ -291,6 +291,7 @@ extern "C" FLINT_GLFW_API void glfwTerminate(void) {
     g_initialized = false;
     g_windowCreated = false;
     g_close_requested.store(false, std::memory_order_relaxed);
+    g_hasPhysicalCursor = false;
     g_window = GLFWwindow{};
 }
 
