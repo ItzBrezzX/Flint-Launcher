@@ -5,6 +5,7 @@
 #include <string.h>
 #include <mutex>
 #include <new>
+#include <string>
 
 #if defined(__GNUC__)
 #define GLFW_EXPORT __attribute__((visibility("default")))
@@ -30,10 +31,14 @@ using GLFWcursorenterfun = void (*)(GLFWwindow *, int);
 using GLFWmousebuttonfun = void (*)(GLFWwindow *, int, int, int);
 using GLFWscrollfun = void (*)(GLFWwindow *, double, double);
 using GLFWdropfun = void (*)(GLFWwindow *, int, const char **);
+using GLFWcharmodsfun = void (*)(GLFWwindow *, unsigned int, int);
+using GLFWmonitorfun = void (*)(void *, int);
+using GLFWjoystickfun = void (*)(int, int);
 
 struct GLFWwindow {
     int width = 0;
     int height = 0;
+    std::string title;
     bool shouldClose = false;
     bool focused = false;
     void *userPointer = nullptr;
@@ -48,6 +53,7 @@ struct GLFWwindow {
     GLFWwindowcontentscalefun contentScaleCallback = nullptr;
     GLFWkeyfun keyCallback = nullptr;
     GLFWcharfun charCallback = nullptr;
+    GLFWcharmodsfun charModsCallback = nullptr;
     GLFWcursorposfun cursorPositionCallback = nullptr;
     GLFWcursorenterfun cursorEnterCallback = nullptr;
     GLFWmousebuttonfun mouseButtonCallback = nullptr;
@@ -61,6 +67,10 @@ GLFWwindow *g_window = nullptr;
 GLFWwindow *g_current_context = nullptr;
 bool g_initialized = false;
 GLFWerrorfun g_error_callback = nullptr;
+GLFWmonitorfun g_monitor_callback = nullptr;
+GLFWjoystickfun g_joystick_callback = nullptr;
+void *g_joystick_user_pointers[16]{};
+void *g_monitor_user_pointer = nullptr;
 int g_last_error = 0;
 const char *g_last_error_description = nullptr;
 timespec g_time_origin{};
@@ -146,7 +156,7 @@ GLFW_EXPORT void glfwDefaultWindowHints(void) {}
 GLFW_EXPORT void glfwWindowHint(int, int) {}
 
 GLFW_EXPORT GLFWwindow *glfwCreateWindow(
-    int width, int height, const char *, void *monitor, GLFWwindow *share
+    int width, int height, const char *title, void *monitor, GLFWwindow *share
 ) {
     if (width <= 0 || height <= 0) {
         set_error(0x00010008, "Window dimensions must be positive");
@@ -176,6 +186,7 @@ GLFW_EXPORT GLFWwindow *glfwCreateWindow(
     }
     int32_t surfaceWidth = 0, surfaceHeight = 0;
     flint_egl_window_get_size(&surfaceWidth, &surfaceHeight);
+    window->title = title ? title : "";
     window->width = surfaceWidth > 0 ? surfaceWidth : width;
     window->height = surfaceHeight > 0 ? surfaceHeight : height;
     int32_t stateWidth = 0, stateHeight = 0;
@@ -243,8 +254,9 @@ GLFW_EXPORT void glfwPollEvents(void) {
                 if (window->keyCallback) window->keyCallback(window, event.a, event.b, event.c, event.d);
                 break;
             case 2:
-                if (window->charCallback && event.a >= 0) {
-                    window->charCallback(window, static_cast<unsigned int>(event.a));
+                if (event.a >= 0) {
+                    if (window->charCallback) window->charCallback(window, static_cast<unsigned int>(event.a));
+                    if (window->charModsCallback) window->charModsCallback(window, static_cast<unsigned int>(event.a), 0);
                 }
                 break;
             case 3:
@@ -447,5 +459,100 @@ GLFW_EXPORT const char **glfwGetRequiredInstanceExtensions(uint32_t *count) {
 }
 GLFW_EXPORT int glfwPlatformSupported(int) { return 0; }
 GLFW_EXPORT int glfwGetPlatform(void) { return 0; }
+
+
+GLFW_EXPORT void glfwInitAllocator(const void *) {}
+GLFW_EXPORT void glfwWindowHintString(int, const char *) {}
+
+GLFW_EXPORT void glfwGetMonitorPos(void *, int *xpos, int *ypos) {
+    if (xpos) *xpos = 0;
+    if (ypos) *ypos = 0;
+}
+GLFW_EXPORT void glfwGetMonitorWorkarea(void *, int *xpos, int *ypos, int *width, int *height) {
+    if (xpos) *xpos = 0;
+    if (ypos) *ypos = 0;
+    int32_t w = 0, h = 0;
+    flint_egl_window_get_size(&w, &h);
+    if (width) *width = w;
+    if (height) *height = h;
+}
+GLFW_EXPORT void glfwGetMonitorPhysicalSize(void *, int *width, int *height) {
+    if (width) *width = 0;
+    if (height) *height = 0;
+}
+GLFW_EXPORT void glfwGetMonitorContentScale(void *, float *xscale, float *yscale) {
+    if (xscale) *xscale = 1.0f;
+    if (yscale) *yscale = 1.0f;
+}
+GLFW_EXPORT const char *glfwGetMonitorName(void *) { return nullptr; }
+GLFW_EXPORT void glfwSetMonitorUserPointer(void *, void *pointer) { g_monitor_user_pointer = pointer; }
+GLFW_EXPORT void *glfwGetMonitorUserPointer(void *) { return g_monitor_user_pointer; }
+GLFW_EXPORT GLFWmonitorfun glfwSetMonitorCallback(GLFWmonitorfun callback) {
+    GLFWmonitorfun previous = g_monitor_callback;
+    g_monitor_callback = callback;
+    return previous;
+}
+GLFW_EXPORT const void *glfwGetVideoModes(void *, int *count) {
+    if (count) *count = 0;
+    return nullptr;
+}
+GLFW_EXPORT const void *glfwGetVideoMode(void *) { return nullptr; }
+GLFW_EXPORT void glfwSetGamma(void *, float) {}
+GLFW_EXPORT const void *glfwGetGammaRamp(void *) { return nullptr; }
+GLFW_EXPORT void glfwSetGammaRamp(void *, const void *) {}
+
+GLFW_EXPORT const char *glfwGetWindowTitle(GLFWwindow *window) {
+    return window ? window->title.c_str() : "";
+}
+GLFW_EXPORT void glfwSetWindowSizeLimits(GLFWwindow *, int, int, int, int) {}
+GLFW_EXPORT void glfwSetWindowAspectRatio(GLFWwindow *, int, int) {}
+GLFW_EXPORT float glfwGetWindowOpacity(GLFWwindow *) { return 1.0f; }
+GLFW_EXPORT void glfwSetWindowOpacity(GLFWwindow *, float) {}
+GLFW_EXPORT void glfwIconifyWindow(GLFWwindow *) {}
+GLFW_EXPORT void glfwRestoreWindow(GLFWwindow *) {}
+GLFW_EXPORT void glfwMaximizeWindow(GLFWwindow *) {}
+GLFW_EXPORT void glfwShowWindow(GLFWwindow *) {}
+GLFW_EXPORT void glfwHideWindow(GLFWwindow *) {}
+GLFW_EXPORT void glfwFocusWindow(GLFWwindow *) {}
+GLFW_EXPORT void glfwRequestWindowAttention(GLFWwindow *) {}
+
+GLFW_EXPORT void *glfwCreateCursor(const void *, int, int) { return nullptr; }
+GLFW_EXPORT GLFWcharmodsfun glfwSetCharModsCallback(GLFWwindow *window, GLFWcharmodsfun callback) {
+    if (!window) return nullptr;
+    GLFWcharmodsfun previous = window->charModsCallback;
+    window->charModsCallback = callback;
+    return previous;
+}
+
+GLFW_EXPORT int glfwJoystickPresent(int) { return 0; }
+GLFW_EXPORT const float *glfwGetJoystickAxes(int, int *count) {
+    if (count) *count = 0;
+    return nullptr;
+}
+GLFW_EXPORT const unsigned char *glfwGetJoystickButtons(int, int *count) {
+    if (count) *count = 0;
+    return nullptr;
+}
+GLFW_EXPORT const unsigned char *glfwGetJoystickHats(int, int *count) {
+    if (count) *count = 0;
+    return nullptr;
+}
+GLFW_EXPORT const char *glfwGetJoystickName(int) { return nullptr; }
+GLFW_EXPORT const char *glfwGetJoystickGUID(int) { return nullptr; }
+GLFW_EXPORT void glfwSetJoystickUserPointer(int jid, void *pointer) {
+    if (jid >= 0 && jid < 16) g_joystick_user_pointers[jid] = pointer;
+}
+GLFW_EXPORT void *glfwGetJoystickUserPointer(int jid) {
+    return jid >= 0 && jid < 16 ? g_joystick_user_pointers[jid] : nullptr;
+}
+GLFW_EXPORT int glfwJoystickIsGamepad(int) { return 0; }
+GLFW_EXPORT GLFWjoystickfun glfwSetJoystickCallback(GLFWjoystickfun callback) {
+    GLFWjoystickfun previous = g_joystick_callback;
+    g_joystick_callback = callback;
+    return previous;
+}
+GLFW_EXPORT int glfwUpdateGamepadMappings(const char *) { return 0; }
+GLFW_EXPORT const char *glfwGetGamepadName(int) { return nullptr; }
+GLFW_EXPORT int glfwGetGamepadState(int, void *) { return 0; }
 
 } // extern "C"
