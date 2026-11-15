@@ -129,7 +129,7 @@ class PlayLaunchCoordinator(
             }
             // Keep desktop Linux .so files out of this Android load path, then stage
             // version-pinned Bionic LWJGL/GLFW/GL4ES binaries from the installed APK.
-            NativesExtractor.extract(installed.nativeJars, nativeDirectory)
+            NativesExtractor.extract(installed.nativeJars, nativeDirectory, excludeSharedObjects = true)
             AndroidLwjglNativesInstaller.install(nativeLibraryDir, nativeDirectory, arch)
         } catch (cancelled: CancellationException) {
             throw cancelled
