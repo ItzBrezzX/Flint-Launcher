@@ -285,14 +285,23 @@ class HomeViewModel(
                         extraJvmArguments = extraJvm,
                         extraGameArguments = profile.gameArguments,
                     )
+                    val nativeDirectory = File(profileDirs.gameDir, "natives")
+                    val jvmArguments = command.jvmArguments.toMutableList().apply {
+                        if (none { it.startsWith("-Djava.library.path=") }) {
+                            add(0, "-Djava.library.path=${nativeDirectory.absolutePath}")
+                        }
+                        if (none { it.startsWith("-Dorg.lwjgl.librarypath=") }) {
+                            add(0, "-Dorg.lwjgl.librarypath=${nativeDirectory.absolutePath}")
+                        }
+                    }
                     val request = LaunchRequest(
                         versionId = installed.version.id,
                         gameDir = profileDirs.gameDir,
                         assetsDir = assetsRoot,
                         classpath = installed.classpath,
-                        nativeDir = File(profileDirs.gameDir, "natives"),
+                        nativeDir = nativeDirectory,
                         mainClass = command.mainClass,
-                        jvmArgs = command.jvmArguments,
+                        jvmArgs = jvmArguments,
                         gameArgs = command.gameArguments,
                         accountUsername = account.username,
                         accountUuid = account.uuid,
