@@ -24,13 +24,6 @@ class PojavStyleGameLauncher(
     private val logBuffer = StringBuilder()
 
     override suspend fun launch(request: LaunchRequest): LaunchResult = withContext(Dispatchers.IO) {
-        if (!NativeBridge.isNativeLoaded) {
-            return@withContext LaunchResult.Failed(
-                "Native library flint_native not loaded: ${NativeBridge.nativeLoadError}. " +
-                    "Build the :native module with NDK/CMake first.",
-            )
-        }
-
         val runtime = request.runtime
         if (!runtime.verified) {
             return@withContext LaunchResult.BlockedMissingRuntime
@@ -41,6 +34,12 @@ class PojavStyleGameLauncher(
         }
         if (!request.renderer.available) {
             return@withContext LaunchResult.BlockedMissingRenderer
+        }
+        if (!NativeBridge.isNativeLoaded) {
+            return@withContext LaunchResult.Failed(
+                "Native library flint_native not loaded: ${NativeBridge.nativeLoadError}. " +
+                    "Build the :native module with NDK/CMake first.",
+            )
         }
 
         if (!launchActive.compareAndSet(false, true)) {
