@@ -268,6 +268,20 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeCreateWindowSurfa
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeResizeWindowSurface(
+    JNIEnv *, jclass, jint width, jint height
+) {
+    if (g_window_display == EGL_NO_DISPLAY || g_window_surface == EGL_NO_SURFACE ||
+        g_window_context == EGL_NO_CONTEXT || width <= 0 || height <= 0) return JNI_FALSE;
+    if (!eglMakeCurrent(g_window_display, g_window_surface, g_window_surface, g_window_context)) {
+        LOGE("eglMakeCurrent before resize failed: 0x%x", eglGetError());
+        return JNI_FALSE;
+    }
+    glViewport(0, 0, width, height);
+    return glGetError() == GL_NO_ERROR ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSwapWindowBuffers(
     JNIEnv *, jclass
 ) {
