@@ -26,12 +26,17 @@ object FlintGlfwInputMapper {
         return when (androidKeyCode) {
             KeyEvent.KEYCODE_SPACE -> 32
             KeyEvent.KEYCODE_APOSTROPHE -> 39
-            KeyEvent.KEYCODE_COMMA, KeyEvent.KEYCODE_NUMPAD_COMMA -> 44
-            KeyEvent.KEYCODE_MINUS, KeyEvent.KEYCODE_NUMPAD_SUBTRACT -> 45
-            KeyEvent.KEYCODE_PERIOD, KeyEvent.KEYCODE_NUMPAD_DOT -> 46
-            KeyEvent.KEYCODE_SLASH, KeyEvent.KEYCODE_NUMPAD_DIVIDE -> 47
+            KeyEvent.KEYCODE_COMMA -> 44
+            KeyEvent.KEYCODE_MINUS -> 45
+            KeyEvent.KEYCODE_PERIOD -> 46
+            KeyEvent.KEYCODE_SLASH -> 47
+            KeyEvent.KEYCODE_NUMPAD_DOT -> GLFW_KEY_KP_DECIMAL
+            KeyEvent.KEYCODE_NUMPAD_DIVIDE -> GLFW_KEY_KP_DIVIDE
+            KeyEvent.KEYCODE_NUMPAD_SUBTRACT -> GLFW_KEY_KP_SUBTRACT
+            KeyEvent.KEYCODE_NUMPAD_COMMA -> return null
             KeyEvent.KEYCODE_SEMICOLON -> 59
-            KeyEvent.KEYCODE_EQUALS, KeyEvent.KEYCODE_NUMPAD_EQUALS -> 61
+            KeyEvent.KEYCODE_EQUALS -> 61
+            KeyEvent.KEYCODE_NUMPAD_EQUALS -> GLFW_KEY_KP_EQUAL
             KeyEvent.KEYCODE_LEFT_BRACKET -> 91
             KeyEvent.KEYCODE_BACKSLASH -> 92
             KeyEvent.KEYCODE_RIGHT_BRACKET -> 93
@@ -65,7 +70,6 @@ object FlintGlfwInputMapper {
             KeyEvent.KEYCODE_BREAK -> GLFW_KEY_PAUSE
             KeyEvent.KEYCODE_NUMPAD_MULTIPLY -> GLFW_KEY_KP_MULTIPLY
             KeyEvent.KEYCODE_NUMPAD_ADD -> GLFW_KEY_KP_ADD
-            KeyEvent.KEYCODE_NUMPAD_LEFT_PAREN -> GLFW_KEY_KP_4 // no direct Android equivalent; fallback is not exact
             else -> null
         }
     }
@@ -113,8 +117,12 @@ object FlintGlfwInputMapper {
     const val GLFW_KEY_PAUSE = 284
     const val GLFW_KEY_F1 = 290
     const val GLFW_KEY_KP_0 = 320
+    const val GLFW_KEY_KP_DECIMAL = 330
+    const val GLFW_KEY_KP_DIVIDE = 331
     const val GLFW_KEY_KP_MULTIPLY = 332
+    const val GLFW_KEY_KP_SUBTRACT = 333
     const val GLFW_KEY_KP_ADD = 334
+    const val GLFW_KEY_KP_EQUAL = 336
     const val GLFW_KEY_LEFT_SHIFT = 340
     const val GLFW_KEY_LEFT_CONTROL = 341
     const val GLFW_KEY_LEFT_ALT = 342
