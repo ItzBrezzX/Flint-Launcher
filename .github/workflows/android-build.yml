@@ -98,6 +98,13 @@ jobs:
             echo "Found ${ABI}: ${GLFW}"
             ls -la "${SO}" "${GLFW}"
             file "${SO}" "${GLFW}" || true
+            NM="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+            for SYMBOL in glfwInit glfwTerminate glfwCreateWindow glfwPollEvents glfwMakeContextCurrent glfwSwapBuffers glfwGetProcAddress; do
+              if ! "${NM}" -D --defined-only "${GLFW}" | grep -E "[[:space:]]${SYMBOL}$"; then
+                echo "::error::libglfw.so for ${ABI} does not export ${SYMBOL}"
+                exit 1
+              fi
+            done
             echo "${ABI}: ${SO} ${GLFW}" >> "${RUNNER_TEMP}/so-path.txt"
           done
 
