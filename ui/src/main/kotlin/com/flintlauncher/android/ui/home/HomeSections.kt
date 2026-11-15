@@ -500,3 +500,29 @@ private fun StatusRow(status: ServerStatus) {
         Text(label, style = MaterialTheme.typography.labelMedium)
     }
 }
+
+// ------------------------------------------------------------------ tools
+@Composable
+internal fun ToolsSection(actions: HomeActions) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader("TOOLS")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            ToolButton("Logs", actions.onOpenLogs)
+            ToolButton("Worlds", actions.onOpenWorlds)
+            ToolButton("Profiles", actions.onOpenProfileImportExport)
+        }
+    }
+}
+
+@Composable
+private fun ToolButton(label: String, onClick: (() -> Unit)?) {
+    TextButton(
+        onClick = { onClick?.invoke() },
+        enabled = onClick != null,
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(10.dp))
+            .background(FlintColors.Panel)
+            .border(1.dp, FlintColors.PanelRaised, RoundedCornerShape(10.dp)),
+    ) { Text(label, color = if (onClick != null) FlintColors.Ember else FlintColors.TextMuted, fontSize = 12.sp) }
+}

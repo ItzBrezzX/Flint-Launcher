@@ -85,4 +85,7 @@ data class HomeActions(
     val onRefreshPartners: (() -> Unit)? = null,
     /** Receives the server's https website URL. */
     val onVisitServer: ((String) -> Unit)? = null,
+    val onOpenLogs: (() -> Unit)? = null,
+    val onOpenWorlds: (() -> Unit)? = null,
+    val onOpenProfileImportExport: (() -> Unit)? = null,
 )

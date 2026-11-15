@@ -26,6 +26,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flintlauncher.android.ui.accounts.AccountsScreen
 import com.flintlauncher.android.ui.accounts.SignInScreen
 import com.flintlauncher.android.ui.home.HomeScreen
+import com.flintlauncher.android.ui.logs.LogViewerScreen
+import com.flintlauncher.android.ui.worlds.WorldManagerScreen
+import com.flintlauncher.android.ui.profiles.ProfileImportExportScreen
 import com.flintlauncher.android.ui.mods.ModsScreen
 import com.flintlauncher.android.ui.settings.RuntimeSettingsScreen
 import com.flintlauncher.android.ui.nav.Destination
@@ -48,6 +51,7 @@ class MainActivity : ComponentActivity() {
     private val runtimeSettingsViewModel: RuntimeSettingsViewModel by viewModels { factory }
     private val accountsViewModel: AccountsViewModel by viewModels { factory }
     private val signInViewModel: SignInViewModel by viewModels { factory }
+    private val toolsViewModel: ToolsViewModel by viewModels { factory }
 
     // The install works without the notification permission; this only controls the progress notification.
     private val notificationPermission =
@@ -67,6 +71,10 @@ class MainActivity : ComponentActivity() {
                 val runtimeSettingsState by runtimeSettingsViewModel.state.collectAsStateWithLifecycle()
                 val accountsState by accountsViewModel.state.collectAsStateWithLifecycle()
                 val signInState by signInViewModel.state.collectAsStateWithLifecycle()
+                val logState by toolsViewModel.logState.collectAsStateWithLifecycle()
+                val worldState by toolsViewModel.worldState.collectAsStateWithLifecycle()
+                val profileToolState by toolsViewModel.profileState.collectAsStateWithLifecycle()
+                var toolOverlay by remember { mutableStateOf<ToolOverlay?>(null) }
 
                 LaunchedEffect(Unit) {
                     signInViewModel.events.collect { event ->
@@ -99,6 +107,9 @@ class MainActivity : ComponentActivity() {
                         onRefreshPartners = { homeViewModel.refreshPartners(force = true) },
                         onCopyAddress = { address -> copyAddress(address) },
                         onVisitServer = { url -> openWebsite(url) },
+                        onOpenLogs = { toolOverlay = ToolOverlay.LOGS; toolsViewModel.refreshLogs() },
+                        onOpenWorlds = { toolOverlay = ToolOverlay.WORLDS; toolsViewModel.refreshWorlds() },
+                        onOpenProfileImportExport = { toolOverlay = ToolOverlay.PROFILES; toolsViewModel.refreshProfiles() },
                     )
                 }
 
@@ -207,6 +218,41 @@ class MainActivity : ComponentActivity() {
                             modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                         )
                     }
+                    when (toolOverlay) {
+                        ToolOverlay.LOGS -> LogViewerScreen(
+                            state = logState,
+                            actions = com.flintlauncher.android.ui.state.LogViewerActions(
+                                onSelectLog = { toolsViewModel.selectLog(it) },
+                                onRefresh = { toolsViewModel.refreshLogs() },
+                                onCopy = { copyText("Minecraft log", toolsViewModel.currentLogText()) },
+                                onDismiss = { toolOverlay = null },
+                            ),
+                            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                        )
+                        ToolOverlay.WORLDS -> WorldManagerScreen(
+                            state = worldState,
+                            actions = com.flintlauncher.android.ui.state.WorldManagerActions(
+                                onBackup = { toolsViewModel.backupWorld(it) },
+                                onRestore = { toolsViewModel.restoreBackup(it) },
+                                onDeleteBackup = { toolsViewModel.deleteBackup(it) },
+                                onRefresh = { toolsViewModel.refreshWorlds() },
+                                onDismiss = { toolOverlay = null },
+                            ),
+                            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                        )
+                        ToolOverlay.PROFILES -> ProfileImportExportScreen(
+                            state = profileToolState,
+                            actions = com.flintlauncher.android.ui.state.ProfileImportExportActions(
+                                onExport = { toolsViewModel.exportProfile(it) },
+                                onImportTextChange = { toolsViewModel.setImportText(it) },
+                                onImport = { toolsViewModel.importProfile() },
+                                onCopyExport = { toolsViewModel.exportedJson()?.let { copyText("Profile JSON", it) } },
+                                onDismiss = { toolOverlay = null },
+                            ),
+                            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                        )
+                        null -> Unit
+                    }
                 }
             }
         }
@@ -241,3 +287,5 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+private enum class ToolOverlay { LOGS, WORLDS, PROFILES }

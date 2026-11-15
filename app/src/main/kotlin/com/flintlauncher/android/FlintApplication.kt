@@ -99,7 +99,7 @@ class AppContainer(private val app: Application) {
         MinecraftSessionManager(microsoftAuthClient, microsoftAccountStore)
 
     // Game files can be over a gigabyte: prefer app-specific external storage, which is larger.
-    private val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
+    val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
     private val layout = GameLayout(gameRoot)
     private val downloadManager = DownloadManager(downloadHttp, DownloadConfig(concurrency = 4))
     private val runtimeDownloadManager = DownloadManager(downloadHttp, DownloadConfig(concurrency = 1, maxAttempts = 4))
@@ -192,6 +192,12 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.deviceCodeAuthClient,
                 container.microsoftAccountStore,
                 container.minecraftSessionManager,
+            )
+        modelClass.isAssignableFrom(ToolsViewModel::class.java) ->
+            ToolsViewModel(
+                container.gameRoot,
+                container.profileRepository,
+                File(app.filesDir, "backups"),
             )
         modelClass.isAssignableFrom(RuntimeSettingsViewModel::class.java) ->
             RuntimeSettingsViewModel(
