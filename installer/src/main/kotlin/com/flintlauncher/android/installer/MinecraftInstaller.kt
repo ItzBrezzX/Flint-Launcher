@@ -39,7 +39,7 @@ data class InstalledVersion(
     val loggingJvmArgument: String?,
     val requiredJavaMajor: Int,
     /** LWJGL generation/version selected from the merged profile metadata. */
-    val lwjglRuntimeSpec: LwjglRuntimeSpec?,
+    val lwjglRuntimeSpec: LwjglRuntimeSpec? = null,
 )
 
 sealed interface InstallResult {
