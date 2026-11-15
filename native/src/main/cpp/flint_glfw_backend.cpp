@@ -85,6 +85,9 @@ std::string g_lastErrorText;
 std::string g_clipboard;
 Clock::time_point g_timeOrigin = Clock::now();
 double g_timeOffset = 0.0;
+double g_lastPhysicalCursorX = 0.0;
+double g_lastPhysicalCursorY = 0.0;
+bool g_hasPhysicalCursor = false;
 
 bool valid(GLFWwindow *window) {
     return window != nullptr && window == &g_window && g_windowCreated;
@@ -151,11 +154,33 @@ void dispatch_event(const flint::InputEvent &event) {
                 }
             }
             break;
-        case static_cast<int32_t>(flint::InputEventType::Cursor):
-            g_window.cursorX = event.x;
-            g_window.cursorY = event.y;
-            if (g_window.cursorCallback) g_window.cursorCallback(&g_window, event.x, event.y);
+        case static_cast<int32_t>(flint::InputEventType::Cursor): {
+            if (g_window.cursorMode == GLFW_CURSOR_DISABLED) {
+                if (!g_hasPhysicalCursor) {
+                    g_lastPhysicalCursorX = event.x;
+                    g_lastPhysicalCursorY = event.y;
+                    g_hasPhysicalCursor = true;
+                    break;
+                }
+                const double deltaX = event.x - g_lastPhysicalCursorX;
+                const double deltaY = event.y - g_lastPhysicalCursorY;
+                g_lastPhysicalCursorX = event.x;
+                g_lastPhysicalCursorY = event.y;
+                g_window.cursorX += deltaX;
+                g_window.cursorY += deltaY;
+                if (g_window.cursorCallback) {
+                    g_window.cursorCallback(&g_window, g_window.cursorX, g_window.cursorY);
+                }
+            } else {
+                g_window.cursorX = event.x;
+                g_window.cursorY = event.y;
+                g_hasPhysicalCursor = false;
+                if (g_window.cursorCallback) {
+                    g_window.cursorCallback(&g_window, event.x, event.y);
+                }
+            }
             break;
+        }
         case static_cast<int32_t>(flint::InputEventType::MouseButton): {
             if (event.code < 0 || event.code >= static_cast<int>(g_window.mouseButtons.size())) break;
             const int action = event.action == GLFW_RELEASE ? GLFW_RELEASE : GLFW_PRESS;
@@ -172,7 +197,10 @@ void dispatch_event(const flint::InputEvent &event) {
             break;
         case static_cast<int32_t>(flint::InputEventType::Focus):
             g_window.focused = event.action != 0;
-            if (!g_window.focused) release_pressed_inputs();
+            if (!g_window.focused) {
+                release_pressed_inputs();
+                g_hasPhysicalCursor = false;
+            }
             if (g_window.focusCallback) g_window.focusCallback(&g_window, g_window.focused ? GLFW_TRUE : GLFW_FALSE);
             break;
         case static_cast<int32_t>(flint::InputEventType::WindowSize): {
@@ -462,13 +490,17 @@ extern "C" FLINT_GLFW_API void glfwSetCursorPos(GLFWwindow *window, double xpos,
     if (!valid(window)) return;
     g_window.cursorX = xpos;
     g_window.cursorY = ypos;
+    g_hasPhysicalCursor = false;
     if (g_window.cursorCallback) g_window.cursorCallback(&g_window, xpos, ypos);
 }
 
 extern "C" FLINT_GLFW_API void glfwSetInputMode(GLFWwindow *window, int mode, int value) {
     if (!valid(window)) return;
     switch (mode) {
-        case GLFW_CURSOR: g_window.cursorMode = value; break;
+        case GLFW_CURSOR:
+            if (g_window.cursorMode != value) g_hasPhysicalCursor = false;
+            g_window.cursorMode = value;
+            break;
         case GLFW_STICKY_KEYS: g_window.stickyKeys = value != 0; break;
         case GLFW_STICKY_MOUSE_BUTTONS: g_window.stickyMouseButtons = value != 0; break;
         case GLFW_LOCK_KEY_MODS: g_window.lockKeyMods = value != 0; break;
