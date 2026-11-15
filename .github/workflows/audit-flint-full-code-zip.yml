@@ -28,6 +28,11 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
+      - name: Set up Gradle (same pinned version as main CI)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
       - name: Download and inspect uploaded ZIP
         shell: bash
         run: |
@@ -77,10 +82,4 @@ jobs:
           set -euo pipefail
           cp -a /tmp/flint-upload/. baseline/
           cd baseline
-          if [[ ! -f ./gradlew ]]; then
-            echo "RESULT=NO_GRADLE_WRAPPER"
-            exit 1
-          fi
-          chmod +x ./gradlew
-          ./gradlew --no-daemon :app:assembleDebug testDebugUnitTest lintDebug
-
+          gradle --no-daemon assembleDebug test lintDebug --stacktrace
