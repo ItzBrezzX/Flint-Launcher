@@ -9,7 +9,6 @@ package com.flintlauncher.android.nativebridge
 object NativeBridge {
     private var loaded = false
     private var loadError: String? = null
-    private var lwjglLoaded = false
 
     init {
         try {
@@ -23,6 +22,9 @@ object NativeBridge {
 
     val isNativeLoaded: Boolean get() = loaded
     val nativeLoadError: String? get() = loadError
+
+    /** Preflight-load Android LWJGL libraries without binding them to the app ClassLoader. */
+    external fun nativeLwjglAbiSmoke(): String
 
     /** Pure JNI smoke (no JRE). */
     external fun nativeSmokeTest(): String
@@ -92,23 +94,11 @@ object NativeBridge {
         if (!loaded) "native-not-loaded: $loadError"
         else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
 
-    @Synchronized
-    fun safeLwjglNativeLoad(): String {
-        if (!loaded) return "native-not-loaded: $loadError"
-        if (lwjglLoaded) return "flint-lwjgl-native-ok"
-        return try {
-            // Load dependencies before LWJGL's JNI modules; System.loadLibrary
-            // associates them with the app ClassLoader for later LWJGL reuse.
-            System.loadLibrary("glfw")
-            System.loadLibrary("lwjgl")
-            System.loadLibrary("lwjgl_glfw")
-            System.loadLibrary("lwjgl_opengl")
-            lwjglLoaded = true
-            "flint-lwjgl-native-ok"
-        } catch (error: Throwable) {
-            "lwjgl-native-load-failed: ${error.message ?: error.javaClass.simpleName}"
+    fun safeLwjglAbiSmoke(): String =
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeLwjglAbiSmoke() }.getOrElse {
+            "lwjgl-abi-smoke-failed: ${it.message ?: it.javaClass.simpleName}"
         }
-    }
 
     fun safeEglSmoke(): String =
         if (!loaded) "native-not-loaded: $loadError"
