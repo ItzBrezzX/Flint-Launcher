@@ -22,7 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.flintlauncher.android.AccountsUiState
+import com.flintlauncher.android.ui.state.AccountsUiState
 import com.flintlauncher.android.account.AccountType
 
 @Composable
