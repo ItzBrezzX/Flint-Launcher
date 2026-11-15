@@ -37,6 +37,8 @@ static void *g_libjli = nullptr;
 static JLI_Launch_func g_jli_launch = nullptr;
 static char g_jre_home[4096] = {0};
 static std::mutex g_jvm_mutex;
+static std::mutex g_lwjgl_abi_mutex;
+static void *g_lwjgl_abi_handles[4] = {nullptr, nullptr, nullptr, nullptr};
 static bool g_jvm_launching = false;
 static bool g_shutdown_requested = false;
 
@@ -256,6 +258,54 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeShutdown(
     }
 }
 
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLwjglAbiSmoke(
+    JNIEnv *env, jclass
+) {
+    std::lock_guard<std::mutex> lock(g_lwjgl_abi_mutex);
+    const char *libraries[] = {
+        "libglfw.so",
+        "liblwjgl.so",
+        "liblwjgl_glfw.so",
+        "liblwjgl_opengl.so",
+    };
+    for (int i = 0; i < 4; ++i) {
+        if (g_lwjgl_abi_handles[i] != nullptr) continue;
+        dlerror();
+        g_lwjgl_abi_handles[i] = dlopen(libraries[i], RTLD_NOW | RTLD_LOCAL);
+        if (g_lwjgl_abi_handles[i] == nullptr) {
+            const char *error = dlerror();
+            char message[512];
+            snprintf(message, sizeof(message), "lwjgl-load-failed: %s: %s",
+                     libraries[i], error ? error : "unknown linker error");
+            for (int j = i - 1; j >= 0; --j) {
+                if (g_lwjgl_abi_handles[j] != nullptr) {
+                    dlclose(g_lwjgl_abi_handles[j]);
+                    g_lwjgl_abi_handles[j] = nullptr;
+                }
+            }
+            return env->NewStringUTF(message);
+        }
+    }
+
+    const char *glfwSymbols[] = {
+        "glfwInit", "glfwPollEvents", "glfwMakeContextCurrent",
+        "glfwSwapBuffers", "glfwGetProcAddress", nullptr
+    };
+    for (int i = 0; glfwSymbols[i] != nullptr; ++i) {
+        dlerror();
+        if (dlsym(g_lwjgl_abi_handles[0], glfwSymbols[i]) == nullptr) {
+            const char *error = dlerror();
+            char message[512];
+            snprintf(message, sizeof(message), "glfw-symbol-missing: %s: %s",
+                     glfwSymbols[i], error ? error : "unknown symbol error");
+            return env->NewStringUTF(message);
+        }
+    }
+
+    return env->NewStringUTF("flint-lwjgl-native-ok");
+}
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSmokeTest(
