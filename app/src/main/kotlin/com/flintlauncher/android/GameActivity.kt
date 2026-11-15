@@ -69,6 +69,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             setOnClickListener { stopGame(finishWhenStopped = false) }
         }
 
+        val touchControls = FlintTouchControlsOverlay(this)
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(statusView)
@@ -77,6 +78,13 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         val root = FrameLayout(this)
         root.addView(
             surfaceView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        root.addView(
+            touchControls,
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT,
