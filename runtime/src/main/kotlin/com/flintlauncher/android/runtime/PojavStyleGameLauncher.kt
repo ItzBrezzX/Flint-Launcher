@@ -182,25 +182,27 @@ class PojavStyleGameLauncher(
         }
     }
 
-    override suspend fun stop() = launchMutex.withLock {
-        if (!NativeBridge.isNativeLoaded) {
-            running = false
-            return
-        }
-        when (NativeBridge.nativeJvmState()) {
-            JVM_STARTING, JVM_RUNNING -> {
-                // JLI_Launch does not expose a safe in-process cancellation API.
-                // Do not dlclose libjli or pretend that the game has stopped.
-                running = true
-                appendLog(
-                    "Stop requested, but safe embedded-JVM termination is not implemented. " +
-                        "The session remains active; closing the Android process is not a safe substitute.",
-                )
-            }
-            else -> {
+    override suspend fun stop() {
+        launchMutex.withLock {
+            if (!NativeBridge.isNativeLoaded) {
                 running = false
-                monitorJob?.cancel()
-                NativeBridge.nativeShutdown()
+            } else {
+                when (NativeBridge.nativeJvmState()) {
+                    JVM_STARTING, JVM_RUNNING -> {
+                        // JLI_Launch does not expose a safe in-process cancellation API.
+                        // Do not dlclose libjli or pretend that the game has stopped.
+                        running = true
+                        appendLog(
+                            "Stop requested, but safe embedded-JVM termination is not implemented. " +
+                                "The session remains active; closing the Android process is not a safe substitute.",
+                        )
+                    }
+                    else -> {
+                        running = false
+                        monitorJob?.cancel()
+                        NativeBridge.nativeShutdown()
+                    }
+                }
             }
         }
     }
