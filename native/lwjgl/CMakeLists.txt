@@ -53,10 +53,16 @@ set(LWJGL_OPENGL "${FLINT_LWJGL_ROOT}/modules/lwjgl/opengl")
 
 if(FLINT_ABI STREQUAL "arm64-v8a")
     set(FLINT_FFI_ARCH "aarch64")
+    set(FLINT_LWJGL_ARCH "ARM64")
 elseif(FLINT_ABI STREQUAL "armeabi-v7a")
     set(FLINT_FFI_ARCH "arm")
-elseif(FLINT_ABI STREQUAL "x86" OR FLINT_ABI STREQUAL "x86_64")
+    set(FLINT_LWJGL_ARCH "ARM32")
+elseif(FLINT_ABI STREQUAL "x86")
     set(FLINT_FFI_ARCH "x86")
+    set(FLINT_LWJGL_ARCH "X86")
+elseif(FLINT_ABI STREQUAL "x86_64")
+    set(FLINT_FFI_ARCH "x86")
+    set(FLINT_LWJGL_ARCH "X64")
 else()
     message(FATAL_ERROR "No LWJGL libffi target header for ${FLINT_ABI}")
 endif()
@@ -100,8 +106,9 @@ target_include_directories(lwjgl PRIVATE
     "${LWJGL_CORE}/src/generated/c/linux"
     "${FLINT_LIBFFI_OUT}/install/include"
 )
-target_compile_definitions(lwjgl PRIVATE LWJGL_LINUX)
-target_compile_options(lwjgl PRIVATE -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
+target_compile_definitions(lwjgl PRIVATE LWJGL_LINUX "LWJGL_${FLINT_LWJGL_ARCH}")
+target_compile_options(lwjgl PRIVATE -O3 -fPIC -pthread -DNDEBUG -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
+target_link_options(lwjgl PRIVATE -pthread)
 target_link_libraries(lwjgl PRIVATE
     "${FLINT_LIBFFI}"
     "${FLINT_DL_LIBRARY}"
@@ -117,8 +124,9 @@ target_include_directories(lwjgl_glfw PRIVATE
     "${LWJGL_GLFW}/src/generated/c"
     "${FLINT_GLFW_SOURCE_ROOT}/include"
 )
-target_compile_definitions(lwjgl_glfw PRIVATE LWJGL_LINUX)
-target_compile_options(lwjgl_glfw PRIVATE -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
+target_compile_definitions(lwjgl_glfw PRIVATE LWJGL_LINUX "LWJGL_${FLINT_LWJGL_ARCH}")
+target_compile_options(lwjgl_glfw PRIVATE -O3 -fPIC -pthread -DNDEBUG -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
+target_link_options(lwjgl_glfw PRIVATE -pthread)
 target_link_libraries(lwjgl_glfw PRIVATE
     lwjgl
     flint_glfw
@@ -135,8 +143,9 @@ target_include_directories(lwjgl_opengl PRIVATE
     "${LWJGL_OPENGL}/src/main/c"
     "${LWJGL_OPENGL}/src/generated/c"
 )
-target_compile_definitions(lwjgl_opengl PRIVATE LWJGL_LINUX)
-target_compile_options(lwjgl_opengl PRIVATE -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
+target_compile_definitions(lwjgl_opengl PRIVATE LWJGL_LINUX "LWJGL_${FLINT_LWJGL_ARCH}")
+target_compile_options(lwjgl_opengl PRIVATE -O3 -fPIC -pthread -DNDEBUG -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
+target_link_options(lwjgl_opengl PRIVATE -pthread)
 target_link_libraries(lwjgl_opengl PRIVATE
     lwjgl
     flint_glfw
