@@ -419,10 +419,24 @@ GLFW_EXPORT void glfwGetWindowFrameSize(GLFWwindow *, int *left, int *top, int *
 
 GLFW_EXPORT int glfwGetWindowAttrib(GLFWwindow *window, int attrib) {
     if (!window) return 0;
-    if (attrib == 0x00020001) return window->focused ? 1 : 0; // GLFW_FOCUSED
-    if (attrib == 0x00020004) return 1; // GLFW_VISIBLE
-    if (attrib == 0x00020003) return 1; // GLFW_RESIZABLE (host surface can resize)
-    return 0;
+    switch (attrib) {
+        case 0x00020001: return window->focused ? 1 : 0; // GLFW_FOCUSED
+        case 0x00020002: return 0; // GLFW_ICONIFIED
+        case 0x00020003: return 1; // GLFW_RESIZABLE: host Surface can resize
+        case 0x00020004: return 1; // GLFW_VISIBLE
+        case 0x00020005: return 0; // GLFW_DECORATED: host owns the view chrome
+        case 0x00020006: return 0; // GLFW_AUTO_ICONIFY
+        case 0x00020007: return 0; // GLFW_FLOATING
+        case 0x00020008: return 0; // GLFW_MAXIMIZED
+        case 0x00020009: return 1; // GLFW_CENTER_CURSOR
+        case 0x0002000A: return 0; // GLFW_TRANSPARENT_FRAMEBUFFER
+        case 0x0002000B: return 0; // GLFW_HOVERED
+        case 0x0002000C: return 1; // GLFW_FOCUS_ON_SHOW
+        case 0x0002000D: return 0; // GLFW_MOUSE_PASSTHROUGH
+        case 0x0002000E: return 0; // GLFW_POSITION_X
+        case 0x0002000F: return 0; // GLFW_POSITION_Y
+        default: return 0;
+    }
 }
 
 GLFW_EXPORT void glfwSetWindowAttrib(GLFWwindow *, int, int) {}
