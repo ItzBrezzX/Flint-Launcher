@@ -18,9 +18,12 @@ Android JNI/C++ bridge for Flint's mobile Java runtime and game graphics surface
 ## Not implemented yet
 
 - GL4ES, MobileGlues, LTW, or Zink renderer integration.
+- A complete GLFW 3 ABI implementation (GLFWwindow/monitor objects, exported GLFW symbols, context hints, clipboard, timers, joysticks, window callbacks, and LWJGL native-library loading).
 - LWJGL 2/3 Android GLFW compatibility and event pump.
 - Wiring a concrete Minecraft renderer into the `FlintRenderSession.renderFrame` callback.
 - An end-to-end Activity/Compose game-session route that creates, attaches, and closes the render session.
-- Input forwarding, audio, and actual Minecraft frame presentation.
+- Android touch/keyboard input now enters a bounded native event queue using Flint's documented internal GLFW-compatible event protocol (key, character, cursor, mouse button, scroll, focus, size, close).
+- A consumer/event pump that translates the internal protocol into real GLFW callbacks and LWJGL-visible state.
+- Audio and actual Minecraft frame presentation.
 
 Do not mark a renderer available or report Minecraft as playable until those components are integrated and tested on a physical Android device.
