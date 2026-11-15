@@ -3,11 +3,28 @@ package com.flintlauncher.android.runtime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import com.flintlauncher.android.minecraft.version.LwjglRuntimeSpec
+import com.flintlauncher.android.minecraft.version.MavenCoordinate
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 
 class LaunchRequestValidatorTest {
+    @Test
+    fun launchRequestCarriesTheResolvedLwjglRuntimeVersion() {
+        val root = Files.createTempDirectory("flint-lwjgl-request").toFile()
+        val spec = LwjglRuntimeSpec(
+            major = 3,
+            version = "3.3.3",
+            artifacts = listOf(MavenCoordinate.parse("org.lwjgl:lwjgl:3.3.3")!!),
+        )
+
+        val request = request(root).copy(lwjglRuntimeSpec = spec)
+
+        assertEquals(spec, request.lwjglRuntimeSpec)
+        assertEquals(3, request.lwjglRuntimeSpec!!.major)
+    }
+
     @Test
     fun acceptsCommandWhenJvmClasspathMatchesInstalledClasspath() {
         val root = Files.createTempDirectory("flint-launch-valid").toFile()
