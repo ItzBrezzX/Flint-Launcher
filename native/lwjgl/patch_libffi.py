@@ -9,9 +9,10 @@ if len(sys.argv) != 2:
 
 path = Path(sys.argv[1])
 source = path.read_text(encoding="utf-8")
+changed = False
 
 def replace_constant(name: str, condition: str, supported_value: str) -> None:
-    global source
+    global source, changed
     pattern = re.compile(rf"(?m)^([ \t]*)return \(jint\){re.escape(name)};$")
     def replacement(match):
         indent = match.group(1)
@@ -24,6 +25,7 @@ def replace_constant(name: str, condition: str, supported_value: str) -> None:
         )
     if pattern.search(source):
         source, count = pattern.subn(replacement, source)
+        changed = changed or count > 0
         if count != 1:
             raise SystemExit(f"expected one {name} JNI constant, patched {count}")
 
@@ -39,4 +41,5 @@ replace_constant(
     "defined(__ANDROID__) && defined(__arm__) && !defined(__aarch64__)",
     "FFI_VFP",
 )
-path.write_text(source, encoding="utf-8")
+if changed:
+    path.write_text(source, encoding="utf-8")
