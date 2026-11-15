@@ -66,10 +66,89 @@ class MinecraftInstaller(
     /** True only if a previous install of [versionId] ran to completion. */
     fun isInstalled(versionId: String): Boolean =
         try {
-            layout.installMarker(versionId).isFile &&
-                layout.versionJar(versionId).isFile &&
-                layout.versionJson(versionId).isFile
-        } catch (e: InstallPlanException) { false }
+            val marker = layout.installMarker(versionId)
+            if (!marker.isFile || !layout.versionJson(versionId).isFile) return false
+            val vanillaId = marker.readText().trim()
+            vanillaId.isNotEmpty() && layout.versionJar(vanillaId).isFile
+        } catch (e: Exception) { false }
+
+    /**
+     * Reconstructs the launch inputs from the completed install on disk. Loader profiles
+     * keep their own version JSON while the marker points to the vanilla client JAR.
+     * No network access is needed after installation.
+     */
+    fun loadInstalled(versionId: String, nativeDirectory: File): InstalledVersion {
+        if (!isInstalled(versionId)) {
+            throw InstallPlanException("Minecraft $versionId is not fully installed")
+        }
+
+        val vanillaId = layout.installMarker(versionId).readText().trim()
+        val child = try {
+            VersionJsonParser.parse(layout.versionJson(versionId).readText())
+        } catch (error: Exception) {
+            throw InstallPlanException("Could not read version metadata for $versionId: ${error.message}")
+        }
+
+        val merged = child.inheritsFrom?.let { parentId ->
+            if (parentId != vanillaId) {
+                throw InstallPlanException("Installed marker mismatch: expected parent $parentId but found $vanillaId")
+            }
+            val parentFile = layout.versionJson(parentId)
+            if (!parentFile.isFile) {
+                throw InstallPlanException("Base version metadata $parentId is missing; repair this installation")
+            }
+            val parent = try {
+                VersionJsonParser.parse(parentFile.readText())
+            } catch (error: Exception) {
+                throw InstallPlanException("Could not read base version $parentId: ${error.message}")
+            }
+            child.mergedOnto(parent)
+        } ?: child
+
+        val plan = InstallPlanner.planCore(merged, vanillaId, layout, environment)
+        if (plan.unresolvedLibraries.isNotEmpty()) {
+            throw InstallPlanException("Missing library download metadata: ${plan.unresolvedLibraries.joinToString()}")
+        }
+        val missingClasspath = plan.classpath.filterNot { it.isFile }
+        if (missingClasspath.isNotEmpty()) {
+            throw InstallPlanException("Minecraft classpath is incomplete: ${missingClasspath.take(4).joinToString { it.name }}")
+        }
+        val missingNatives = plan.nativeJars.filterNot { it.isFile }
+        if (missingNatives.isNotEmpty()) {
+            throw InstallPlanException("Minecraft native libraries are missing: ${missingNatives.take(4).joinToString { it.name }}")
+        }
+        val assetIndexId = merged.assetIndex?.id
+            ?: throw InstallPlanException("Version $versionId does not define an asset index")
+        if (!layout.assetIndex(assetIndexId).isFile) {
+            throw InstallPlanException("Asset index $assetIndexId is missing; repair this installation")
+        }
+
+        if (nativeDirectory.exists() && !nativeDirectory.deleteRecursively()) {
+            throw InstallPlanException("Could not clear stale native files for $versionId")
+        }
+        try {
+            if (plan.nativeJars.isNotEmpty()) NativesExtractor.extract(plan.nativeJars, nativeDirectory)
+            else nativeDirectory.mkdirs()
+        } catch (error: Exception) {
+            nativeDirectory.deleteRecursively()
+            throw InstallPlanException("Could not extract Minecraft native libraries: ${error.message}")
+        }
+
+        return InstalledVersion(
+            versionId = merged.id,
+            version = merged,
+            clientJar = layout.versionJar(vanillaId),
+            classpath = plan.classpath,
+            nativeJars = plan.nativeJars,
+            assetsRoot = layout.assetsDir,
+            assetIndexId = assetIndexId,
+            loggingJvmArgument = plan.logConfig?.jvmArgument,
+            requiredJavaMajor = merged.javaVersion?.majorVersion ?: 8,
+        )
+    }
+
+    val gameRoot: File get() = layout.root
+    val librariesDirectory: File get() = layout.librariesDir
 
     /** Returns fully installed versions only; partial or failed installs are excluded. */
     fun installedVersions(): List<InstalledVersionSummary> =
