@@ -38,6 +38,15 @@ object NativeBridge {
     /** Update the EGL viewport when Android changes the game surface dimensions. */
     external fun nativeSurfaceChanged(width: Int, height: Int): Boolean
 
+    /** Acquire the EGL context on the calling render thread. */
+    external fun nativeSurfaceMakeCurrent(): Boolean
+
+    /** Present the current EGL back buffer on the calling render thread. */
+    external fun nativeSurfaceSwapBuffers(): Boolean
+
+    /** Release EGL context ownership from the calling render thread. */
+    external fun nativeSurfaceReleaseCurrent()
+
     /** Release EGL resources and the retained ANativeWindow reference. */
     external fun nativeSurfaceDestroyed()
 
