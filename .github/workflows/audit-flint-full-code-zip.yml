@@ -1,0 +1,86 @@
+name: Audit uploaded FLINT full-code ZIP
+
+on:
+  push:
+    branches:
+      - audit/flint-full-code-zip
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main baseline
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: baseline
+          fetch-depth: 1
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Download and inspect uploaded ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --output /tmp/FLINT-FULL-CODE-VERSI-KITA.zip \
+            https://raw.githubusercontent.com/ItzBrezzX/FILE/main/FLINT-FULL-CODE-VERSI-KITA.zip
+          echo "ZIP_SIZE=$(stat -c%s /tmp/FLINT-FULL-CODE-VERSI-KITA.zip)"
+          unzip -t /tmp/FLINT-FULL-CODE-VERSI-KITA.zip
+          unzip -Z1 /tmp/FLINT-FULL-CODE-VERSI-KITA.zip | tee /tmp/archive-files.txt
+          mkdir -p /tmp/flint-upload
+          unzip -q /tmp/FLINT-FULL-CODE-VERSI-KITA.zip -d /tmp/flint-upload
+          python3 - <<'PY'
+          import hashlib, pathlib
+          base = pathlib.Path("baseline")
+          src = pathlib.Path("/tmp/flint-upload")
+          print("\\n=== FILE-BY-FILE COMPARISON AGAINST MAIN ===")
+          for p in sorted(x for x in src.rglob("*") if x.is_file()):
+              rel = p.relative_to(src)
+              target = base / rel
+              if not target.exists():
+                  status = "ADDED"
+              elif hashlib.sha256(p.read_bytes()).digest() == hashlib.sha256(target.read_bytes()).digest():
+                  status = "IDENTICAL"
+              else:
+                  status = "MODIFIED"
+              print(f"{status:9} {rel}")
+          PY
+
+      - name: Print source diffs
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r rel; do
+            [[ -z "$rel" ]] && continue
+            echo
+            echo "===== ARCHIVE FILE: $rel ====="
+            if [[ -f "baseline/$rel" ]]; then
+              diff -u --label "main/$rel" --label "zip/$rel" "baseline/$rel" "/tmp/flint-upload/$rel" || true
+            else
+              sed -n '1,260p' "/tmp/flint-upload/$rel"
+            fi
+          done < /tmp/archive-files.txt
+
+      - name: Build overlaid candidate without changing main
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a /tmp/flint-upload/. baseline/
+          cd baseline
+          if [[ ! -f ./gradlew ]]; then
+            echo "RESULT=NO_GRADLE_WRAPPER"
+            exit 1
+          fi
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:assembleDebug testDebugUnitTest lintDebug
+
