@@ -122,4 +122,5 @@ private fun MainSections(state: HomeUiState, actions: HomeActions, compactLandsc
     ProfileSlots(state, actions)
     NewsSection(state.news, actions)
     FriendsSection(state.friends)
+    ToolsSection(actions)
 }

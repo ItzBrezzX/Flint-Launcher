@@ -18,12 +18,17 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flintlauncher.android.ui.accounts.AccountsScreen
+import com.flintlauncher.android.ui.accounts.SignInScreen
 import com.flintlauncher.android.ui.home.HomeScreen
+import com.flintlauncher.android.ui.logs.LogViewerScreen
+import com.flintlauncher.android.ui.worlds.WorldManagerScreen
+import com.flintlauncher.android.ui.profiles.ProfileImportExportScreen
 import com.flintlauncher.android.ui.mods.ModsScreen
 import com.flintlauncher.android.ui.settings.RuntimeSettingsScreen
 import com.flintlauncher.android.ui.nav.Destination
@@ -45,6 +50,8 @@ class MainActivity : ComponentActivity() {
     private val modsViewModel: ModsViewModel by viewModels { factory }
     private val runtimeSettingsViewModel: RuntimeSettingsViewModel by viewModels { factory }
     private val accountsViewModel: AccountsViewModel by viewModels { factory }
+    private val signInViewModel: SignInViewModel by viewModels { factory }
+    private val toolsViewModel: ToolsViewModel by viewModels { factory }
 
     // The install works without the notification permission; this only controls the progress notification.
     private val notificationPermission =
@@ -57,11 +64,38 @@ class MainActivity : ComponentActivity() {
         setContent {
             FlintTheme {
                 var destination by rememberSaveable { mutableStateOf(Destination.PLAY) }
+                var showSignIn by remember { mutableStateOf(false) }
                 val homeState by homeViewModel.state.collectAsStateWithLifecycle()
                 val versionsState by versionsViewModel.state.collectAsStateWithLifecycle()
                 val modsState by modsViewModel.state.collectAsStateWithLifecycle()
                 val runtimeSettingsState by runtimeSettingsViewModel.state.collectAsStateWithLifecycle()
                 val accountsState by accountsViewModel.state.collectAsStateWithLifecycle()
+                val signInState by signInViewModel.state.collectAsStateWithLifecycle()
+                val logState by toolsViewModel.logState.collectAsStateWithLifecycle()
+                val worldState by toolsViewModel.worldState.collectAsStateWithLifecycle()
+                val profileToolState by toolsViewModel.profileState.collectAsStateWithLifecycle()
+                var toolOverlay by remember { mutableStateOf<ToolOverlay?>(null) }
+
+                LaunchedEffect(Unit) {
+                    signInViewModel.events.collect { event ->
+                        when (event) {
+                            is SignInEvent.OpenBrowser -> openWebsite(event.url)
+                            is SignInEvent.CopyToClipboard -> copyText(event.label, event.text)
+                        }
+                    }
+                }
+                LaunchedEffect(Unit) {
+                    homeViewModel.events.collect { event ->
+                        when (event) {
+                            is HomeEvent.StartGameSession -> {
+                                startActivity(
+                                    Intent(this@MainActivity, GameSessionActivity::class.java)
+                                        .putExtra(GameSessionActivity.EXTRA_VERSION_ID, event.versionId),
+                                )
+                            }
+                        }
+                    }
+                }
 
                 // Only capabilities that really exist are wired. Every other action stays
                 // null, which the UI renders as a disabled control.
@@ -73,6 +107,9 @@ class MainActivity : ComponentActivity() {
                         onRefreshPartners = { homeViewModel.refreshPartners(force = true) },
                         onCopyAddress = { address -> copyAddress(address) },
                         onVisitServer = { url -> openWebsite(url) },
+                        onOpenLogs = { toolOverlay = ToolOverlay.LOGS; toolsViewModel.refreshLogs() },
+                        onOpenWorlds = { toolOverlay = ToolOverlay.WORLDS; toolsViewModel.refreshWorlds() },
+                        onOpenProfileImportExport = { toolOverlay = ToolOverlay.PROFILES; toolsViewModel.refreshProfiles() },
                     )
                 }
 
@@ -100,6 +137,21 @@ class MainActivity : ComponentActivity() {
                         onSelect = { accountsViewModel.select(it) },
                         onRemove = { accountsViewModel.remove(it) },
                         onDismissMessage = { accountsViewModel.dismissMessage() },
+                        onStartMicrosoftSignIn = { showSignIn = true },
+                    )
+                }
+                val signInActions = remember {
+                    com.flintlauncher.android.ui.state.SignInActions(
+                        onStartPkce = { signInViewModel.startPkce() },
+                        onStartDeviceCode = { signInViewModel.startDeviceCode() },
+                        onCancel = { signInViewModel.cancel() },
+                        onOpenVerificationUrl = { url -> openWebsite(url) },
+                        onCopyUserCode = { code -> signInViewModel.copyUserCode(code) },
+                        onDismiss = {
+                            signInViewModel.dismiss()
+                            showSignIn = false
+                            homeViewModel.refreshAccount()
+                        },
                     )
                 }
 
@@ -134,26 +186,72 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                FlintScaffold(
-                    selected = destination,
-                    onSelect = {
-                        destination = it
-                        if (it == Destination.PLAY) {
-                            homeViewModel.refreshInstallations()
-                            homeViewModel.refreshAccount()
-                        }
-                    },
+                androidx.compose.foundation.layout.Box(
+                    modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                 ) {
-                    when (destination) {
-                        Destination.PLAY -> HomeScreen(state = homeState, actions = homeActions)
-                        Destination.PROFILES -> InstallationsScreen(state = versionsState, actions = versionsActions)
-                        Destination.MODS -> ModsScreen(state = modsState, actions = modsActions)
-                        Destination.ACCOUNTS -> AccountsScreen(state = accountsState, actions = accountsActions)
-                        Destination.SETTINGS -> RuntimeSettingsScreen(
-                            state = runtimeSettingsState,
-                            actions = runtimeSettingsActions,
+                    FlintScaffold(
+                        selected = destination,
+                        onSelect = {
+                            destination = it
+                            if (it == Destination.PLAY) {
+                                homeViewModel.refreshInstallations()
+                                homeViewModel.refreshAccount()
+                            }
+                        },
+                    ) {
+                        when (destination) {
+                            Destination.PLAY -> HomeScreen(state = homeState, actions = homeActions)
+                            Destination.PROFILES -> InstallationsScreen(state = versionsState, actions = versionsActions)
+                            Destination.MODS -> ModsScreen(state = modsState, actions = modsActions)
+                            Destination.ACCOUNTS -> AccountsScreen(state = accountsState, actions = accountsActions)
+                            Destination.SETTINGS -> RuntimeSettingsScreen(
+                                state = runtimeSettingsState,
+                                actions = runtimeSettingsActions,
+                            )
+                            else -> NotImplementedScreen(destination.label)
+                        }
+                    }
+                    if (showSignIn) {
+                        SignInScreen(
+                            state = signInState,
+                            actions = signInActions,
+                            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                         )
-                        else -> NotImplementedScreen(destination.label)
+                    }
+                    when (toolOverlay) {
+                        ToolOverlay.LOGS -> LogViewerScreen(
+                            state = logState,
+                            actions = com.flintlauncher.android.ui.state.LogViewerActions(
+                                onSelectLog = { toolsViewModel.selectLog(it) },
+                                onRefresh = { toolsViewModel.refreshLogs() },
+                                onCopy = { copyText("Minecraft log", toolsViewModel.currentLogText()) },
+                                onDismiss = { toolOverlay = null },
+                            ),
+                            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                        )
+                        ToolOverlay.WORLDS -> WorldManagerScreen(
+                            state = worldState,
+                            actions = com.flintlauncher.android.ui.state.WorldManagerActions(
+                                onBackup = { toolsViewModel.backupWorld(it) },
+                                onRestore = { toolsViewModel.restoreBackup(it) },
+                                onDeleteBackup = { toolsViewModel.deleteBackup(it) },
+                                onRefresh = { toolsViewModel.refreshWorlds() },
+                                onDismiss = { toolOverlay = null },
+                            ),
+                            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                        )
+                        ToolOverlay.PROFILES -> ProfileImportExportScreen(
+                            state = profileToolState,
+                            actions = com.flintlauncher.android.ui.state.ProfileImportExportActions(
+                                onExport = { toolsViewModel.exportProfile(it) },
+                                onImportTextChange = { toolsViewModel.setImportText(it) },
+                                onImport = { toolsViewModel.importProfile() },
+                                onCopyExport = { toolsViewModel.exportedJson()?.let { copyText("Profile JSON", it) } },
+                                onDismiss = { toolOverlay = null },
+                            ),
+                            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                        )
+                        null -> Unit
                     }
                 }
             }
@@ -168,9 +266,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun copyAddress(address: String) {
+    private fun copyAddress(address: String) = copyText("Server address", address)
+
+    private fun copyText(label: String, text: String) {
         val clipboard = getSystemService(ClipboardManager::class.java)
-        clipboard.setPrimaryClip(ClipData.newPlainText("Server address", address))
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
         // Android 13+ shows its own confirmation.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             Toast.makeText(this, R.string.address_copied, Toast.LENGTH_SHORT).show()
@@ -187,3 +287,5 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+private enum class ToolOverlay { LOGS, WORLDS, PROFILES }

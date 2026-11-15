@@ -25,6 +25,25 @@
             android:name=".RendererTestActivity"
             android:screenOrientation="sensorLandscape"
             android:exported="false" />
+        <!-- Receives the OAuth PKCE redirect via the flintlauncher:// custom scheme.
+             No launchMode=singleTask needed: it forwards to MainActivity and finishes. -->
+        <activity
+            android:name=".SignInRedirectActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="flintlauncher" android:host="oauth" />
+            </intent-filter>
+        </activity>
+        <!-- Hosts the running Minecraft session: landscape, immersive fullscreen. -->
+        <activity
+            android:name=".GameSessionActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|keyboardHidden|navigation"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

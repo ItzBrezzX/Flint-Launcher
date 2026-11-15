@@ -15,6 +15,8 @@ import com.flintlauncher.android.ui.state.PartnerServerUi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +36,10 @@ class HomeViewModel(
         HomeUiState(launcherVersion = launcherVersion, partners = Loadable.Loading),
     )
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
+
+    /** One-time events for the host activity (e.g. start the game session activity). */
+    private val _events = Channel<HomeEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
 
     private var installationJob: Job? = null
     private var launchJob: Job? = null
@@ -105,27 +111,8 @@ class HomeViewModel(
             return
         }
 
-        launchJob = viewModelScope.launch {
-            _state.update { it.copy(launchMessage = "Preparing Minecraft " + selected.minecraftVersion + " for launch…") }
-            val result = try {
-                playLaunchCoordinator.launch(selected.minecraftVersion)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                LaunchResult.Failed("Minecraft launch preparation failed: " + (error.message ?: "unknown error"))
-            }
-
-            val message = when (result) {
-                is LaunchResult.Started ->
-                    "Minecraft " + selected.minecraftVersion +
-                        " has entered the Pojav-style JVM launch path. This confirms JLI started, not that the title screen is playable; Android GLFW/LWJGL hand-off still needs device verification."
-                is LaunchResult.Failed -> result.reason
-                LaunchResult.BlockedMissingRuntime -> "A compatible, verified Java runtime is required before Minecraft can launch."
-                LaunchResult.BlockedMissingRenderer -> "The GL4ES renderer library is missing from this APK. Rebuild the :native module with GL4ES enabled."
-                LaunchResult.BlockedNotReady -> "Minecraft installation or account is not ready. Install the selected version and choose an account first."
-            }
-            _state.update { it.copy(launchMessage = message) }
-        }
+        _state.update { it.copy(launchMessage = null) }
+        _events.trySend(HomeEvent.StartGameSession(selected.minecraftVersion))
     }
 
     fun dismissLaunchMessage() {
@@ -146,4 +133,9 @@ class HomeViewModel(
             _state.update { it.copy(partners = loaded) }
         }
     }
+}
+
+/** One-time events from the home screen to the host activity. */
+sealed interface HomeEvent {
+    data class StartGameSession(val versionId: String) : HomeEvent
 }
