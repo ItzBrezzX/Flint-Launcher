@@ -113,6 +113,7 @@ class PojavStyleGameLauncher(
 
             val nativeSetup = CountDownLatch(1)
             val setupError = AtomicReference<String?>(null)
+            val nativeReady = AtomicBoolean(false)
             val worker = Thread({
                 var eglCreated = false
                 var glfwAttached = false
@@ -151,6 +152,7 @@ class PojavStyleGameLauncher(
                     )
 
                     running = true
+                    nativeReady.set(true)
                     nativeSetup.countDown()
 
                     appendLog("Calling JLI_Launch on the EGL/GLFW owner thread.")
@@ -163,7 +165,8 @@ class PojavStyleGameLauncher(
                     }
                 } catch (error: Throwable) {
                     val detail = error.message ?: error.javaClass.simpleName
-                    if (setupError.compareAndSet(null, detail)) {
+                    if (!nativeReady.get()) {
+                        setupError.compareAndSet(null, detail)
                         appendLog("Native game setup failed: $detail")
                     } else {
                         appendLog("Minecraft JLI failed: $detail")
@@ -196,12 +199,20 @@ class PojavStyleGameLauncher(
                 appendLog("Timed out while creating the Android EGL/GL4ES/GLFW game surface.")
                 requestGracefulClose()
                 worker.join(1000)
-                return@withContext fail("Timed out while preparing the game window. Check the renderer and Surface logs.")
+                if (!worker.isAlive) launchReserved.set(false)
+                return@withContext LaunchResult.Failed(
+                    "Timed out while preparing the game window. Check the renderer and Surface logs.",
+                    stdout(),
+                )
             }
 
             setupError.get()?.let { detail ->
                 worker.join(1000)
-                return@withContext fail("Could not prepare the Minecraft game window: $detail")
+                if (!worker.isAlive) launchReserved.set(false)
+                return@withContext LaunchResult.Failed(
+                    "Could not prepare the Minecraft game window: $detail",
+                    stdout(),
+                )
             }
 
             LaunchResult.Started(pid = null, logFile = null)
