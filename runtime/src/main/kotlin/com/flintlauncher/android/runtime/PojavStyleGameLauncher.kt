@@ -40,10 +40,34 @@ class PojavStyleGameLauncher(
                     "Build the :native module with NDK/CMake first.",
             )
         }
-        val glfwAbi = NativeBridge.safeGlfwAbiSmoke()
-        if (glfwAbi != "flint-glfw-abi-ok") {
+        val lwjglSpec = request.lwjglRuntimeSpec
+            ?: return@withContext LaunchResult.Failed(
+                "LWJGL runtime metadata was not resolved for ${request.versionId}.",
+            )
+        if (lwjglSpec.major != 3 || lwjglSpec.version != "3.3.3") {
             return@withContext LaunchResult.Failed(
-                "Flint Android GLFW backend is unavailable: $glfwAbi",
+                "This Android native build currently supports LWJGL 3.3.3 only; " +
+                    "the selected profile requires LWJGL ${lwjglSpec.version} (major ${lwjglSpec.major}).",
+            )
+        }
+        val modules = lwjglSpec.artifacts.map { it.artifact }.toSet()
+        val requiredModules = setOf("lwjgl", "lwjgl-glfw", "lwjgl-opengl")
+        if (!modules.containsAll(requiredModules)) {
+            val missing = (requiredModules - modules).sorted().joinToString()
+            return@withContext LaunchResult.Failed(
+                "The selected LWJGL profile is missing required modules: $missing.",
+            )
+        }
+        val unsupportedModules = (modules - requiredModules).sorted()
+        if (unsupportedModules.isNotEmpty()) {
+            return@withContext LaunchResult.Failed(
+                "Android native modules are not built yet: ${unsupportedModules.joinToString()}.",
+            )
+        }
+        val lwjglLoad = NativeBridge.safeLwjglNativeLoad()
+        if (lwjglLoad != "flint-lwjgl-native-ok") {
+            return@withContext LaunchResult.Failed(
+                "Android LWJGL native libraries could not be loaded: $lwjglLoad",
             )
         }
 
