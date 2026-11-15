@@ -74,7 +74,10 @@ file(GLOB CORE_MAIN CONFIGURE_DEPENDS
 file(GLOB_RECURSE GLFW_GENERATED CONFIGURE_DEPENDS FOLLOW_SYMLINKS
     "${LWJGL_GLFW}/src/generated/c/*.c"
 )
-list(FILTER GLFW_GENERATED EXCLUDE REGEX "(GLFWNative|macos|windows)")
+# Keep generated GLFW JNI translation units. The GLFWNative prefix is not
+# an OS marker: it also contains portable callback/native glue required by LWJGL.
+# Exclude only the concrete desktop platform bindings.
+list(FILTER GLFW_GENERATED EXCLUDE REGEX "(Cocoa|Win32|WGL|GLX|X11|Wayland|macos|windows)")
 
 file(GLOB_RECURSE OPENGL_GENERATED CONFIGURE_DEPENDS FOLLOW_SYMLINKS
     "${LWJGL_OPENGL}/src/generated/c/*.c"
