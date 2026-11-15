@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
                         onRefresh = { runtimeSettingsViewModel.refresh() },
                         onInstallJava = { runtimeSettingsViewModel.installJava(it) },
                         onDismissMessage = { runtimeSettingsViewModel.dismissMessage() },
+                        onOpenRendererTest = { startActivity(Intent(this@MainActivity, RendererTestActivity::class.java)) },
                     )
                 }
 
