@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity() {
                         onRefresh = { runtimeSettingsViewModel.refresh() },
                         onInstallJava = { runtimeSettingsViewModel.installJava(it) },
                         onDismissMessage = { runtimeSettingsViewModel.dismissMessage() },
+                        onOpenControls = { destination = Destination.CONTROLS },
                     )
                 }
 
