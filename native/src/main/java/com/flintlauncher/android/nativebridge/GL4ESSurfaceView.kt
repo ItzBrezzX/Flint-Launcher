@@ -119,15 +119,14 @@ class GL4ESSurfaceView @JvmOverloads constructor(
                 }
                 MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                     val pressed = event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS
-                    val buttons = event.buttonState
-                    val mapping = listOf(
+                    val mapping = mapOf(
                         MotionEvent.BUTTON_PRIMARY to 0,
                         MotionEvent.BUTTON_SECONDARY to 1,
                         MotionEvent.BUTTON_TERTIARY to 2,
                         MotionEvent.BUTTON_BACK to 3,
                         MotionEvent.BUTTON_FORWARD to 4,
                     )
-                    mapping.filter { (mask, _) -> buttons and mask != 0 }.forEach { (_, button) ->
+                    mapping[event.actionButton]?.let { button ->
                         enqueueInput(
                             FlintInputEvent.MOUSE_BUTTON,
                             code = button,
