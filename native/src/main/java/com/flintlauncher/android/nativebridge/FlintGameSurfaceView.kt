@@ -48,6 +48,9 @@ class FlintGameSurfaceView @JvmOverloads constructor(
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        if (NativeBridge.isNativeLoaded) {
+            runCatching { NativeBridge.nativeGlfwResetWindowState() }
+        }
         val ready = NativeBridge.isNativeLoaded &&
             runCatching { NativeBridge.nativeSurfaceCreated(holder.surface) }.getOrDefault(false)
         updateReady(ready)
@@ -69,6 +72,7 @@ class FlintGameSurfaceView @JvmOverloads constructor(
         renderSession?.onSurfaceDestroyed()
         if (NativeBridge.isNativeLoaded) {
             runCatching { NativeBridge.nativeSurfaceDestroyed() }
+            runCatching { NativeBridge.nativeGlfwResetWindowState() }
         }
         updateReady(false)
     }
