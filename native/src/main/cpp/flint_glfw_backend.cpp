@@ -4,6 +4,7 @@
 #include <EGL/egl.h>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -73,6 +74,7 @@ GLFWgammaramp g_gammaRamp{nullptr, nullptr, nullptr, 0};
 bool g_surfaceAttached = false;
 bool g_initialized = false;
 bool g_windowCreated = false;
+std::atomic_bool g_close_requested{false};
 EGLDisplay g_display = EGL_NO_DISPLAY;
 EGLSurface g_surface = EGL_NO_SURFACE;
 EGLContext g_context = EGL_NO_CONTEXT;
@@ -120,6 +122,14 @@ void release_pressed_inputs() {
 }
 
 void dispatch_event(const flint::InputEvent &event) {
+    if (event.type == static_cast<int32_t>(flint::InputEventType::Close)) {
+        g_close_requested.store(true, std::memory_order_relaxed);
+        if (g_windowCreated) {
+            g_window.shouldClose = true;
+            if (g_window.closeCallback) g_window.closeCallback(&g_window);
+        }
+        return;
+    }
     if (!g_windowCreated) return;
     switch (event.type) {
         case static_cast<int32_t>(flint::InputEventType::Key): {
@@ -252,6 +262,7 @@ extern "C" FLINT_GLFW_API int glfwInit(void) {
 extern "C" FLINT_GLFW_API void glfwTerminate(void) {
     g_initialized = false;
     g_windowCreated = false;
+    g_close_requested.store(false, std::memory_order_relaxed);
     g_window = GLFWwindow{};
 }
 
@@ -303,6 +314,7 @@ extern "C" FLINT_GLFW_API GLFWwindow *glfwCreateWindow(
 
     g_window = GLFWwindow{};
     g_window.title = title ? title : "Flint";
+    g_window.shouldClose = g_close_requested.load(std::memory_order_relaxed);
     g_window.width = g_surfaceWidth;
     g_window.height = g_surfaceHeight;
     g_window.framebufferWidth = g_surfaceWidth;
@@ -318,11 +330,14 @@ extern "C" FLINT_GLFW_API void glfwDestroyWindow(GLFWwindow *window) {
 }
 
 extern "C" FLINT_GLFW_API int glfwWindowShouldClose(GLFWwindow *window) {
-    return valid(window) && g_window.shouldClose ? GLFW_TRUE : GLFW_FALSE;
+    return valid(window) && (g_window.shouldClose || g_close_requested.load(std::memory_order_relaxed)) ? GLFW_TRUE : GLFW_FALSE;
 }
 
 extern "C" FLINT_GLFW_API void glfwSetWindowShouldClose(GLFWwindow *window, int value) {
-    if (valid(window)) g_window.shouldClose = value != 0;
+    if (valid(window)) {
+        g_window.shouldClose = value != 0;
+        g_close_requested.store(value != 0, std::memory_order_relaxed);
+    }
 }
 
 extern "C" FLINT_GLFW_API void glfwSetWindowTitle(GLFWwindow *window, const char *title) {
