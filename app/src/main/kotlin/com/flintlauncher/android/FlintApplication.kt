@@ -7,6 +7,9 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.flintlauncher.android.account.AccountManager
+import com.flintlauncher.android.account.AndroidKeystoreTokenVault
+import com.flintlauncher.android.account.FileAccountRepository
 import com.flintlauncher.android.download.DownloadConfig
 import com.flintlauncher.android.download.DownloadManager
 import com.flintlauncher.android.installer.GameLayout
@@ -68,6 +71,12 @@ class AppContainer(private val app: Application) {
         feed = BundledServerFeed,
         statusClient = McStatusClient(http),
     )
+
+    // Account metadata contains no credentials; Microsoft secrets are stored separately
+    // in an AES-GCM vault whose key is protected by Android Keystore.
+    private val accountRepository = FileAccountRepository(File(app.filesDir, "accounts.json"))
+    val accountManager = AccountManager(accountRepository)
+    val tokenVault = AndroidKeystoreTokenVault(File(app.filesDir, "account-tokens.enc"))
 
     // Game files can be over a gigabyte: prefer app-specific external storage, which is larger.
     private val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
