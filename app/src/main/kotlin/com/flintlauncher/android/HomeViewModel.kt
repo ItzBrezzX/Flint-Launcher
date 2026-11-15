@@ -46,6 +46,7 @@ class HomeViewModel(
     private val profileRepository: ProfileRepository,
     private val gameLauncher: GameLauncher?,
     private val gameRoot: File,
+    private val androidNativeDir: File,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -286,13 +287,17 @@ class HomeViewModel(
                         extraGameArguments = profile.gameArguments,
                     )
                     val nativeDirectory = File(profileDirs.gameDir, "natives")
+                    val javaLibraryPath = listOf(
+                        nativeDirectory.absolutePath,
+                        androidNativeDir.absolutePath,
+                    ).joinToString(File.pathSeparator)
                     val jvmArguments = command.jvmArguments.toMutableList().apply {
-                        if (none { it.startsWith("-Djava.library.path=") }) {
-                            add(0, "-Djava.library.path=${nativeDirectory.absolutePath}")
+                        removeAll {
+                            it.startsWith("-Djava.library.path=") ||
+                                it.startsWith("-Dorg.lwjgl.librarypath=")
                         }
-                        if (none { it.startsWith("-Dorg.lwjgl.librarypath=") }) {
-                            add(0, "-Dorg.lwjgl.librarypath=${nativeDirectory.absolutePath}")
-                        }
+                        add(0, "-Djava.library.path=$javaLibraryPath")
+                        add(0, "-Dorg.lwjgl.librarypath=${androidNativeDir.absolutePath}")
                     }
                     val request = LaunchRequest(
                         versionId = installed.version.id,
@@ -300,6 +305,7 @@ class HomeViewModel(
                         assetsDir = assetsRoot,
                         classpath = installed.classpath,
                         nativeDir = nativeDirectory,
+                        androidNativeDir = androidNativeDir,
                         mainClass = command.mainClass,
                         jvmArgs = jvmArguments,
                         gameArgs = command.gameArguments,
