@@ -10,6 +10,7 @@
 #include <cstring>
 #include <dlfcn.h>
 #include <string>
+#include <array>
 
 struct GLFWwindow {
     void *userPointer = nullptr;
@@ -46,6 +47,7 @@ struct GLFWwindow {
     GLFWwindowcontentscalefun contentScaleCallback = nullptr;
     GLFWkeyfun keyCallback = nullptr;
     GLFWcharfun charCallback = nullptr;
+    GLFWcharmodsfun charModsCallback = nullptr;
     GLFWmousebuttonfun mouseButtonCallback = nullptr;
     GLFWcursorposfun cursorCallback = nullptr;
     GLFWcursorenterfun cursorEnterCallback = nullptr;
@@ -54,7 +56,7 @@ struct GLFWwindow {
 };
 
 struct GLFWmonitor {
-    int unused = 0;
+    void *userPointer = nullptr;
 };
 
 namespace {
@@ -64,6 +66,10 @@ GLFWmonitor g_monitor;
 GLFWmonitor *g_monitorList[] = {&g_monitor};
 GLFWvidmode g_videoMode{0, 0, 8, 8, 8, 60};
 GLFWerrorfun g_errorCallback = nullptr;
+GLFWmonitorfun g_monitorCallback = nullptr;
+GLFWjoystickfun g_joystickCallback = nullptr;
+std::array<void *, 16> g_joystickUserPointers{};
+GLFWgammaramp g_gammaRamp{nullptr, nullptr, nullptr, 0};
 bool g_surfaceAttached = false;
 bool g_initialized = false;
 bool g_windowCreated = false;
@@ -128,8 +134,11 @@ void dispatch_event(const flint::InputEvent &event) {
             break;
         }
         case static_cast<int32_t>(flint::InputEventType::Character):
-            if (event.code >= 0 && g_window.charCallback) {
-                g_window.charCallback(&g_window, static_cast<unsigned int>(event.code));
+            if (event.code >= 0) {
+                if (g_window.charCallback) g_window.charCallback(&g_window, static_cast<unsigned int>(event.code));
+                if (g_window.charModsCallback) {
+                    g_window.charModsCallback(&g_window, static_cast<unsigned int>(event.code), event.mods);
+                }
             }
             break;
         case static_cast<int32_t>(flint::InputEventType::Cursor):
@@ -249,11 +258,11 @@ extern "C" FLINT_GLFW_API void glfwTerminate(void) {
 extern "C" FLINT_GLFW_API void glfwGetVersion(int *major, int *minor, int *rev) {
     if (major) *major = 3;
     if (minor) *minor = 3;
-    if (rev) *rev = 0;
+    if (rev) *rev = 8;
 }
 
 extern "C" FLINT_GLFW_API const char *glfwGetVersionString(void) {
-    return "3.3.0 Flint Android GLFW-compatible backend";
+    return "3.3.8 Flint Android GLFW-compatible backend";
 }
 
 extern "C" FLINT_GLFW_API GLFWerrorfun glfwSetErrorCallback(GLFWerrorfun callback) {
@@ -627,3 +636,143 @@ FLINT_CALLBACK_SETTER(glfwSetCursorPosCallback, cursorCallback, GLFWcursorposfun
 FLINT_CALLBACK_SETTER(glfwSetCursorEnterCallback, cursorEnterCallback, GLFWcursorenterfun)
 FLINT_CALLBACK_SETTER(glfwSetScrollCallback, scrollCallback, GLFWscrollfun)
 FLINT_CALLBACK_SETTER(glfwSetDropCallback, dropCallback, GLFWdropfun)
+
+
+/* GLFW symbols required by the LWJGL 3.3.x generated binding but whose
+ * desktop-only behavior is not provided by Android. Keep every ABI entry
+ * point present and return explicit unsupported/empty values. */
+extern "C" FLINT_GLFW_API void glfwInitHint(int, int) {}
+extern "C" FLINT_GLFW_API void glfwInitAllocator(const GLFWallocator *) {}
+
+extern "C" FLINT_GLFW_API int glfwGetPlatform(void) {
+    return GLFW_PLATFORM_NULL;
+}
+extern "C" FLINT_GLFW_API int glfwPlatformSupported(int platform) {
+    return platform == GLFW_PLATFORM_NULL ? GLFW_TRUE : GLFW_FALSE;
+}
+
+extern "C" FLINT_GLFW_API void glfwSetMonitorUserPointer(GLFWmonitor *monitor, void *pointer) {
+    if (monitor == &g_monitor) g_monitor.userPointer = pointer;
+}
+extern "C" FLINT_GLFW_API void *glfwGetMonitorUserPointer(GLFWmonitor *monitor) {
+    return monitor == &g_monitor ? g_monitor.userPointer : nullptr;
+}
+extern "C" FLINT_GLFW_API GLFWmonitorfun glfwSetMonitorCallback(GLFWmonitorfun callback) {
+    GLFWmonitorfun previous = g_monitorCallback;
+    g_monitorCallback = callback;
+    return previous;
+}
+
+extern "C" FLINT_GLFW_API void glfwSetGamma(GLFWmonitor *, float) {}
+extern "C" FLINT_GLFW_API const GLFWgammaramp *glfwGetGammaRamp(GLFWmonitor *monitor) {
+    return monitor == &g_monitor ? &g_gammaRamp : nullptr;
+}
+extern "C" FLINT_GLFW_API void glfwSetGammaRamp(GLFWmonitor *, const GLFWgammaramp *) {}
+
+extern "C" FLINT_GLFW_API void glfwWindowHintString(int, const char *) {}
+extern "C" FLINT_GLFW_API void glfwSetWindowIcon(GLFWwindow *window, int, const GLFWimage *) {
+    if (!valid(window)) return;
+}
+extern "C" FLINT_GLFW_API void glfwSetWindowSizeLimits(GLFWwindow *window, int, int, int, int) {
+    if (!valid(window)) return;
+}
+extern "C" FLINT_GLFW_API void glfwSetWindowAspectRatio(GLFWwindow *window, int numer, int denom) {
+    if (!valid(window)) return;
+    if ((numer <= 0 || denom <= 0) && numer != -1 && denom != -1) {
+        set_error(GLFW_INVALID_VALUE, "Window aspect ratio must be positive or -1");
+    }
+}
+extern "C" FLINT_GLFW_API void glfwGetWindowFrameSize(GLFWwindow *window, int *left, int *top, int *right, int *bottom) {
+    if (!valid(window)) return;
+    if (left) *left = 0;
+    if (top) *top = 0;
+    if (right) *right = 0;
+    if (bottom) *bottom = 0;
+}
+extern "C" FLINT_GLFW_API float glfwGetWindowOpacity(GLFWwindow *window) {
+    return valid(window) ? 1.0f : 0.0f;
+}
+extern "C" FLINT_GLFW_API void glfwSetWindowOpacity(GLFWwindow *window, float opacity) {
+    if (!valid(window)) return;
+    if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f) {
+        set_error(GLFW_INVALID_VALUE, "Window opacity must be between 0.0 and 1.0");
+    }
+}
+extern "C" FLINT_GLFW_API void glfwShowWindow(GLFWwindow *window) {
+    if (valid(window)) g_window.visible = true;
+}
+extern "C" FLINT_GLFW_API void glfwHideWindow(GLFWwindow *window) {
+    if (valid(window)) g_window.visible = false;
+}
+
+extern "C" FLINT_GLFW_API int glfwRawMouseMotionSupported(void) {
+    return GLFW_FALSE;
+}
+extern "C" FLINT_GLFW_API GLFWcursor *glfwCreateCursor(const GLFWimage *, int, int) {
+    return nullptr;
+}
+extern "C" FLINT_GLFW_API GLFWcursor *glfwCreateStandardCursor(int) {
+    return nullptr;
+}
+extern "C" FLINT_GLFW_API void glfwDestroyCursor(GLFWcursor *) {}
+extern "C" FLINT_GLFW_API void glfwSetCursor(GLFWwindow *window, GLFWcursor *) {
+    if (!valid(window)) return;
+}
+extern "C" FLINT_GLFW_API GLFWcharmodsfun glfwSetCharModsCallback(GLFWwindow *window, GLFWcharmodsfun callback) {
+    if (!valid(window)) return nullptr;
+    GLFWcharmodsfun previous = g_window.charModsCallback;
+    g_window.charModsCallback = callback;
+    return previous;
+}
+
+extern "C" FLINT_GLFW_API int glfwJoystickPresent(int) { return GLFW_FALSE; }
+extern "C" FLINT_GLFW_API const float *glfwGetJoystickAxes(int, int *count) {
+    if (count) *count = 0;
+    return nullptr;
+}
+extern "C" FLINT_GLFW_API const unsigned char *glfwGetJoystickButtons(int, int *count) {
+    if (count) *count = 0;
+    return nullptr;
+}
+extern "C" FLINT_GLFW_API const unsigned char *glfwGetJoystickHats(int, int *count) {
+    if (count) *count = 0;
+    return nullptr;
+}
+extern "C" FLINT_GLFW_API const char *glfwGetJoystickName(int) { return nullptr; }
+extern "C" FLINT_GLFW_API const char *glfwGetJoystickGUID(int) { return nullptr; }
+extern "C" FLINT_GLFW_API void glfwSetJoystickUserPointer(int jid, void *pointer) {
+    if (jid >= 0 && jid < static_cast<int>(g_joystickUserPointers.size())) {
+        g_joystickUserPointers[static_cast<size_t>(jid)] = pointer;
+    }
+}
+extern "C" FLINT_GLFW_API void *glfwGetJoystickUserPointer(int jid) {
+    if (jid < 0 || jid >= static_cast<int>(g_joystickUserPointers.size())) return nullptr;
+    return g_joystickUserPointers[static_cast<size_t>(jid)];
+}
+extern "C" FLINT_GLFW_API int glfwJoystickIsGamepad(int) { return GLFW_FALSE; }
+extern "C" FLINT_GLFW_API GLFWjoystickfun glfwSetJoystickCallback(GLFWjoystickfun callback) {
+    GLFWjoystickfun previous = g_joystickCallback;
+    g_joystickCallback = callback;
+    return previous;
+}
+extern "C" FLINT_GLFW_API int glfwUpdateGamepadMappings(const char *) { return GLFW_FALSE; }
+extern "C" FLINT_GLFW_API const char *glfwGetGamepadName(int) { return nullptr; }
+extern "C" FLINT_GLFW_API int glfwGetGamepadState(int, GLFWgamepadstate *) { return GLFW_FALSE; }
+
+extern "C" FLINT_GLFW_API int glfwExtensionSupported(const char *extension) {
+    if (!extension || !*extension) return GLFW_FALSE;
+    using GetStringFn = const unsigned char *(*)(unsigned int);
+    auto getString = reinterpret_cast<GetStringFn>(glfwGetProcAddress("glGetString"));
+    if (!getString) return GLFW_FALSE;
+    const char *extensions = reinterpret_cast<const char *>(getString(0x1F03)); // GL_EXTENSIONS
+    if (!extensions) return GLFW_FALSE;
+    const size_t length = std::strlen(extension);
+    const char *cursor = extensions;
+    while ((cursor = std::strstr(cursor, extension)) != nullptr) {
+        const bool leftBoundary = cursor == extensions || cursor[-1] == ' ';
+        const bool rightBoundary = cursor[length] == '\0' || cursor[length] == ' ';
+        if (leftBoundary && rightBoundary) return GLFW_TRUE;
+        cursor += length;
+    }
+    return GLFW_FALSE;
+}
