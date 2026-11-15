@@ -173,6 +173,13 @@ class FlintGameSurfaceView @JvmOverloads constructor(
         enqueue(FlintInputEvent.FOCUS, action = if (hasWindowFocus) 1 else 0)
     }
 
+    /** Forward Android Surface dimensions as GLFW window and framebuffer events. */
+    fun notifySurfaceSize(width: Int, height: Int) {
+        if (width <= 0 || height <= 0) return
+        enqueue(FlintInputEvent.WINDOW_SIZE, x = width.toDouble(), y = height.toDouble())
+        enqueue(FlintInputEvent.FRAMEBUFFER_SIZE, x = width.toDouble(), y = height.toDouble())
+    }
+
     private fun enqueueCursor(x: Float, y: Float) {
         enqueue(FlintInputEvent.CURSOR, x = x.toDouble(), y = y.toDouble())
     }
