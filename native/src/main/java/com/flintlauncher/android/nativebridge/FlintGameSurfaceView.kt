@@ -8,9 +8,9 @@ import android.view.SurfaceView
 /**
  * Owns the Android Surface lifecycle used by the native game renderer.
  *
- * This view currently establishes and clears a real EGL window surface. It is
- * deliberately not advertised as a Minecraft renderer: GL4ES/LWJGL must attach
- * their rendering loop to this EGL context in a later integration step.
+ * The optional render session is notified before EGL teardown, so an in-flight
+ * frame can release the context on its owning thread before native destruction.
+ * This view is not itself a Minecraft renderer.
  */
 class FlintGameSurfaceView @JvmOverloads constructor(
     context: Context,
@@ -20,6 +20,9 @@ class FlintGameSurfaceView @JvmOverloads constructor(
     @Volatile
     var isEglWindowReady: Boolean = false
         private set
+
+    /** Assign before attaching [FlintRenderSession] to this view. */
+    var renderSession: FlintRenderSession? = null
 
     var onEglWindowReadyChanged: ((Boolean) -> Unit)? = null
 
@@ -54,15 +57,20 @@ class FlintGameSurfaceView @JvmOverloads constructor(
         val ready = NativeBridge.isNativeLoaded &&
             runCatching { NativeBridge.nativeSurfaceCreated(holder.surface) }.getOrDefault(false)
         updateReady(ready)
+        if (ready) renderSession?.onSurfaceAvailable(this)
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         val ready = width > 0 && height > 0 && NativeBridge.isNativeLoaded &&
             runCatching { NativeBridge.nativeSurfaceChanged(width, height) }.getOrDefault(false)
         updateReady(ready)
+        if (ready) renderSession?.onSurfaceSizeChanged(width, height)
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        // This call waits for the render thread to release EGL before native code
+        // destroys the EGLSurface/EGLContext and releases the ANativeWindow.
+        renderSession?.onSurfaceDestroyed()
         if (NativeBridge.isNativeLoaded) {
             runCatching { NativeBridge.nativeSurfaceDestroyed() }
         }
