@@ -100,6 +100,34 @@ data class LaunchRequest(
 )
 
 /**
+ * Validates that the version metadata was expanded into an actual JVM command.
+ * In particular, the classpath carried for diagnostics must be the same classpath
+ * passed after -cp/-classpath; the JNI bridge must not silently invent another one.
+ */
+object LaunchRequestValidator {
+    fun validate(request: LaunchRequest): String? {
+        if (request.mainClass.isBlank()) return "Minecraft version metadata has no main class"
+        if (request.classpath.isEmpty()) return "Minecraft classpath is empty"
+        val missing = request.classpath.filterNot { it.isFile }
+        if (missing.isNotEmpty()) {
+            return "Minecraft classpath contains missing files: ${missing.take(4).joinToString { it.name }}"
+        }
+        if (!request.nativeDir.isDirectory) return "Minecraft native directory is missing"
+        if (!request.gameDir.isDirectory) return "Minecraft game directory is missing"
+
+        val optionIndex = request.jvmArgs.indexOfFirst { it == "-cp" || it == "-classpath" }
+        if (optionIndex < 0 || optionIndex + 1 >= request.jvmArgs.size) {
+            return "Minecraft JVM arguments do not contain a complete -cp classpath option"
+        }
+        val expected = request.classpath.joinToString(File.pathSeparator) { it.absolutePath }
+        if (request.jvmArgs[optionIndex + 1] != expected) {
+            return "Minecraft JVM classpath argument does not match the installed libraries"
+        }
+        return null
+    }
+}
+
+/**
  * Result of attempting to start the game process.
  * Started means a live game process/session has been attached and is believed
  * to be running — not that the user reached the main menu. Implementations must
