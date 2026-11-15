@@ -182,7 +182,7 @@ class PojavStyleGameLauncher(
         }
     }
 
-    override suspend fun stop() {
+    override suspend fun stop() = launchMutex.withLock {
         if (!NativeBridge.isNativeLoaded) {
             running = false
             return
