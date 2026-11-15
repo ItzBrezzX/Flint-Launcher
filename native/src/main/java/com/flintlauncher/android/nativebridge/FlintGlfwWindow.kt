@@ -37,11 +37,6 @@ class FlintGlfwWindow internal constructor(
         }
     }
 
-    /** Poll and return queued events; callbacks are dispatched by render session. */
-    fun pollEvents(): List<FlintGlfwEvent> = FlintGlfwEventQueue.drain()
-
     /** Request a frame after a state or input change. */
     fun requestFrame(): Boolean = surfaceView.renderSession?.requestFrame() ?: false
-
-    fun swapBuffers(): Boolean = surfaceView.swapEglBuffers()
 }
