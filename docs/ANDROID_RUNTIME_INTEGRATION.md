@@ -8,7 +8,7 @@ This document describes the current source-code path. It is **not** a claim that
 
 1. PLAY reads the selected installation from `:app` and opens `GameActivity` with the selected Minecraft version.
 2. `GameActivity` creates a `FlintGameSurfaceView`. The Android Surface is retained for the launch request and is never recreated by the native runtime.
-3. `PlayLaunchCoordinator` verifies the selected offline account, installed version, classpath, extracted natives, runtime, and GL4ES library.
+3. `PlayLaunchCoordinator` verifies the selected offline account, installed version, classpath, extracted natives, runtime, and GL4ES library. It sets LWJGL's library search path and pins `org.lwjgl.opengl.libname=libGL.so`, `org.lwjgl.egl.libname=libEGL.so`, and `org.lwjgl.opengles.libname=libGLESv2.so` so the Android process resolves GL4ES and Android system graphics libraries rather than desktop Linux sonames.
 4. `PojavStyleGameLauncher` starts one dedicated `Flint-Minecraft-JVM` thread. That thread creates the ANativeWindow/EGL window, initializes GL4ES, attaches Flint's GLFW C ABI, and then enters `JLI_Launch`.
 5. LWJGL resolves GLFW calls through `libglfw.so`. Flint's C ABI provides the Android-backed window and input callbacks. LWJGL owns logical GLFW window creation through its normal `glfwCreateWindow` call.
 6. GLFW event dispatch consumes the native FIFO on the game/window thread. EGL, GLFW and ANativeWindow teardown are performed from that same thread after JLI returns.
