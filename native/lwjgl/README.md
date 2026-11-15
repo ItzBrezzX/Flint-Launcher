@@ -12,7 +12,7 @@ The Android CMake targets currently produce:
 
 prepare.sh checks out the pinned LWJGL tag and runs the official Ant template/source generator. build_libffi.sh builds static libffi 3.4.6 for the selected NDK ABI. patch_libffi.py guards calling-convention constants that do not exist on Android targets while retaining the ARM32 VFP ABI.
 
-The CMake project builds these modules for the app's configured Android ABIs. CI verifies their ELF dependencies, JNI exports, and APK packaging.
+The CMake project builds these modules for the app's configured Android ABIs. CI verifies their ELF dependencies, JNI exports, and APK packaging. At launch, Flint preflights the four base shared objects with `dlopen`; the embedded JVM then loads LWJGL JNI modules from `org.lwjgl.librarypath` using its own class loader.
 
 ## Current limitations
 
