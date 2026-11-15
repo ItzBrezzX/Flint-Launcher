@@ -66,8 +66,8 @@ def exported_symbols(elf_path: Path) -> set[str]:
             continue
         symbol_type, visibility, section_index, name = (
             fields[3],
+            fields[5],
             fields[6],
-            fields[7],
             fields[-1],
         )
         if symbol_type == "FUNC" and visibility == "DEFAULT" and section_index != "UND":
