@@ -118,6 +118,7 @@ object LaunchRequestValidator {
             return "Minecraft classpath contains missing files: ${missing.take(4).joinToString { it.name }}"
         }
         if (!request.nativeDir.isDirectory) return "Minecraft native directory is missing"
+        if (!request.androidNativeDir.isDirectory) return "Android native library directory is missing"
         if (!request.gameDir.isDirectory) return "Minecraft game directory is missing"
         val expectedNativePath = listOf(
             request.nativeDir.absolutePath,
