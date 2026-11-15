@@ -40,7 +40,11 @@ class NativesExtractorAndroidTest {
         }
 
         val output = File(temporary.root, "android-natives")
-        val extracted = NativesExtractor.extract(listOf(archive), output)
+        val extracted = NativesExtractor.extract(
+            jars = listOf(archive),
+            target = output,
+            excludeSharedObjects = true,
+        )
 
         assertEquals(1, extracted.size)
         assertEquals("bridge.dat", extracted.single().name)
