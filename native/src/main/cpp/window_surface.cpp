@@ -104,6 +104,9 @@ bool create_egl_locked() {
         destroy_egl_locked();
         return false;
     }
+    // Do not leave the context owned by the Android UI thread. The eventual
+    // game render thread must explicitly acquire it with nativeSurfaceMakeCurrent.
+    eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     LOGI("EGL window surface ready: %dx%d (EGL %d.%d)", g_width, g_height, major, minor);
     return true;
 }
@@ -150,7 +153,39 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSurfaceChanged(
     glViewport(0, 0, width, height);
     glClearColor(0.035f, 0.045f, 0.065f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    const bool swapped = eglSwapBuffers(g_display, g_surface) == EGL_TRUE;
+    eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    return swapped ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSurfaceMakeCurrent(
+    JNIEnv *, jclass
+) {
+    std::lock_guard<std::mutex> lock(g_surface_mutex);
+    if (g_display == EGL_NO_DISPLAY || g_surface == EGL_NO_SURFACE || g_context == EGL_NO_CONTEXT) {
+        return JNI_FALSE;
+    }
+    return eglMakeCurrent(g_display, g_surface, g_surface, g_context) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSurfaceSwapBuffers(
+    JNIEnv *, jclass
+) {
+    std::lock_guard<std::mutex> lock(g_surface_mutex);
+    if (g_display == EGL_NO_DISPLAY || g_surface == EGL_NO_SURFACE) return JNI_FALSE;
     return eglSwapBuffers(g_display, g_surface) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSurfaceReleaseCurrent(
+    JNIEnv *, jclass
+) {
+    std::lock_guard<std::mutex> lock(g_surface_mutex);
+    if (g_display != EGL_NO_DISPLAY) {
+        eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
