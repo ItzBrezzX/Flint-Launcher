@@ -3,6 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 WORK="${ROOT}/_work"
 SOURCE="${WORK}/lwjgl3-3.3.3"
+GLFW_SOURCE="${WORK}/glfw-3.3.8"
 mkdir -p "${WORK}"
 exec 9>"${WORK}/prepare.lock"
 flock 9
@@ -23,4 +24,4 @@ if [ ! -d "${GENERATED}" ] || [ -z "$(find "${GENERATED}" -maxdepth 1 -name '*.c
     )
 fi
 python3 "${ROOT}/patch_libffi.py" "${SOURCE}/modules/lwjgl/core/src/generated/c/org_lwjgl_system_libffi_LibFFI.c"
-echo "LWJGL 3.3.3 JNI sources prepared at ${SOURCE}"
+echo "LWJGL 3.3.3 JNI sources prepared at ${SOURCE}; GLFW 3.3.8 headers at ${GLFW_SOURCE}"
