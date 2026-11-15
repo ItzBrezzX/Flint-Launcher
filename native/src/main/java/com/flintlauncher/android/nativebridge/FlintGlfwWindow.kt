@@ -3,8 +3,8 @@ package com.flintlauncher.android.nativebridge
 /**
  * Stateful Flint-owned game-window facade over the Android EGL Surface.
  *
- * This provides window and input-state semantics needed by the future GLFW 3
- * ABI adapter. It is not yet the exported C GLFW ABI consumed directly by LWJGL.
+ * LWJGL uses the exported native libglfw.so ABI for its C calls. This Kotlin
+ * facade remains a diagnostics/UI view of the same Flint window state.
  */
 class FlintGlfwWindow internal constructor(
     private val surfaceView: FlintGameSurfaceView,
