@@ -15,13 +15,15 @@ Android JNI/C++ bridge for Flint's mobile Java runtime and game graphics surface
   - `FlintGameSurfaceView` quiesces the render thread before resize and waits for in-flight rendering to finish before EGL teardown.
   - Android touch, pointer, scroll, focus, and common hardware-key input is encoded into a bounded 1,024-entry native queue. `FlintRenderSession` drains that queue on the render thread and exposes events through its `dispatchEvents` callback.
   - `FlintGlfwWindow` exposes Flint-owned window state (pixel size, focus, close flag) and explicit frame requests over the Android Surface. Native event enqueue updates this state, and surface attach/detach resets it.
+  - A separate `libglfw.so` target now exports a first GLFW C ABI slice: init/terminate, one Android-backed window, EGL context current/release, swap, poll/wait events, window size/focus/close state, key/mouse/cursor queries, core callbacks, timer functions, and GL procedure lookup. It consumes the same native event queue as the JNI bridge.
   - The current window bridge clears a diagnostic background only; it is not a Minecraft renderer.
 
 ## Not implemented yet
 
 - GL4ES, MobileGlues, LTW, or Zink renderer integration.
-- The actual GLFW 3 C ABI and dedicated `libglfw.so` expected by LWJGL (opaque GLFWwindow/monitor handles, exported symbols, callback registration, context hints, clipboard, timers, joysticks, and native-library loading). The current `FlintGlfwWindow` is a Kotlin/JNI window-state facade, not that ABI.
-- LWJGL 2/3 Android GLFW compatibility and event pump.
+- Full GLFW 3 ABI compatibility. The current `libglfw.so` is a limited Flint-owned Android backend: it supports one host-provided Android Surface and does not yet implement monitor management, joystick/gamepad APIs, Vulkan, clipboard integration, cursor modes, fullscreen, shared contexts, or every GLFW symbol/version extension expected by arbitrary LWJGL builds.
+- Loading and validating the matching Android LWJGL native modules (`liblwjgl*.so`) for each resolved Minecraft LWJGL version and app ABI; desktop Linux natives must not be loaded on Android.
+- Verifying the partial GLFW ABI against the exact JNI symbols imported by the pinned LWJGL native libraries and extending it until the Minecraft-required surface is covered.
 - Wiring a concrete Minecraft renderer into the `FlintRenderSession.renderFrame` callback.
 - An end-to-end Activity/Compose game-session route that creates, attaches, and closes the render session.
 - Translation from the internal event protocol into actual GLFW callbacks and LWJGL-visible window/input state. The current state facade is only a prerequisite and does not replace GLFW callback registration or its C ABI.
