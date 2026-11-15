@@ -41,6 +41,17 @@ object NativeBridge {
     /** Destroy EGL resources on the same thread that created them. */
     external fun nativeDestroyWindowSurface()
 
+    /** Enqueue one Android input record for consumption by the game/window thread. */
+    external fun nativePushInputEvent(
+        type: Int, code: Int, action: Int, modifiers: Int, x: Double, y: Double,
+    )
+
+    /** Drain up to maximum events; each event is encoded as six longs. */
+    external fun nativePollInputEvents(maximum: Int): LongArray
+
+    /** Number of events rejected because the bounded native queue was full. */
+    external fun nativeDroppedInputEventCount(): Long
+
     fun safeSmokeTest(): String =
         if (!loaded) "native-not-loaded: $loadError"
         else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
