@@ -11,7 +11,6 @@ import android.util.Log
 import com.flintlauncher.android.nativebridge.FlintInputEvent
 import com.flintlauncher.android.nativebridge.FlintNativeWindowBridge
 import com.flintlauncher.android.nativebridge.NativeBridge
-import com.flintlauncher.android.nativebridge.FlintGlfwInputMapper
 
 /**
  * Optional on-screen Minecraft controls layered over the game Surface.
