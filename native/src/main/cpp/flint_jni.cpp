@@ -18,8 +18,8 @@
  * Spike 0.2 — JNI bridge modeled on the public PojavLauncher architecture
  * (dlopen libjli → JLI_Launch). Does not copy GPL source.
  *
- * nativeLaunchJvm builds argv and calls JLI_Launch when the symbol is present.
- * On devices without a loaded mobile JRE it returns a clear error code.
+ * nativeStartJvm copies argv and schedules JLI_Launch on a dedicated native worker.
+ * State and exit code are queried independently; JNI never waits for the game main class.
  */
 
 typedef int (*JLI_Launch_func)(
@@ -60,10 +60,22 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     JNIEnv *env, jclass, jstring jreHomePath
 ) {
+    if (!jreHomePath) return JNI_FALSE;
     const char *home = env->GetStringUTFChars(jreHomePath, nullptr);
     if (!home) return JNI_FALSE;
 
-    strncpy(g_jre_home, home, sizeof(g_jre_home) - 1);
+    std::lock_guard<std::mutex> lock(g_jvm_mutex);
+    if (g_jli_launch) {
+        const bool same_runtime = strncmp(g_jre_home, home, sizeof(g_jre_home)) == 0;
+        env->ReleaseStringUTFChars(jreHomePath, home);
+        return same_runtime ? JNI_TRUE : JNI_FALSE;
+    }
+    if (g_jvm_ever_started) {
+        env->ReleaseStringUTFChars(jreHomePath, home);
+        return JNI_FALSE;
+    }
+
+    snprintf(g_jre_home, sizeof(g_jre_home), "%s", home);
 
     const char *candidates[] = {
         "/lib/libjli.so",
@@ -108,6 +120,8 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     g_jli_launch = (JLI_Launch_func) dlsym(handle, "JLI_Launch");
     if (!g_jli_launch) {
         LOGE("JLI_Launch not found: %s", dlerror());
+        dlclose(g_libjli);
+        g_libjli = nullptr;
         env->ReleaseStringUTFChars(jreHomePath, home);
         return JNI_FALSE;
     }
@@ -227,12 +241,20 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeShutdown(
     JNIEnv *, jclass
 ) {
-    if (g_libjli) {
-        dlclose(g_libjli);
-        g_libjli = nullptr;
-        g_jli_launch = nullptr;
-        LOGI("JRE native handle closed");
+    std::lock_guard<std::mutex> lock(g_jvm_mutex);
+    const int state = g_jvm_state.load();
+    if (state == 1 || state == 2) {
+        // JLI_Launch owns the embedded JVM while active. Never dlclose libjli
+        // or join its worker from the caller while the game is still running.
+        LOGI("nativeShutdown deferred: embedded JVM is still active");
+        return;
     }
+    if (g_launch_thread.joinable()) {
+        g_launch_thread.join();
+    }
+    // Keep libjli loaded for the lifetime of this Android process. An embedded
+    // JVM cannot be safely unloaded/restarted after JLI_Launch has been called.
+    LOGI("JVM worker reaped; libjli retained for process lifetime (state=%d)", state);
 }
 
 extern "C" JNIEXPORT jstring JNICALL
