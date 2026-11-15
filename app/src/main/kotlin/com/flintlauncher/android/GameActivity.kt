@@ -8,6 +8,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import com.flintlauncher.android.nativebridge.FlintGameSurfaceView
 import com.flintlauncher.android.runtime.LaunchResult
 import kotlinx.coroutines.CancellationException
@@ -45,6 +46,12 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                stopGame(finishWhenStopped = true)
+            }
+        })
 
         val versionId = intent.getStringExtra(EXTRA_VERSION_ID)?.takeIf { it.isNotBlank() }
         if (versionId == null) {
@@ -227,11 +234,6 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (finishingAfterStop) finish()
             }
         }
-    }
-
-    @Deprecated("Use the in-game STOP control to close Minecraft on its GLFW thread.")
-    override fun onBackPressed() {
-        stopGame(finishWhenStopped = true)
     }
 
     override fun onDestroy() {
