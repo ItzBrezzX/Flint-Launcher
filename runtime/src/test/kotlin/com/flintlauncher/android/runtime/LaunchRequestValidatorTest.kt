@@ -66,6 +66,34 @@ class LaunchRequestValidatorTest {
     }
 
     @Test
+    fun rejectsCommandWhenLwjglLibraryPathDoesNotPointToAndroidNatives() {
+        val root = Files.createTempDirectory("flint-launch-lwjgl-path").toFile()
+        val valid = request(root)
+        val request = valid.copy(
+            jvmArgs = valid.jvmArgs.map {
+                if (it.startsWith("-Dorg.lwjgl.librarypath=")) {
+                    "-Dorg.lwjgl.librarypath=${valid.nativeDir.absolutePath}"
+                } else it
+            },
+        )
+
+        val error = LaunchRequestValidator.validate(request)
+
+        assertTrue(error!!.contains("LWJGL library path"))
+    }
+
+    @Test
+    fun rejectsCommandWhenAndroidNativeLibraryDirectoryIsMissing() {
+        val root = Files.createTempDirectory("flint-launch-android-native-missing").toFile()
+        val valid = request(root)
+        valid.androidNativeDir.delete()
+
+        val error = LaunchRequestValidator.validate(valid)
+
+        assertTrue(error!!.contains("Android native library directory"))
+    }
+
+    @Test
     fun rejectsCommandWithoutClasspathOption() {
         val root = Files.createTempDirectory("flint-launch-no-cp").toFile()
         val valid = request(root)
