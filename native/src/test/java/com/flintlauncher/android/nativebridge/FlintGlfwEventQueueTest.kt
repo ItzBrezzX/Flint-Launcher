@@ -47,17 +47,4 @@ class FlintGlfwEventQueueTest {
         assertEquals(1, mouse.c)
     }
 
-    @Test
-    fun inputStateRangesMatchGlfwKeyAndMouseLimits() {
-        assertEquals(0, FlintGlfwWindowTestContract.keyStateFor(-1))
-        assertEquals(0, FlintGlfwWindowTestContract.keyStateFor(512))
-        assertEquals(0, FlintGlfwWindowTestContract.mouseStateFor(-1))
-        assertEquals(0, FlintGlfwWindowTestContract.mouseStateFor(8))
-    }
-}
-
-/** Pure range contract shared by the native-facing facade tests. */
-private object FlintGlfwWindowTestContract {
-    fun keyStateFor(key: Int): Int = if (key in 0..511) 1 else 0
-    fun mouseStateFor(button: Int): Int = if (button in 0..7) 1 else 0
 }
