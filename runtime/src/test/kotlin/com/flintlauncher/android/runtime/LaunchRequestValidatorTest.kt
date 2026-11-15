@@ -1,5 +1,6 @@
 package com.flintlauncher.android.runtime
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -13,6 +14,20 @@ class LaunchRequestValidatorTest {
         val request = request(root)
 
         assertNull(LaunchRequestValidator.validate(request))
+    }
+
+    @Test
+    fun jliArgumentsContainTheExpandedClasspathExactlyOnceAndPreserveMainAndGameArgs() {
+        val root = Files.createTempDirectory("flint-jli-argv").toFile()
+        val request = request(root)
+
+        val args = buildJliArguments(request)
+
+        assertEquals("java", args.first())
+        assertEquals(request.jvmArgs, args.subList(1, 1 + request.jvmArgs.size))
+        assertEquals(request.mainClass, args[1 + request.jvmArgs.size])
+        assertEquals(request.gameArgs, args.takeLast(request.gameArgs.size))
+        assertEquals(1, args.count { it == "-cp" })
     }
 
     @Test
