@@ -25,7 +25,7 @@ def main() -> int:
         return 2
 
     declared = set(
-        re.findall(r"FLINT_GLFW_API\\s+[^;\\n]*?\\b(glfw[A-Za-z0-9_]*)\\s*\\(", header.read_text())
+        re.findall(r"FLINT_GLFW_API\s+[^;\n]*?\b(glfw[A-Za-z0-9_]*)\s*\(", header.read_text())
     )
     if not declared:
         print("No GLFW declarations found in the C ABI header.", file=sys.stderr)
