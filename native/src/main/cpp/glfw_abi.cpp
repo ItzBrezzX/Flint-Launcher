@@ -6,6 +6,7 @@
 #include <mutex>
 #include <new>
 #include <string>
+#include <thread>
 
 #if defined(__GNUC__)
 #define GLFW_EXPORT __attribute__((visibility("default")))
@@ -50,6 +51,8 @@ struct GLFWwindow {
     double lastCursorX = 0.0;
     double lastCursorY = 0.0;
     bool hasCursorPosition = false;
+    bool contextOwned = false;
+    std::thread::id contextOwner{};
     void *userPointer = nullptr;
     GLFWwindowposfun positionCallback = nullptr;
     GLFWwindowsizefun sizeCallback = nullptr;
@@ -73,7 +76,7 @@ struct GLFWwindow {
 namespace {
 std::recursive_mutex g_glfw_mutex;
 GLFWwindow *g_window = nullptr;
-GLFWwindow *g_current_context = nullptr;
+thread_local GLFWwindow *g_current_context = nullptr;
 bool g_initialized = false;
 GLFWerrorfun g_error_callback = nullptr;
 GLFWmonitorfun g_monitor_callback = nullptr;
@@ -132,8 +135,17 @@ GLFW_EXPORT int glfwInit(void) {
 }
 
 GLFW_EXPORT void glfwTerminate(void) {
-    flint_egl_window_release_current();
+    const std::thread::id caller = std::this_thread::get_id();
     std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
+    if (g_window && g_window->contextOwned && g_window->contextOwner != caller) {
+        set_error(0x00010008, "Cannot terminate GLFW while its EGL context is current on another thread");
+        return;
+    }
+    if (g_current_context != nullptr) flint_egl_window_release_current();
+    if (g_window) {
+        g_window->contextOwned = false;
+        g_window->contextOwner = std::thread::id{};
+    }
     delete g_window;
     g_window = nullptr;
     g_current_context = nullptr;
@@ -210,41 +222,65 @@ GLFW_EXPORT GLFWwindow *glfwCreateWindow(
 }
 
 GLFW_EXPORT void glfwDestroyWindow(GLFWwindow *window) {
-    if (window == nullptr || window != active_window()) return;
-    if (g_current_context == window) {
-        flint_egl_window_release_current();
-    }
+    if (window == nullptr) return;
+    const std::thread::id caller = std::this_thread::get_id();
     std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     if (window != g_window) return;
-    if (g_current_context == window) g_current_context = nullptr;
+    if (window->contextOwned && window->contextOwner != caller) {
+        set_error(0x00010008, "Cannot destroy a GLFW window while its EGL context is current on another thread");
+        return;
+    }
+    if (g_current_context == window) {
+        flint_egl_window_release_current();
+        g_current_context = nullptr;
+    }
+    window->contextOwned = false;
+    window->contextOwner = std::thread::id{};
     delete g_window;
     g_window = nullptr;
 }
 
 GLFW_EXPORT void glfwMakeContextCurrent(GLFWwindow *window) {
+    const std::thread::id caller = std::this_thread::get_id();
+    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     if (window == nullptr) {
         flint_egl_window_release_current();
-        std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
+        if (g_current_context && g_current_context->contextOwner == caller) {
+            g_current_context->contextOwned = false;
+            g_current_context->contextOwner = std::thread::id{};
+        }
         g_current_context = nullptr;
         return;
     }
-    if (window != active_window() || !flint_egl_window_make_current()) {
+    if (window != g_window) {
+        set_error(0x00010008, "Cannot make an inactive GLFW window current");
+        return;
+    }
+    if (window->contextOwned && window->contextOwner != caller) {
+        set_error(0x00010008, "The EGL context is already current on another thread");
+        return;
+    }
+    if (!flint_egl_window_make_current()) {
         set_error(0x00010008, "Could not make the Android EGL context current");
         return;
     }
-    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
+    window->contextOwned = true;
+    window->contextOwner = caller;
     g_current_context = window;
 }
 
 GLFW_EXPORT GLFWwindow *glfwGetCurrentContext(void) {
-    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     return g_current_context;
 }
 
 GLFW_EXPORT void glfwSwapBuffers(GLFWwindow *window) {
-    if (window == nullptr || window != active_window()) {
-        set_error(0x00010008, "glfwSwapBuffers called for an inactive window");
-        return;
+    {
+        std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
+        if (window == nullptr || window != g_window || g_current_context != window ||
+            !window->contextOwned || window->contextOwner != std::this_thread::get_id()) {
+            set_error(0x00010008, "glfwSwapBuffers requires the window context to be current on this thread");
+            return;
+        }
     }
     if (!flint_egl_window_swap_buffers()) {
         set_error(0x00010008, "eglSwapBuffers failed for the Android game Surface");
