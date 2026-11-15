@@ -191,19 +191,34 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeStartJvm(
             LOGI("Starting embedded JVM on native worker thread (argc=%d)", (int)argc);
             reset_signal_handlers();
 
-            const int code = launch(
-                (int)argc, argv,
-                0, nullptr,
-                0, nullptr,
-                "1.8.0-internal",
-                "1.8",
-                argv[0],
-                argv[0],
-                JNI_FALSE,
-                JNI_TRUE,
-                JNI_FALSE,
-                0
-            );
+            int code = -1;
+            try {
+                code = launch(
+                    (int)argc, argv,
+                    0, nullptr,
+                    0, nullptr,
+                    "1.8.0-internal",
+                    "1.8",
+                    argv[0],
+                    argv[0],
+                    JNI_FALSE,
+                    JNI_TRUE,
+                    JNI_FALSE,
+                    0
+                );
+            } catch (const std::exception &error) {
+                LOGE("JLI_Launch threw on worker: %s", error.what());
+                for (jsize i = 0; i < argc; ++i) free(argv[i]);
+                free(argv);
+                g_jvm_state.store(4); // FAILED
+                return;
+            } catch (...) {
+                LOGE("JLI_Launch threw an unknown exception on worker");
+                for (jsize i = 0; i < argc; ++i) free(argv[i]);
+                free(argv);
+                g_jvm_state.store(4); // FAILED
+                return;
+            }
 
             LOGI("JLI_Launch returned %d", code);
             for (jsize i = 0; i < argc; ++i) free(argv[i]);
@@ -215,7 +230,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeStartJvm(
         LOGE("Failed to create JVM worker: %s", error.what());
         for (jsize i = 0; i < argc; ++i) free(argv[i]);
         free(argv);
-        g_jvm_state.store(4); // FAILED
+        g_jvm_state.store(0); // No worker was created; a later launch may retry.
         return JNI_FALSE;
     }
 
