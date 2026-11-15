@@ -23,6 +23,15 @@ class FlintGlfwInputMapperTest {
     }
 
     @Test
+    fun mapsKeypadOperationsToDedicatedGlfwKeypadValues() {
+        assertEquals(FlintGlfwInputMapper.GLFW_KEY_KP_0, FlintGlfwInputMapper.key(KeyEvent.KEYCODE_NUMPAD_0))
+        assertEquals(FlintGlfwInputMapper.GLFW_KEY_KP_DECIMAL, FlintGlfwInputMapper.key(KeyEvent.KEYCODE_NUMPAD_DOT))
+        assertEquals(FlintGlfwInputMapper.GLFW_KEY_KP_DIVIDE, FlintGlfwInputMapper.key(KeyEvent.KEYCODE_NUMPAD_DIVIDE))
+        assertEquals(FlintGlfwInputMapper.GLFW_KEY_KP_SUBTRACT, FlintGlfwInputMapper.key(KeyEvent.KEYCODE_NUMPAD_SUBTRACT))
+        assertEquals(FlintGlfwInputMapper.GLFW_KEY_KP_EQUAL, FlintGlfwInputMapper.key(KeyEvent.KEYCODE_NUMPAD_EQUALS))
+    }
+
+    @Test
     fun convertsAndroidMetaStateToGlfwModifierMask() {
         val androidMeta = KeyEvent.META_SHIFT_ON or KeyEvent.META_CTRL_ON or KeyEvent.META_CAPS_LOCK_ON
         val expected = FlintGlfwInputMapper.GLFW_MOD_SHIFT or
