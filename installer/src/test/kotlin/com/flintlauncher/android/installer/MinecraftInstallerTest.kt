@@ -116,7 +116,7 @@ class MinecraftInstallerTest {
           "logging":{"client":{"argument":"-Dlog4j.configurationFile=${'$'}{path}","type":"log4j2-xml",
             "file":{"id":"client-test.xml","sha1":"${sha1(logXml)}","size":${logXml.size},"url":"$base/files/client-test.xml"}}},
           "libraries":[{"name":"com.example:lib:1.0","downloads":{"artifact":{
-            "path":"com/example/lib/1.0/lib-1.0.jar","sha1":"${sha1(libJar)}","size":${libJar.size},"url":"$base/files/lib.jar"}}${lwjglLibrary}],
+            "path":"com/example/lib/1.0/lib-1.0.jar","sha1":"${sha1(libJar)}","size":${libJar.size},"url":"$base/files/lib.jar"}}}${lwjglLibrary}],
           "arguments":{"game":["--version","${'$'}{version_name}"],"jvm":["-cp","${'$'}{classpath}"]}
         }"""
         fake.blobs["/meta/$id.json"] = versionJson.toByteArray()
