@@ -70,45 +70,82 @@ class GL4ESSurfaceView @JvmOverloads constructor(
         updateStatus("Android surface destroyed")
     }
 
+    private var activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!isEnabled) return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                // GLFW has one cursor. The first touch pointer acts as the
-                // left mouse button; secondary fingers must not create extra
-                // presses/releases that would cancel the primary click.
+                val index = event.actionIndex
+                activeTouchPointerId = event.getPointerId(index)
                 enqueueInput(
                     FlintInputEvent.CURSOR,
-                    x = event.getX(0).toDouble(),
-                    y = event.getY(0).toDouble(),
+                    x = event.getX(index).toDouble(),
+                    y = event.getY(index).toDouble(),
                 )
                 enqueueInput(
                     FlintInputEvent.MOUSE_BUTTON,
                     code = 0,
                     action = 1,
                     modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
-                    x = event.getX(0).toDouble(),
-                    y = event.getY(0).toDouble(),
+                    x = event.getX(index).toDouble(),
+                    y = event.getY(index).toDouble(),
                 )
             }
             MotionEvent.ACTION_MOVE -> {
-                if (event.pointerCount > 0) {
+                val index = if (activeTouchPointerId != MotionEvent.INVALID_POINTER_ID) {
+                    event.findPointerIndex(activeTouchPointerId)
+                } else {
+                    -1
+                }
+                if (index >= 0) {
                     enqueueInput(
                         FlintInputEvent.CURSOR,
-                        x = event.getX(0).toDouble(),
-                        y = event.getY(0).toDouble(),
+                        x = event.getX(index).toDouble(),
+                        y = event.getY(index).toDouble(),
                     )
                 }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                enqueueInput(
-                    FlintInputEvent.MOUSE_BUTTON,
-                    code = 0,
-                    action = 0,
-                    modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
-                    x = event.getX(0).toDouble(),
-                    y = event.getY(0).toDouble(),
-                )
+            MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP -> {
+                val index = event.actionIndex
+                if (index in 0 until event.pointerCount &&
+                    event.getPointerId(index) == activeTouchPointerId
+                ) {
+                    enqueueInput(
+                        FlintInputEvent.CURSOR,
+                        x = event.getX(index).toDouble(),
+                        y = event.getY(index).toDouble(),
+                    )
+                    enqueueInput(
+                        FlintInputEvent.MOUSE_BUTTON,
+                        code = 0,
+                        action = 0,
+                        modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                        x = event.getX(index).toDouble(),
+                        y = event.getY(index).toDouble(),
+                    )
+                    activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                val pointerIndex = if (activeTouchPointerId != MotionEvent.INVALID_POINTER_ID) {
+                    event.findPointerIndex(activeTouchPointerId)
+                } else {
+                    -1
+                }
+                val index = pointerIndex.takeIf { it >= 0 }
+                    ?: 0.takeIf { event.pointerCount > 0 }
+                if (index != null) {
+                    enqueueInput(
+                        FlintInputEvent.MOUSE_BUTTON,
+                        code = 0,
+                        action = 0,
+                        modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                        x = event.getX(index).toDouble(),
+                        y = event.getY(index).toDouble(),
+                    )
+                }
+                activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
             }
         }
         return true
