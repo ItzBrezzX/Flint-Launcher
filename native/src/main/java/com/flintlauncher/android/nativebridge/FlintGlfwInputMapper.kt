@@ -48,7 +48,7 @@ object FlintGlfwInputMapper {
             KeyEvent.KEYCODE_FORWARD_DEL -> GLFW_KEY_DELETE
             KeyEvent.KEYCODE_INSERT -> GLFW_KEY_INSERT
             KeyEvent.KEYCODE_MOVE_HOME, KeyEvent.KEYCODE_HOME -> GLFW_KEY_HOME
-            KeyEvent.KEYCODE_MOVE_END, KeyEvent.KEYCODE_END -> GLFW_KEY_END
+            KeyEvent.KEYCODE_MOVE_END -> GLFW_KEY_END
             KeyEvent.KEYCODE_PAGE_UP -> GLFW_KEY_PAGE_UP
             KeyEvent.KEYCODE_PAGE_DOWN -> GLFW_KEY_PAGE_DOWN
             KeyEvent.KEYCODE_DPAD_LEFT -> GLFW_KEY_LEFT
