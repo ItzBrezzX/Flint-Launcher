@@ -48,7 +48,7 @@ class MicrosoftAuthClient(
     private val clientId: String,
     private val redirectUri: String,
     private val endpoints: AuthEndpoints = AuthEndpoints(),
-) {
+) : MicrosoftAuthOperations {
     private val json = Json { ignoreUnknownKeys = true }
 
     fun authorizationUrl(challenge: String, state: String): String =
