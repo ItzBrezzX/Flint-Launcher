@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**"]
   pull_request:
 
 permissions:
@@ -37,16 +37,67 @@ jobs:
         uses: gradle/actions/wrapper-validation@v4
 
       - name: Dependency resolution check
-        run: gradle :app:dependencies --configuration releaseRuntimeClasspath --quiet > /dev/null
+        run: gradle :app:dependencies --configuration releaseRuntimeClasspath --quiet --no-parallel --max-workers=2 > /dev/null
 
       - name: Compile all modules (debug)
-        run: gradle assembleDebug --stacktrace
+        run: gradle assembleDebug --no-parallel --max-workers=2 --stacktrace
+
+      - name: Verify debug APK is installable
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -n1)"
+          AAPT="$(dirname "$APKSIGNER")/aapt"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose "$APK"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          echo "$BADGING" | grep -F "package: name='com.flintlauncher.android'"
+          echo "$BADGING" | grep -F "sdkVersion:'26'"
+          echo "$BADGING" | grep -F "targetSdkVersion:'35'"
+          unzip -t "$APK" >/dev/null
+          echo "APK signature, package metadata, SDK levels and ZIP integrity verified."
+
+      - name: Verify native libraries are packaged in the debug APK
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
+            for LIB in libflint_native.so libglfw.so libGL.so liblwjgl.so liblwjgl_opengl.so; do
+              ENTRY="lib/$ABI/$LIB"
+              if ! unzip -Z1 "$APK" | grep -Fxq "$ENTRY"; then
+                echo "Missing native library in APK: $ENTRY"
+                exit 1
+              fi
+            done
+          done
+          echo "All Flint native backends are packaged for all configured ABIs."
+
+      - name: Verify LWJGL GLFW symbol exports
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
+            python3 native/tools/verify_glfw_exports.py "$APK" --abi "$ABI"
+          done
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: flint-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
 
       - name: Unit tests
-        run: gradle test --stacktrace
+        run: gradle test --no-parallel --max-workers=2 --stacktrace
 
       - name: Android Lint
-        run: gradle lintDebug --stacktrace
+        run: |
+          # Release the daemon heap used by compilation/tests before lint analysis.
+          gradle --stop
+          gradle lintDebug --no-parallel --max-workers=2 --stacktrace
 
       - name: Upload reports
         if: always()

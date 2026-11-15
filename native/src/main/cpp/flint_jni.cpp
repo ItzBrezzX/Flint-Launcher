@@ -1,3 +1,5 @@
+#include "flint_glfw_backend.h"
+#include "flint_input_queue.h"
 #include <jni.h>
 #include <android/log.h>
 #include <EGL/egl.h>
@@ -11,6 +13,22 @@
 #define LOG_TAG "FlintNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+
+/*
+ * Promote the packaged GLFW C ABI dependency into the process-global symbol
+ * scope. An Android-built LWJGL GLFW JNI adapter can then resolve glfw* from
+ * this library instead of loading a desktop/Linux GLFW implementation.
+ */
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *, void *) {
+    void *glfw = dlopen("libglfw.so", RTLD_NOW | RTLD_GLOBAL);
+    if (!glfw) {
+        LOGE("Could not promote Flint libglfw.so: %s", dlerror());
+    } else {
+        LOGI("Flint libglfw.so exported in process-global symbol scope");
+    }
+    return JNI_VERSION_1_6;
+}
 
 typedef int (*JLI_Launch_func)(
     int argc, char **argv,
@@ -203,4 +221,123 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSmokeTest(JNIEnv *env, jclass) {
     LOGI("Flint native smoke test OK");
     return env->NewStringUTF("flint-native-smoke-ok");
+}
+
+
+/*
+ * JNI control surface for the Flint GLFW preview and diagnostics. Minecraft's
+ * eventual LWJGL JNI library will call the exported GLFW C ABI in libglfw.so;
+ * these methods let the Android Surface owner validate that same backend now.
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwAttachAndroidSurface(
+    JNIEnv *, jclass, jint width, jint height
+) {
+    return flint_glfw_attach_android_surface(width, height) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwInitialize(
+    JNIEnv *, jclass
+) {
+    return glfwInit() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwCreateWindow(
+    JNIEnv *env, jclass, jint width, jint height, jstring title
+) {
+    const char *nativeTitle = title ? env->GetStringUTFChars(title, nullptr) : nullptr;
+    GLFWwindow *window = glfwCreateWindow(width, height, nativeTitle ? nativeTitle : "Flint", nullptr, nullptr);
+    if (title && nativeTitle) env->ReleaseStringUTFChars(title, nativeTitle);
+    return window ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwPollEvents(
+    JNIEnv *, jclass
+) {
+    return static_cast<jint>(flint_glfw_poll_events());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwSwapBuffers(
+    JNIEnv *, jclass
+) {
+    GLFWwindow *window = flint_glfw_android_window();
+    if (!window) return JNI_FALSE;
+    glfwSwapBuffers(window);
+    const char *description = nullptr;
+    return glfwGetError(&description) == 0 ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwWindowShouldClose(
+    JNIEnv *, jclass
+) {
+    return glfwWindowShouldClose(flint_glfw_android_window()) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwSetWindowShouldClose(
+    JNIEnv *, jclass, jboolean shouldClose
+) {
+    glfwSetWindowShouldClose(flint_glfw_android_window(), shouldClose ? GLFW_TRUE : GLFW_FALSE);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwVersion(
+    JNIEnv *env, jclass
+) {
+    return env->NewStringUTF(glfwGetVersionString());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwDestroyWindow(
+    JNIEnv *, jclass
+) {
+    GLFWwindow *window = flint_glfw_android_window();
+    if (window) glfwDestroyWindow(window);
+    flint_glfw_detach_android_surface();
+}
+
+
+/* JNI input functions belong to libflint_native.so, which NativeBridge loads. */
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativePushInputEvent(
+    JNIEnv *, jclass, jint type, jint code, jint action, jint mods, jdouble x, jdouble y
+) {
+    flint::push_input_event({type, code, action, mods, x, y});
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativePollInputEvents(
+    JNIEnv *env, jclass, jint maximum
+) {
+    const auto events = flint::poll_input_events(maximum > 0 && maximum < 1024 ? maximum : 1024);
+    jlongArray output = env->NewLongArray(static_cast<jsize>(events.size() * 6));
+    if (!output || events.empty()) return output;
+
+    std::vector<jlong> packed;
+    packed.reserve(events.size() * 6);
+    for (const auto &event : events) {
+        union { double d; uint64_t u; } x{}, y{};
+        x.d = event.x;
+        y.d = event.y;
+        packed.push_back(static_cast<jlong>(event.type));
+        packed.push_back(static_cast<jlong>(event.code));
+        packed.push_back(static_cast<jlong>(event.action));
+        packed.push_back(static_cast<jlong>(event.mods));
+        packed.push_back(static_cast<jlong>(x.u));
+        packed.push_back(static_cast<jlong>(y.u));
+    }
+    env->SetLongArrayRegion(output, 0, static_cast<jsize>(packed.size()), packed.data());
+    return output;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeDroppedInputEventCount(
+    JNIEnv *, jclass
+) {
+    return static_cast<jlong>(flint::dropped_input_event_count());
 }

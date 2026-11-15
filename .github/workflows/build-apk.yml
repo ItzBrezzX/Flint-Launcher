@@ -3,7 +3,7 @@ name: Build APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, "feature/**"]
 
 permissions:
   contents: read
@@ -33,6 +33,20 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
+      - name: Verify debug APK can be installed
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -n1)"
+          AAPT="$(dirname "$APKSIGNER")/aapt"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose "$APK"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.flintlauncher.android'"
+          "$AAPT" dump badging "$APK" | grep -F "sdkVersion:'26'"
+          unzip -t "$APK" >/dev/null
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
@@ -53,7 +67,17 @@ jobs:
           FLINT_KEYSTORE_PASSWORD: ${{ secrets.FLINT_KEYSTORE_PASSWORD }}
           FLINT_KEY_ALIAS: ${{ secrets.FLINT_KEY_ALIAS }}
           FLINT_KEY_PASSWORD: ${{ secrets.FLINT_KEY_PASSWORD }}
-        run: gradle :app:assembleRelease --stacktrace
+        run: |
+          set -euo pipefail
+          gradle :app:assembleRelease --stacktrace
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -n1)"
+          AAPT="$(dirname "$APKSIGNER")/aapt"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose "$APK"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.flintlauncher.android'"
 
       - name: Upload release APK
         if: ${{ env.HAS_SIGNING == 'true' }}

@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.PixelFormat
 import android.util.AttributeSet
 import android.util.Log
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import java.io.File
@@ -12,9 +14,10 @@ import java.util.concurrent.locks.LockSupport
 /**
  * Owns a real Android Surface and a dedicated EGL render thread.
  *
- * EGL creation, GL4ES initialization, rendering, buffer swaps and teardown
- * all happen on this one thread. This is a renderer/window integration test
- * surface; Minecraft's LWJGL window callbacks are a separate integration step.
+ * EGL creation, GL4ES initialization, Flint GLFW event dispatch, rendering,
+ * buffer swaps and teardown all happen on this one thread. This preview
+ * exercises Flint's GLFW C ABI; the Android-built LWJGL JNI adapter and
+ * production Minecraft render-thread context handoff are still separate work.
  */
 class GL4ESSurfaceView @JvmOverloads constructor(
     context: Context,
@@ -36,6 +39,8 @@ class GL4ESSurfaceView @JvmOverloads constructor(
     init {
         holder.setFormat(PixelFormat.RGBA_8888)
         holder.addCallback(this)
+        isFocusable = true
+        isFocusableInTouchMode = true
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -49,6 +54,8 @@ class GL4ESSurfaceView @JvmOverloads constructor(
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         surfaceWidth = width
         surfaceHeight = height
+        enqueueInput(FlintInputEvent.WINDOW_SIZE, x = width.toDouble(), y = height.toDouble())
+        enqueueInput(FlintInputEvent.FRAMEBUFFER_SIZE, x = width.toDouble(), y = height.toDouble())
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -63,8 +70,180 @@ class GL4ESSurfaceView @JvmOverloads constructor(
         updateStatus("Android surface destroyed")
     }
 
+    private var activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!isEnabled) return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                val index = event.actionIndex
+                activeTouchPointerId = event.getPointerId(index)
+                enqueueInput(
+                    FlintInputEvent.CURSOR,
+                    x = event.getX(index).toDouble(),
+                    y = event.getY(index).toDouble(),
+                )
+                enqueueInput(
+                    FlintInputEvent.MOUSE_BUTTON,
+                    code = 0,
+                    action = 1,
+                    modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                    x = event.getX(index).toDouble(),
+                    y = event.getY(index).toDouble(),
+                )
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val index = if (activeTouchPointerId != MotionEvent.INVALID_POINTER_ID) {
+                    event.findPointerIndex(activeTouchPointerId)
+                } else {
+                    -1
+                }
+                if (index >= 0) {
+                    enqueueInput(
+                        FlintInputEvent.CURSOR,
+                        x = event.getX(index).toDouble(),
+                        y = event.getY(index).toDouble(),
+                    )
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP -> {
+                val index = event.actionIndex
+                if (index in 0 until event.pointerCount &&
+                    event.getPointerId(index) == activeTouchPointerId
+                ) {
+                    enqueueInput(
+                        FlintInputEvent.CURSOR,
+                        x = event.getX(index).toDouble(),
+                        y = event.getY(index).toDouble(),
+                    )
+                    enqueueInput(
+                        FlintInputEvent.MOUSE_BUTTON,
+                        code = 0,
+                        action = 0,
+                        modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                        x = event.getX(index).toDouble(),
+                        y = event.getY(index).toDouble(),
+                    )
+                    activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                val pointerIndex = if (activeTouchPointerId != MotionEvent.INVALID_POINTER_ID) {
+                    event.findPointerIndex(activeTouchPointerId)
+                } else {
+                    -1
+                }
+                val index = pointerIndex.takeIf { it >= 0 }
+                    ?: 0.takeIf { event.pointerCount > 0 }
+                if (index != null) {
+                    enqueueInput(
+                        FlintInputEvent.MOUSE_BUTTON,
+                        code = 0,
+                        action = 0,
+                        modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                        x = event.getX(index).toDouble(),
+                        y = event.getY(index).toDouble(),
+                    )
+                }
+                activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
+            }
+        }
+        return true
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_MOVE -> {
+                    enqueueInput(FlintInputEvent.CURSOR, x = event.x.toDouble(), y = event.y.toDouble())
+                    return true
+                }
+                MotionEvent.ACTION_SCROLL -> {
+                    enqueueInput(
+                        FlintInputEvent.SCROLL,
+                        x = event.getAxisValue(MotionEvent.AXIS_HSCROLL).toDouble(),
+                        y = event.getAxisValue(MotionEvent.AXIS_VSCROLL).toDouble(),
+                    )
+                    return true
+                }
+                MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
+                    val pressed = event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS
+                    val mapping = mapOf(
+                        MotionEvent.BUTTON_PRIMARY to 0,
+                        MotionEvent.BUTTON_SECONDARY to 1,
+                        MotionEvent.BUTTON_TERTIARY to 2,
+                        MotionEvent.BUTTON_BACK to 3,
+                        MotionEvent.BUTTON_FORWARD to 4,
+                    )
+                    mapping[event.actionButton]?.let { button ->
+                        enqueueInput(
+                            FlintInputEvent.MOUSE_BUTTON,
+                            code = button,
+                            action = if (pressed) 1 else 0,
+                            modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                            x = event.x.toDouble(),
+                            y = event.y.toDouble(),
+                        )
+                    }
+                    return true
+                }
+            }
+        }
+        return super.onGenericMotionEvent(event)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) {
+            val glfwKey = FlintGlfwInputMapper.key(event.keyCode)
+            if (glfwKey != null) {
+                val action = when {
+                    event.action == KeyEvent.ACTION_UP -> 0
+                    event.repeatCount > 0 -> 2
+                    else -> 1
+                }
+                enqueueInput(
+                    FlintInputEvent.KEY,
+                    code = glfwKey,
+                    action = action,
+                    modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                )
+            }
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val codePoint = event.unicodeChar
+                if (codePoint != 0) {
+                    enqueueInput(
+                        FlintInputEvent.CHARACTER,
+                        code = codePoint,
+                        modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                    )
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        enqueueInput(FlintInputEvent.FOCUS, action = if (hasWindowFocus) 1 else 0)
+    }
+
+    private fun enqueueInput(
+        type: Int,
+        code: Int = 0,
+        action: Int = 0,
+        modifiers: Int = 0,
+        x: Double = 0.0,
+        y: Double = 0.0,
+    ) {
+        if (!NativeBridge.isNativeLoaded) return
+        runCatching {
+            FlintNativeWindowBridge.enqueue(type, code, action, modifiers, x, y)
+        }.onFailure { Log.w(TAG, "Could not enqueue input event", it) }
+    }
+
     private fun renderLoop(holder: SurfaceHolder) {
         var eglCreated = false
+        var glfwCreated = false
         try {
             val eglStatus = NativeBridge.nativeCreateWindowSurface(holder.surface)
             if (eglStatus != "egl-window-ready") {
@@ -91,9 +270,25 @@ class GL4ESSurfaceView @JvmOverloads constructor(
             }
             updateStatus("GL4ES active · $version")
 
+            val surfaceFrame = holder.surfaceFrame
+            val initialWidth = (surfaceWidth.takeIf { it > 0 } ?: surfaceFrame.width()).coerceAtLeast(1)
+            val initialHeight = (surfaceHeight.takeIf { it > 0 } ?: surfaceFrame.height()).coerceAtLeast(1)
+            if (!FlintGlfwBackend.initialize(initialWidth, initialHeight, "Flint Renderer Preview")) {
+                updateStatus("Flint GLFW backend initialization failed; inspect FlintNative logcat")
+                return
+            }
+            glfwCreated = true
+            updateStatus("${FlintGlfwBackend.version()} active · native input queue connected")
+
             var lastWidth = 0
             var lastHeight = 0
             while (renderRequested && holder.surface.isValid) {
+                FlintGlfwBackend.pollEvents()
+                if (FlintGlfwBackend.shouldClose()) {
+                    updateStatus("Flint GLFW window close requested")
+                    break
+                }
+
                 val width = surfaceWidth
                 val height = surfaceHeight
                 if (width > 0 && height > 0 && (width != lastWidth || height != lastHeight)) {
@@ -109,8 +304,8 @@ class GL4ESSurfaceView @JvmOverloads constructor(
                     updateStatus("GL4ES draw call failed")
                     break
                 }
-                if (!NativeBridge.nativeSwapWindowBuffers()) {
-                    updateStatus("EGL buffer swap failed")
+                if (!FlintGlfwBackend.swapBuffers()) {
+                    updateStatus("Flint GLFW buffer swap failed")
                     break
                 }
                 LockSupport.parkNanos(FRAME_INTERVAL_NS)
@@ -120,6 +315,10 @@ class GL4ESSurfaceView @JvmOverloads constructor(
             updateStatus("Renderer thread failed: ${error.message ?: error.javaClass.simpleName}")
             Log.e(TAG, "GL4ES render loop failed", error)
         } finally {
+            if (glfwCreated) {
+                runCatching { FlintGlfwBackend.destroy() }
+                    .onFailure { Log.e(TAG, "Flint GLFW teardown failed", it) }
+            }
             if (eglCreated) {
                 runCatching { NativeBridge.nativeDestroyWindowSurface() }
                     .onFailure { Log.e(TAG, "EGL teardown failed", it) }

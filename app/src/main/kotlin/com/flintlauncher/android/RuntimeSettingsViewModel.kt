@@ -37,9 +37,9 @@ class RuntimeSettingsViewModel(
     )
     val state: StateFlow<RuntimeSettingsUiState> = _state.asStateFlow()
 
-    init {
-        refresh()
-    }
+    // Native EGL/GPU probing is intentionally deferred until the user opens Settings.
+    // Some Android GPU drivers are unstable during eager pbuffer initialization; keeping
+    // this diagnostic out of the launcher startup path prevents it from blocking app entry.
 
     fun refresh() {
         viewModelScope.launch {
