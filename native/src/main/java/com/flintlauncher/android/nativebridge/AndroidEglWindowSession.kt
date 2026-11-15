@@ -50,6 +50,16 @@ class AndroidEglWindowSession(
         }
     }
 
+    /** Draw and present one visible diagnostic frame; never used by the Minecraft renderer. */
+    fun renderTestFrame(onResult: (Boolean) -> Unit = {}): Boolean {
+        if (closed.get() || !attached.get()) return false
+        return handler.post {
+            val rendered = !closed.get() && attached.get() &&
+                runCatching { NativeBridge.nativeRenderWindowTestFrame() }.getOrDefault(false)
+            onResult(rendered)
+        }
+    }
+
     /** Present one GLES frame. Invoke from the game/render loop, not every UI frame. */
     fun present(onResult: (Boolean) -> Unit = {}): Boolean {
         if (closed.get() || !attached.get()) return false
