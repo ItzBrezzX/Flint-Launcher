@@ -14,9 +14,10 @@ import java.util.concurrent.locks.LockSupport
 /**
  * Owns a real Android Surface and a dedicated EGL render thread.
  *
- * EGL creation, GL4ES initialization, rendering, buffer swaps and teardown
- * all happen on this one thread. This is a renderer/window integration test
- * surface; Minecraft's LWJGL window callbacks are a separate integration step.
+ * EGL creation, GL4ES initialization, Flint GLFW event dispatch, rendering,
+ * buffer swaps and teardown all happen on this one thread. This preview
+ * exercises Flint's GLFW C ABI; the Android-built LWJGL JNI adapter and
+ * production Minecraft render-thread context handoff are still separate work.
  */
 class GL4ESSurfaceView @JvmOverloads constructor(
     context: Context,
