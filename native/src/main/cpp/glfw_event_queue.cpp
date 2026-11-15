@@ -52,7 +52,7 @@ void enqueue(const Event& event) {
         case 1: // KEY: key, scan code, action, modifiers
             if (event.a >= 0 && static_cast<size_t>(event.a) < kKeyCount) {
                 if (event.c == kRelease || event.c == kPress || event.c == kRepeat) {
-                    g_key_states[static_cast<size_t>(event.a)] = event.c;
+                    g_key_states[static_cast<size_t>(event.a)] = event.c == kRelease ? kRelease : kPress;
                 }
             }
             break;
