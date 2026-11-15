@@ -148,7 +148,7 @@ class MainActivity : ComponentActivity() {
                             actions = com.flintlauncher.android.ui.state.GameFilesActions(
                                 onRefresh = { gameFilesViewModel.refresh() },
                                 onCategoryChange = { gameFilesViewModel.setCategory(it) },
-                                onShare = { shareGameFile(it) },
+                                onShare = { shareGameFile(it) },\n                                onOpen = { openGameFile(it) },
                                 onDelete = { gameFilesViewModel.delete(it) },
                             ),
                         )
@@ -182,6 +182,33 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun openGameFile(path: String) {
+        val file = File(path).canonicalFile
+        if (!file.isFile || !file.canRead()) {
+            Toast.makeText(this, "File is no longer available", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+            val mime = when (file.extension.lowercase()) {
+                "png" -> "image/png"
+                "jpg", "jpeg" -> "image/jpeg"
+                "webp" -> "image/webp"
+                "gz" -> "application/gzip"
+                else -> "text/plain"
+            }
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mime)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "No app can open this file", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Unable to open file: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
