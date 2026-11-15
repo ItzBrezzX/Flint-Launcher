@@ -158,7 +158,9 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         surfaceAvailable = false
-        if (gameThreadStarted) {
+        if (launchRequested) {
+            // Do not depend on the UI having received LaunchResult.Started yet:
+            // JLI may already own the Surface while the setup callback is pending.
             statusView.post { statusView.text = "Surface destroyed; requesting graceful Minecraft close…" }
             activityScope.launch {
                 coordinator.stopGame()
@@ -169,6 +171,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                         "Minecraft session stopped. Return to PLAY to start a new session."
                     }
                     stopButton.isEnabled = false
+                    gameThreadStarted = coordinator.isGameRunning()
                 }
             }
         }
