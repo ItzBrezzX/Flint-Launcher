@@ -41,6 +41,15 @@ struct GLFWwindow {
     std::string title;
     bool shouldClose = false;
     bool focused = false;
+    int cursorMode = 0x00034001;
+    int stickyKeys = 0;
+    int stickyMouseButtons = 0;
+    int lockKeyMods = 0;
+    double cursorX = 0.0;
+    double cursorY = 0.0;
+    double lastCursorX = 0.0;
+    double lastCursorY = 0.0;
+    bool hasCursorPosition = false;
     void *userPointer = nullptr;
     GLFWwindowposfun positionCallback = nullptr;
     GLFWwindowsizefun sizeCallback = nullptr;
@@ -189,6 +198,8 @@ GLFW_EXPORT GLFWwindow *glfwCreateWindow(
     window->title = title ? title : "";
     window->width = surfaceWidth > 0 ? surfaceWidth : width;
     window->height = surfaceHeight > 0 ? surfaceHeight : height;
+    window->cursorX = static_cast<double>(window->width) / 2.0;
+    window->cursorY = static_cast<double>(window->height) / 2.0;
     int32_t stateWidth = 0, stateHeight = 0;
     bool focused = false;
     flint_glfw_get_window_state(&stateWidth, &stateHeight, &focused);
@@ -259,11 +270,26 @@ GLFW_EXPORT void glfwPollEvents(void) {
                     if (window->charModsCallback) window->charModsCallback(window, static_cast<unsigned int>(event.a), 0);
                 }
                 break;
-            case 3:
+            case 3: {
+                const double x = bits_to_float(event.a);
+                const double y = bits_to_float(event.b);
+                if (window->cursorMode == 0x00034003 || window->cursorMode == 0x00034004) {
+                    if (window->hasCursorPosition) {
+                        window->cursorX += x - window->lastCursorX;
+                        window->cursorY += y - window->lastCursorY;
+                    }
+                    window->lastCursorX = x;
+                    window->lastCursorY = y;
+                    window->hasCursorPosition = true;
+                } else {
+                    window->cursorX = x;
+                    window->cursorY = y;
+                }
                 if (window->cursorPositionCallback) {
-                    window->cursorPositionCallback(window, bits_to_float(event.a), bits_to_float(event.b));
+                    window->cursorPositionCallback(window, window->cursorX, window->cursorY);
                 }
                 break;
+            }
             case 4:
                 if (window->mouseButtonCallback) {
                     window->mouseButtonCallback(window, event.a, event.b, event.c);
@@ -363,18 +389,58 @@ GLFW_EXPORT void *glfwGetWindowUserPointer(GLFWwindow *window) {
     return window ? window->userPointer : nullptr;
 }
 
-GLFW_EXPORT int glfwGetInputMode(GLFWwindow *, int) { return 0; }
-GLFW_EXPORT void glfwSetInputMode(GLFWwindow *, int, int) {}
+GLFW_EXPORT int glfwGetInputMode(GLFWwindow *window, int mode) {
+    if (!window) return 0;
+    switch (mode) {
+        case 0x00033001: return window->cursorMode; // GLFW_CURSOR
+        case 0x00033002: return window->stickyKeys;
+        case 0x00033003: return window->stickyMouseButtons;
+        case 0x00033004: return window->lockKeyMods;
+        case 0x00033005: return 0; // raw mouse motion is unavailable on Android Surface input
+        default: return 0;
+    }
+}
+GLFW_EXPORT void glfwSetInputMode(GLFWwindow *window, int mode, int value) {
+    if (!window) return;
+    switch (mode) {
+        case 0x00033001:
+            if (value >= 0x00034001 && value <= 0x00034004) {
+                window->cursorMode = value;
+                window->hasCursorPosition = false;
+            } else {
+                set_error(0x00010003, "Invalid GLFW cursor mode");
+            }
+            break;
+        case 0x00033002: window->stickyKeys = value != 0; break;
+        case 0x00033003: window->stickyMouseButtons = value != 0; break;
+        case 0x00033004: window->lockKeyMods = value != 0; break;
+        case 0x00033005:
+            if (value != 0) set_error(0x0001000C, "Raw mouse motion is not supported by the Android Surface input backend");
+            break;
+        default: set_error(0x00010003, "Invalid GLFW input mode"); break;
+    }
+}
 GLFW_EXPORT int glfwRawMouseMotionSupported(void) { return 0; }
 GLFW_EXPORT int glfwGetKey(GLFWwindow *, int key) { return flint_glfw_get_key_state(key); }
 GLFW_EXPORT int glfwGetMouseButton(GLFWwindow *, int button) { return flint_glfw_get_mouse_button_state(button); }
-GLFW_EXPORT void glfwGetCursorPos(GLFWwindow *, double *xpos, double *ypos) {
+GLFW_EXPORT void glfwGetCursorPos(GLFWwindow *window, double *xpos, double *ypos) {
     float x = 0.0f, y = 0.0f;
     flint_glfw_get_cursor_position(&x, &y);
+    if (window) {
+        if (window->hasCursorPosition || window->cursorMode == 0x00034003 || window->cursorMode == 0x00034004) {
+            x = static_cast<float>(window->cursorX);
+            y = static_cast<float>(window->cursorY);
+        }
+    }
     if (xpos) *xpos = x;
     if (ypos) *ypos = y;
 }
-GLFW_EXPORT void glfwSetCursorPos(GLFWwindow *, double xpos, double ypos) {
+GLFW_EXPORT void glfwSetCursorPos(GLFWwindow *window, double xpos, double ypos) {
+    if (window && (window->cursorMode == 0x00034003 || window->cursorMode == 0x00034004)) {
+        window->cursorX = xpos;
+        window->cursorY = ypos;
+        return;
+    }
     flint_glfw_post_event(3, float_to_bits(static_cast<float>(xpos)), float_to_bits(static_cast<float>(ypos)), 0, 0);
 }
 GLFW_EXPORT int glfwGetKeyScancode(int) { return -1; }
