@@ -9,6 +9,7 @@ import com.flintlauncher.android.minecraft.version.Environment
 import com.flintlauncher.android.minecraft.version.LaunchCommandBuilder
 import com.flintlauncher.android.minecraft.version.LaunchContext
 import com.flintlauncher.android.nativebridge.NativeBridge
+import com.flintlauncher.android.runtime.AndroidLwjglNativesInstaller
 import com.flintlauncher.android.runtime.GameLauncher
 import com.flintlauncher.android.runtime.KnownJreArtifacts
 import com.flintlauncher.android.runtime.LaunchRequest
@@ -65,8 +66,8 @@ class PlayLaunchCoordinator(
             )
         }
 
-        // The APK must contain the GL4ES shared library. This verifies the packaged renderer
-        // artifact, not a live LWJGL/Android-GLFW window; that hand-off remains a separate step.
+        // The APK must contain the GL4ES shared library. The launch path stages its Android
+        // ELF libraries into the per-game LWJGL search directory after native extraction.
         val gl4esLibrary = File(nativeLibraryDir, "libGL.so")
         if (!gl4esLibrary.isFile) {
             return LaunchResult.BlockedMissingRenderer
@@ -126,7 +127,10 @@ class PlayLaunchCoordinator(
             if (!nativeDirectory.mkdirs() && !nativeDirectory.isDirectory) {
                 return LaunchResult.Failed("Could not create the native extraction directory.")
             }
+            // Keep desktop Linux .so files out of this Android load path, then stage
+            // version-pinned Bionic LWJGL/GLFW/GL4ES binaries from the installed APK.
             NativesExtractor.extract(installed.nativeJars, nativeDirectory)
+            AndroidLwjglNativesInstaller.install(nativeLibraryDir, nativeDirectory, arch)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
@@ -184,7 +188,7 @@ class PlayLaunchCoordinator(
             kind = RendererKind.GL4ES,
             displayName = "GL4ES",
             available = gl4esLibrary.isFile,
-            notes = "GL4ES library is packaged. Live Android GLFW/LWJGL surface hand-off is not yet verified.",
+            notes = "Android GLFW/LWJGL native libraries are staged; production EGL context hand-off is still pending.",
         )
         val request = LaunchRequest(
             versionId = installed.versionId,
