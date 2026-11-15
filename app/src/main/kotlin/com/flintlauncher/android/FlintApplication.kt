@@ -44,6 +44,8 @@ class FlintApplication : Application() {
 
 /** Manual dependency wiring. Replaced by a DI framework only if the graph outgrows this. */
 class AppContainer(private val app: Application) {
+    val androidNativeDir: File = File(app.applicationInfo.nativeLibraryDir)
+
     val launcherVersion: String = runCatching {
         app.packageManager.getPackageInfo(app.packageName, 0).versionName
     }.getOrNull().orEmpty()
@@ -150,6 +152,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 profileRepository = container.profileRepository,
                 gameLauncher = container.gameLauncher,
                 gameRoot = container.installer.gameRoot,
+                androidNativeDir = container.androidNativeDir,
             )
         modelClass.isAssignableFrom(VersionsViewModel::class.java) ->
             VersionsViewModel(container.installer, container.installCoordinator, container::startInstallService)
