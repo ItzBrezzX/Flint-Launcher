@@ -137,10 +137,14 @@ class MainActivity : ComponentActivity() {
                 FlintScaffold(
                     selected = destination,
                     onSelect = {
-                        destination = it
-                        if (it == Destination.PLAY) {
-                            homeViewModel.refreshInstallations()
-                            homeViewModel.refreshAccount()
+                        // Ignore taps on the already selected tab: refreshing repositories and
+                        // account storage on every repeated tap caused avoidable main-thread work.
+                        if (destination != it) {
+                            destination = it
+                            if (it == Destination.PLAY) {
+                                homeViewModel.refreshInstallations()
+                                homeViewModel.refreshAccount()
+                            }
                         }
                     },
                 ) {
