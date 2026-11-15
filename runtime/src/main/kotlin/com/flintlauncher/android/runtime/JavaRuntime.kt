@@ -1,5 +1,6 @@
 package com.flintlauncher.android.runtime
 
+import com.flintlauncher.android.minecraft.version.LwjglRuntimeSpec
 import java.io.File
 
 /**
@@ -97,6 +98,8 @@ data class LaunchRequest(
     val userType: String,
     val runtime: JavaRuntimeInfo,
     val renderer: RendererInfo,
+    /** LWJGL generation and exact version resolved from the installed Minecraft profile. */
+    val lwjglRuntimeSpec: LwjglRuntimeSpec? = null,
 )
 
 /**
