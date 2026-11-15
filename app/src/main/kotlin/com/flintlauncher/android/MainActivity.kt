@@ -143,6 +143,7 @@ class MainActivity : ComponentActivity() {
                         Destination.PLAY -> HomeScreen(state = homeState, actions = homeActions)
                         Destination.PROFILES -> InstallationsScreen(state = versionsState, actions = versionsActions)
                         Destination.MODS -> ModsScreen(state = modsState, actions = modsActions)
+                        Destination.WINDOW -> GameWindowScreen()
                         Destination.FILES -> GameFilesScreen(
                             state = gameFilesState,
                             actions = com.flintlauncher.android.ui.state.GameFilesActions(
