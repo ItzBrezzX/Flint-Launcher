@@ -171,7 +171,7 @@ private fun RuntimeCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsA
 private fun GraphicsCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsActions) {
     SettingsCard("GRAPHICS & RENDERER") {
         SettingLine("Renderer default", "Auto (not available in this build)")
-        SettingLine("Compatibility renderer", "GL4ES · not bundled yet")
+        SettingLine("Compatibility renderer", "GL4ES · native surface test available")
         SettingLine("Vulkan renderer", "Zink · not bundled yet")
         Text(
             "System driver probe: ${state.rendererDiagnostics}",
@@ -180,7 +180,7 @@ private fun GraphicsCard(state: RuntimeSettingsUiState, actions: RuntimeSettings
         )
         Text(
             "This probe reports the device's system EGL/GLES driver only. It does not detect or enable GL4ES, Zink, SDL, or LWJGL. " +
-                "Renderer choices stay unavailable until their native libraries and game window bridge are included and tested on-device.",
+                "GL4ES is packaged and has a native Android window test. LWJGL window callbacks and Minecraft rendering are still pending.",
             color = MaterialTheme.colorScheme.error,
             style = MaterialTheme.typography.bodySmall,
         )
