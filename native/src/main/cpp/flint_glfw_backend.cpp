@@ -313,7 +313,6 @@ extern "C" FLINT_GLFW_API GLFWwindow *glfwCreateWindow(
 
 extern "C" FLINT_GLFW_API void glfwDestroyWindow(GLFWwindow *window) {
     if (!valid(window)) return;
-    if (g_window.closeCallback && !g_window.shouldClose) g_window.closeCallback(&g_window);
     g_windowCreated = false;
     g_window = GLFWwindow{};
 }
@@ -678,7 +677,7 @@ extern "C" FLINT_GLFW_API void glfwSetWindowSizeLimits(GLFWwindow *window, int, 
 }
 extern "C" FLINT_GLFW_API void glfwSetWindowAspectRatio(GLFWwindow *window, int numer, int denom) {
     if (!valid(window)) return;
-    if ((numer <= 0 || denom <= 0) && numer != -1 && denom != -1) {
+    if ((numer != -1 && numer <= 0) || (denom != -1 && denom <= 0)) {
         set_error(GLFW_INVALID_VALUE, "Window aspect ratio must be positive or -1");
     }
 }
