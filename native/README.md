@@ -16,7 +16,7 @@ Android JNI/C++ bridge for Flint's mobile Java runtime and game graphics surface
   - Android touch, pointer, scroll, focus, and common hardware-key input is encoded into a bounded 1,024-entry native queue. `FlintRenderSession` drains that queue on the render thread and exposes events through its `dispatchEvents` callback.
   - `FlintGlfwWindow` exposes Flint-owned window state (pixel size, focus, close flag) and explicit frame requests over the Android Surface. Native event enqueue updates this state, and surface attach/detach resets it.
   - A separate `libglfw.so` target exports the GLFW entry points used by LWJGL's generated function table. The Android implementation covers one host-backed window, thread-owned EGL context current/release, swap, event polling, size/focus/close state, key/mouse/cursor queries, callbacks, timers, virtual relative pointer movement, and GL procedure lookup. Monitor/fullscreen, physical cursors, real joystick devices, clipboard, Vulkan, and some optional extensions remain unsupported.
-  - `nativeGlfwAbiSmoke` uses `dlopen("libglfw.so")` and `dlsym` to verify the required runtime symbols. `PojavStyleGameLauncher` runs this preflight before JLI launch; it reports a specific failure if the library cannot be loaded.
+  - `NativeBridge.safeLwjglNativeLoad()` loads `libglfw.so`, `liblwjgl.so`, `liblwjgl_glfw.so`, and `liblwjgl_opengl.so` through the app ClassLoader before JLI launch. The launch path also checks the resolved LWJGL version and module set, and refuses profiles that require modules not yet built.
   - The current window bridge clears a diagnostic background only; it is not a Minecraft renderer.
 
 ## Not implemented yet
