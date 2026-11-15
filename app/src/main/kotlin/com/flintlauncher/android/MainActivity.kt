@@ -6,7 +6,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri\nimport androidx.core.content.FileProvider\nimport java.io.File
+import android.net.Uri
+import androidx.core.content.FileProvider
+import java.io.File
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -23,7 +25,8 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flintlauncher.android.ui.accounts.AccountsScreen
-import com.flintlauncher.android.ui.controls.ControlEditorScreen\nimport com.flintlauncher.android.ui.files.GameFilesScreen
+import com.flintlauncher.android.ui.controls.ControlEditorScreen
+import com.flintlauncher.android.ui.files.GameFilesScreen
 import com.flintlauncher.android.ui.home.HomeScreen
 import com.flintlauncher.android.ui.mods.ModsScreen
 import com.flintlauncher.android.ui.settings.RuntimeSettingsScreen
@@ -41,7 +44,8 @@ class MainActivity : ComponentActivity() {
 
     private val factory get() = AppViewModelFactory((application as FlintApplication).container)
     private val accountViewModel: AccountViewModel by viewModels { factory }
-    private val controlEditorViewModel: ControlEditorViewModel by viewModels { factory }\n    private val gameFilesViewModel: GameFilesViewModel by viewModels { factory }
+    private val controlEditorViewModel: ControlEditorViewModel by viewModels { factory }
+    private val gameFilesViewModel: GameFilesViewModel by viewModels { factory }
     private val homeViewModel: HomeViewModel by viewModels { factory }
     private val versionsViewModel: VersionsViewModel by viewModels { factory }
     private val modsViewModel: ModsViewModel by viewModels { factory }
@@ -59,7 +63,8 @@ class MainActivity : ComponentActivity() {
             FlintTheme {
                 var destination by rememberSaveable { mutableStateOf(Destination.PLAY) }
                 val accountState by accountViewModel.state.collectAsStateWithLifecycle()
-                val controlsState by controlEditorViewModel.state.collectAsStateWithLifecycle()\n                val gameFilesState by gameFilesViewModel.state.collectAsStateWithLifecycle()
+                val controlsState by controlEditorViewModel.state.collectAsStateWithLifecycle()
+                val gameFilesState by gameFilesViewModel.state.collectAsStateWithLifecycle()
                 val homeState by homeViewModel.state.collectAsStateWithLifecycle()
                 val versionsState by versionsViewModel.state.collectAsStateWithLifecycle()
                 val modsState by modsViewModel.state.collectAsStateWithLifecycle()
@@ -177,6 +182,32 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun shareGameFile(path: String) {
+        val file = File(path).canonicalFile
+        if (!file.isFile || !file.canRead()) {
+            Toast.makeText(this, "File is no longer available", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+            val mime = when (file.extension.lowercase()) {
+                "png" -> "image/png"
+                "jpg", "jpeg" -> "image/jpeg"
+                "webp" -> "image/webp"
+                else -> "text/plain"
+            }
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = mime
+                putExtra(Intent.EXTRA_STREAM, uri)
+                clipData = ClipData.newUri(contentResolver, file.name, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, "Share Minecraft file"))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Unable to share file: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
