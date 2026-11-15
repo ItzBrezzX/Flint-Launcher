@@ -4,6 +4,8 @@ import com.flintlauncher.android.nativebridge.NativeBridge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -23,11 +25,13 @@ class PojavStyleGameLauncher(
 
     @Volatile private var running = false
     private val logBuffer = StringBuilder()
+    private val launchMutex = Mutex()
     private val logLock = Any()
     private val monitorScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var monitorJob: Job? = null
 
-    override suspend fun launch(request: LaunchRequest): LaunchResult = withContext(Dispatchers.IO) {
+    override suspend fun launch(request: LaunchRequest): LaunchResult = launchMutex.withLock {
+        withContext(Dispatchers.IO) {
         synchronized(logLock) { logBuffer.setLength(0) }
 
         if (!NativeBridge.isNativeLoaded) {
@@ -126,6 +130,7 @@ class PojavStyleGameLauncher(
         running = true
         startSessionMonitor()
         LaunchResult.Started(pid = null, logFile = null)
+        }
     }
 
     private fun startSessionMonitor() {
