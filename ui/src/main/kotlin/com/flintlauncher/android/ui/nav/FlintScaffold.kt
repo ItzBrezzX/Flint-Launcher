@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -52,6 +53,7 @@ enum class Destination(val label: String, val icon: ImageVector) {
     PLAY("Home", Icons.Filled.Home),
     PROFILES("Instances", Icons.Filled.SportsEsports),
     MODS("Mod Menu", Icons.Filled.Extension),
+    ACCOUNTS("Accounts", Icons.Filled.AccountCircle),
     SETTINGS("Settings", Icons.Filled.Settings),
     ABOUT("About", Icons.Filled.Info),
 }
