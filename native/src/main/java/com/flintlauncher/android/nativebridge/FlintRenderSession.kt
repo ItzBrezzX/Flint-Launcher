@@ -9,6 +9,7 @@ package com.flintlauncher.android.nativebridge
  */
 class FlintRenderSession(
     private val renderFrame: (FlintGameSurfaceView) -> Unit,
+    private val dispatchEvents: (List<FlintGlfwEvent>) -> Unit = {},
     private val onRenderError: (Throwable) -> Unit = {},
     threadName: String = "Flint-Render",
 ) : AutoCloseable {
@@ -125,6 +126,8 @@ class FlintRenderSession(
             try {
                 if (view.makeEglContextCurrent()) {
                     try {
+                        val events = FlintGlfwEventQueue.drain()
+                        if (events.isNotEmpty()) dispatchEvents(events)
                         renderFrame(view)
                         view.swapEglBuffers()
                     } finally {
