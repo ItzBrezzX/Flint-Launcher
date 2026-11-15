@@ -1,20 +1,20 @@
 cmake_minimum_required(VERSION 3.22.1)
 
 set(FLINT_LWJGL_VERSION "3.3.3" CACHE INTERNAL "Pinned LWJGL native ABI")
-set(FLINT_LWJGL_ROOT "\${CMAKE_CURRENT_LIST_DIR}/_work/lwjgl3-\${FLINT_LWJGL_VERSION}")
+set(FLINT_LWJGL_ROOT "${CMAKE_CURRENT_LIST_DIR}/_work/lwjgl3-${FLINT_LWJGL_VERSION}")
 execute_process(
-    COMMAND bash "\${CMAKE_CURRENT_LIST_DIR}/prepare.sh"
-    WORKING_DIRECTORY "\${CMAKE_CURRENT_LIST_DIR}"
+    COMMAND bash "${CMAKE_CURRENT_LIST_DIR}/prepare.sh"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
     RESULT_VARIABLE LWJGL_PREPARE_RESULT
 )
 if(NOT LWJGL_PREPARE_RESULT EQUAL 0)
-    message(FATAL_ERROR "Could not prepare LWJGL \${FLINT_LWJGL_VERSION} JNI sources")
+    message(FATAL_ERROR "Could not prepare LWJGL ${FLINT_LWJGL_VERSION} JNI sources")
 endif()
 
 if(CMAKE_ANDROID_NDK)
-    set(FLINT_NDK "\${CMAKE_ANDROID_NDK}")
+    set(FLINT_NDK "${CMAKE_ANDROID_NDK}")
 elseif(ANDROID_NDK)
-    set(FLINT_NDK "\${ANDROID_NDK}")
+    set(FLINT_NDK "${ANDROID_NDK}")
 elseif(DEFINED ENV{ANDROID_NDK_HOME})
     set(FLINT_NDK "$ENV{ANDROID_NDK_HOME}")
 else()
@@ -22,50 +22,60 @@ else()
 endif()
 
 if(ANDROID_ABI)
-    set(FLINT_ABI "\${ANDROID_ABI}")
+    set(FLINT_ABI "${ANDROID_ABI}")
 else()
-    set(FLINT_ABI "\${CMAKE_ANDROID_ARCH_ABI}")
+    set(FLINT_ABI "${CMAKE_ANDROID_ARCH_ABI}")
 endif()
 if(NOT FLINT_ABI)
     message(FATAL_ERROR "Android ABI is unavailable for LWJGL native build")
 endif()
 
 set(FLINT_ANDROID_API 26)
-set(FLINT_LIBFFI_OUT "\${CMAKE_CURRENT_BINARY_DIR}/libffi-\${FLINT_ABI}")
+set(FLINT_LIBFFI_OUT "${CMAKE_CURRENT_BINARY_DIR}/libffi-${FLINT_ABI}")
 execute_process(
-    COMMAND bash "\${CMAKE_CURRENT_LIST_DIR}/build_libffi.sh"
-        "\${FLINT_NDK}" "\${FLINT_ABI}" "\${FLINT_ANDROID_API}" "\${FLINT_LIBFFI_OUT}"
-    WORKING_DIRECTORY "\${CMAKE_CURRENT_LIST_DIR}"
+    COMMAND bash "${CMAKE_CURRENT_LIST_DIR}/build_libffi.sh"
+        "${FLINT_NDK}" "${FLINT_ABI}" "${FLINT_ANDROID_API}" "${FLINT_LIBFFI_OUT}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
     RESULT_VARIABLE LIBFFI_BUILD_RESULT
 )
 if(NOT LIBFFI_BUILD_RESULT EQUAL 0)
-    message(FATAL_ERROR "Could not build Android libffi for \${FLINT_ABI}")
+    message(FATAL_ERROR "Could not build Android libffi for ${FLINT_ABI}")
 endif()
-set(FLINT_LIBFFI "\${FLINT_LIBFFI_OUT}/install/lib/libffi.a")
-if(NOT EXISTS "\${FLINT_LIBFFI}")
-    message(FATAL_ERROR "Android libffi archive missing: \${FLINT_LIBFFI}")
+set(FLINT_LIBFFI "${FLINT_LIBFFI_OUT}/install/lib/libffi.a")
+if(NOT EXISTS "${FLINT_LIBFFI}")
+    message(FATAL_ERROR "Android libffi archive missing: ${FLINT_LIBFFI}")
 endif()
 
-set(LWJGL_CORE "\${FLINT_LWJGL_ROOT}/modules/lwjgl/core")
-set(LWJGL_GLFW "\${FLINT_LWJGL_ROOT}/modules/lwjgl/glfw")
-set(LWJGL_OPENGL "\${FLINT_LWJGL_ROOT}/modules/lwjgl/opengl")
+set(LWJGL_CORE "${FLINT_LWJGL_ROOT}/modules/lwjgl/core")
+set(LWJGL_GLFW "${FLINT_LWJGL_ROOT}/modules/lwjgl/glfw")
+set(LWJGL_OPENGL "${FLINT_LWJGL_ROOT}/modules/lwjgl/opengl")
+
+if(FLINT_ABI STREQUAL "arm64-v8a")
+    set(FLINT_FFI_ARCH "aarch64")
+elseif(FLINT_ABI STREQUAL "armeabi-v7a")
+    set(FLINT_FFI_ARCH "arm")
+elseif(FLINT_ABI STREQUAL "x86" OR FLINT_ABI STREQUAL "x86_64")
+    set(FLINT_FFI_ARCH "x86")
+else()
+    message(FATAL_ERROR "No LWJGL libffi target header for ${FLINT_ABI}")
+endif()
 
 file(GLOB CORE_GENERATED CONFIGURE_DEPENDS
-    "\${LWJGL_CORE}/src/generated/c/*.c"
-    "\${LWJGL_CORE}/src/generated/c/linux/*.c"
+    "${LWJGL_CORE}/src/generated/c/*.c"
+    "${LWJGL_CORE}/src/generated/c/linux/*.c"
 )
 list(FILTER CORE_GENERATED EXCLUDE REGEX "/liburing/")
 file(GLOB CORE_MAIN CONFIGURE_DEPENDS
-    "\${LWJGL_CORE}/src/main/c/*.c"
+    "${LWJGL_CORE}/src/main/c/*.c"
 )
 
 file(GLOB GLFW_GENERATED CONFIGURE_DEPENDS
-    "\${LWJGL_GLFW}/src/generated/c/*.c"
+    "${LWJGL_GLFW}/src/generated/c/*.c"
 )
 list(FILTER GLFW_GENERATED EXCLUDE REGEX "GLFWNative")
 
 file(GLOB OPENGL_GENERATED CONFIGURE_DEPENDS
-    "\${LWJGL_OPENGL}/src/generated/c/*.c"
+    "${LWJGL_OPENGL}/src/generated/c/*.c"
 )
 list(FILTER OPENGL_GENERATED EXCLUDE REGEX "/(GLX|WGL|CGL|macos|windows)/")
 
@@ -79,60 +89,57 @@ find_library(FLINT_ANDROID_LIBRARY android)
 find_library(FLINT_EGL_LIBRARY EGL)
 find_library(FLINT_GLES_LIBRARY GLESv2)
 
-add_library(lwjgl SHARED \${CORE_GENERATED} \${CORE_MAIN})
+add_library(lwjgl SHARED ${CORE_GENERATED} ${CORE_MAIN})
 set_target_properties(lwjgl PROPERTIES OUTPUT_NAME lwjgl)
 target_include_directories(lwjgl PRIVATE
-    "\${LWJGL_CORE}/src/main/c"
-    "\${LWJGL_CORE}/src/main/c/libffi"
-    "\${LWJGL_CORE}/src/main/c/libffi/aarch64"
-    "\${LWJGL_CORE}/src/main/c/libffi/arm"
-    "\${LWJGL_CORE}/src/main/c/libffi/x86"
-    "\${LWJGL_CORE}/src/main/c/libffi/x86_64"
-    "\${LWJGL_CORE}/src/generated/c"
-    "\${LWJGL_CORE}/src/generated/c/linux"
-    "\${FLINT_LIBFFI_OUT}/install/include"
+    "${LWJGL_CORE}/src/main/c"
+    "${LWJGL_CORE}/src/main/c/libffi"
+    "${LWJGL_CORE}/src/main/c/libffi/${FLINT_FFI_ARCH}"
+    "${LWJGL_CORE}/src/generated/c"
+    "${LWJGL_CORE}/src/generated/c/linux"
+    "${FLINT_LIBFFI_OUT}/install/include"
 )
 target_compile_definitions(lwjgl PRIVATE LWJGL_LINUX)
 target_compile_options(lwjgl PRIVATE -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
 target_link_libraries(lwjgl PRIVATE
-    "\${FLINT_LIBFFI}"
-    "\${FLINT_DL_LIBRARY}"
-    "\${FLINT_LOG_LIBRARY}"
+    "${FLINT_LIBFFI}"
+    "${FLINT_DL_LIBRARY}"
+    "${FLINT_LOG_LIBRARY}"
 )
 
-add_library(lwjgl_glfw SHARED \${GLFW_GENERATED})
+add_library(lwjgl_glfw SHARED ${GLFW_GENERATED})
 set_target_properties(lwjgl_glfw PROPERTIES OUTPUT_NAME lwjgl_glfw)
 target_include_directories(lwjgl_glfw PRIVATE
-    "\${LWJGL_CORE}/src/main/c"
-    "\${LWJGL_CORE}/src/generated/c"
-    "\${LWJGL_GLFW}/src/main/c"
-    "\${LWJGL_GLFW}/src/generated/c"
+    "${LWJGL_CORE}/src/main/c"
+    "${LWJGL_CORE}/src/generated/c"
+    "${LWJGL_GLFW}/src/main/c"
+    "${LWJGL_GLFW}/src/generated/c"
 )
 target_compile_definitions(lwjgl_glfw PRIVATE LWJGL_LINUX)
 target_compile_options(lwjgl_glfw PRIVATE -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
 target_link_libraries(lwjgl_glfw PRIVATE
     lwjgl
     flint_glfw
-    "\${FLINT_DL_LIBRARY}"
-    "\${FLINT_LOG_LIBRARY}"
-    "\${FLINT_ANDROID_LIBRARY}"
+    "${FLINT_DL_LIBRARY}"
+    "${FLINT_LOG_LIBRARY}"
+    "${FLINT_ANDROID_LIBRARY}"
 )
 
-add_library(lwjgl_opengl SHARED \${OPENGL_GENERATED})
+add_library(lwjgl_opengl SHARED ${OPENGL_GENERATED})
 set_target_properties(lwjgl_opengl PROPERTIES OUTPUT_NAME lwjgl_opengl)
 target_include_directories(lwjgl_opengl PRIVATE
-    "\${LWJGL_CORE}/src/main/c"
-    "\${LWJGL_CORE}/src/generated/c"
-    "\${LWJGL_OPENGL}/src/main/c"
-    "\${LWJGL_OPENGL}/src/generated/c"
+    "${LWJGL_CORE}/src/main/c"
+    "${LWJGL_CORE}/src/generated/c"
+    "${LWJGL_OPENGL}/src/main/c"
+    "${LWJGL_OPENGL}/src/generated/c"
 )
 target_compile_definitions(lwjgl_opengl PRIVATE LWJGL_LINUX)
 target_compile_options(lwjgl_opengl PRIVATE -fvisibility=hidden -Wno-unused-parameter -Wno-deprecated-declarations)
 target_link_libraries(lwjgl_opengl PRIVATE
     lwjgl
     flint_glfw
-    "\${FLINT_DL_LIBRARY}"
-    "\${FLINT_LOG_LIBRARY}"
-    "\${FLINT_EGL_LIBRARY}"
-    "\${FLINT_GLES_LIBRARY}"
+    "${FLINT_DL_LIBRARY}"
+    "${FLINT_LOG_LIBRARY}"
+    "${FLINT_EGL_LIBRARY}"
+    "${FLINT_GLES_LIBRARY}"
 )
