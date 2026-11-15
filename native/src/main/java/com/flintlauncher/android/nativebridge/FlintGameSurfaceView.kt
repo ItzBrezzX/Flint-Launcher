@@ -90,8 +90,9 @@ class FlintGameSurfaceView @JvmOverloads constructor(
                 postInput(FlintGlfwEvent.mouseButton(0, GLFW_PRESS, modifiers(event.metaState)))
             }
             MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP -> {
-                val index = event.actionIndex
-                postInput(FlintGlfwEvent.cursor(event.getX(index), event.getY(index)))
+                // Secondary fingers are not separate GLFW mouse buttons. Keep
+                // the cursor anchored to the primary pointer during gestures.
+                postInput(FlintGlfwEvent.cursor(event.getX(0), event.getY(0)))
             }
             MotionEvent.ACTION_UP -> {
                 postInput(FlintGlfwEvent.cursor(event.x, event.y))
