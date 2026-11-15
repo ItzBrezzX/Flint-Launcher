@@ -94,9 +94,10 @@ class MinecraftInstallerTest {
         runCatching { server.shutdown() }
     }
 
-    private fun publishVersion(id: String, manifestHashOverride: String? = null) {
+    private fun publishVersion(id: String, manifestHashOverride: String? = null, includeLwjgl: Boolean = false) {
         fake.blobs["/files/client.jar"] = clientJar
         fake.blobs["/files/lib.jar"] = libJar
+        fake.blobs["/files/lwjgl.jar"] = "lwjgl core".toByteArray()
         fake.blobs["/files/client-test.xml"] = logXml
         fake.blobs["/assets/objects/${hash1.take(2)}/$hash1"] = asset1
         fake.blobs["/assets/objects/${hash2.take(2)}/$hash2"] = asset2
@@ -106,6 +107,7 @@ class MinecraftInstallerTest {
             "dup.txt":{"hash":"$hash1","size":${asset1.size}}}}""".toByteArray()
         fake.blobs["/assets/indexes/idx.json"] = index
 
+        val lwjglLibrary = if (includeLwjgl) """,{"name":"org.lwjgl:lwjgl:3.3.3","downloads":{"artifact":{"path":"org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar","url":"$base/files/lwjgl.jar"}}}""" else ""
         val versionJson = """{
           "id":"$id","type":"release","mainClass":"net.example.Main","assets":"idx",
           "javaVersion":{"component":"test","majorVersion":21},
@@ -114,7 +116,7 @@ class MinecraftInstallerTest {
           "logging":{"client":{"argument":"-Dlog4j.configurationFile=${'$'}{path}","type":"log4j2-xml",
             "file":{"id":"client-test.xml","sha1":"${sha1(logXml)}","size":${logXml.size},"url":"$base/files/client-test.xml"}}},
           "libraries":[{"name":"com.example:lib:1.0","downloads":{"artifact":{
-            "path":"com/example/lib/1.0/lib-1.0.jar","sha1":"${sha1(libJar)}","size":${libJar.size},"url":"$base/files/lib.jar"}}}],
+            "path":"com/example/lib/1.0/lib-1.0.jar","sha1":"${sha1(libJar)}","size":${libJar.size},"url":"$base/files/lib.jar"}}${lwjglLibrary}],
           "arguments":{"game":["--version","${'$'}{version_name}"],"jvm":["-cp","${'$'}{classpath}"]}
         }"""
         fake.blobs["/meta/$id.json"] = versionJson.toByteArray()
@@ -164,6 +166,22 @@ class MinecraftInstallerTest {
         assertEquals(BatchState.COMPLETED, downloads.progress.value.state)
         assertTrue(installer.isInstalled("1.0-test"))
         assertEquals(1, fake.count("/assets/objects/${hash1.take(2)}/$hash1")) // shared asset fetched once
+    }
+
+    @Test
+    fun installAndReloadExposeLwjglRuntimeResolvedFromVersionMetadata() = runBlocking {
+        publishVersion("1.0-test", includeLwjgl = true)
+
+        val installed = success(installer.install("1.0-test"))
+        val spec = installed.lwjglRuntimeSpec
+
+        assertTrue(spec != null)
+        assertEquals(3, spec!!.major)
+        assertEquals("3.3.3", spec.version)
+        assertTrue(spec.artifacts.any { it.artifact == "lwjgl" })
+
+        val reloaded = installer.loadInstalled("1.0-test", File(tmp.root, "profile/natives"))
+        assertEquals(spec, reloaded.lwjglRuntimeSpec)
     }
 
     @Test
