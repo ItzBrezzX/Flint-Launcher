@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.io.File
 
 class LaunchConfigurationException(message: String) : IllegalStateException(message)
 
@@ -29,6 +30,8 @@ data class LaunchContext(
     val xuid: String = "",
     val resolutionWidth: Int? = null,
     val resolutionHeight: Int? = null,
+    /** May differ from assetsRoot for legacy virtual/resource asset layouts. */
+    val gameAssets: String = assetsRoot,
 )
 
 data class LaunchCommand(
@@ -99,12 +102,12 @@ object LaunchCommandBuilder {
         put("version_type", c.versionType)
         put("game_directory", c.gameDirectory)
         put("assets_root", c.assetsRoot)
-        put("game_assets", c.assetsRoot)
+        put("game_assets", c.gameAssets)
         put("assets_index_name", c.assetsIndexName)
         put("natives_directory", c.nativesDirectory)
         put("library_directory", c.libraryDirectory)
         put("classpath", c.classpath)
-        put("classpath_separator", ":")
+        put("classpath_separator", File.pathSeparator)
         put("launcher_name", c.launcherName)
         put("launcher_version", c.launcherVersion)
         c.resolutionWidth?.let { put("resolution_width", it.toString()) }
