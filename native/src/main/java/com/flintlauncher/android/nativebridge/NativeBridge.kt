@@ -32,6 +32,15 @@ object NativeBridge {
     /** Actual EGL/GLES driver strings from a temporary pbuffer context. */
     external fun nativeEglCapabilities(): String
 
+    /** Attach an Android Surface and create an EGL window surface for game rendering. */
+    external fun nativeSurfaceCreated(surface: android.view.Surface): Boolean
+
+    /** Update the EGL viewport when Android changes the game surface dimensions. */
+    external fun nativeSurfaceChanged(width: Int, height: Int): Boolean
+
+    /** Release EGL resources and the retained ANativeWindow reference. */
+    external fun nativeSurfaceDestroyed()
+
     /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
 
