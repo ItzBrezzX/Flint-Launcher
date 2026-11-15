@@ -1,99 +1,88 @@
 # Flint Native Window and GLFW Backend
 
-## Current implementation
+## Implemented native path
 
-Flint builds its own Android GLFW-compatible platform layer as `libglfw.so`
-for every configured ABI. The backend exports all 117 GLFW function names
-referenced by the pinned LWJGL 3.3.x generated Java binding table. The
-reported compatibility version is GLFW 3.3.8.
+Flint owns an Android GLFW-compatible platform layer built as `libglfw.so`.
+It exports the GLFW C entry points consumed by the pinned LWJGL 3.3.x Java
+bindings and reports the GLFW 3.3.8 compatibility version. The implementation
+is Flint code; it does not copy or link PojavLauncher source.
 
-This is **symbol-level compatibility, not complete behavioral parity** with
-desktop GLFW. Some desktop-only facilities return an unavailable/empty
-result or perform a documented no-op on Android. The implementation is
-original Flint code and does not copy or link PojavLauncher source.
+The Android native build also compiles the LWJGL 3.3.3 core and OpenGL JNI
+libraries against the Android NDK/Bionic toolchain for the configured ABIs.
+The APK native-library verification checks that `liblwjgl.so`,
+`liblwjgl_opengl.so`, `libglfw.so` and `libGL.so` are packaged. A second
+check reads the dynamic symbol table and confirms that every GLFW C function
+declared by Flint's ABI header is exported for each configured ABI.
 
-## Data flow
+At launch preparation, `AndroidLwjglNativesInstaller` copies those four APK
+libraries into the per-game native directory and validates their ELF class and
+machine type against the active Android ABI. The launch arguments set both
+`java.library.path` and `org.lwjgl.librarypath` to that directory.
+Android extraction explicitly excludes shared objects from Minecraft's
+`natives-linux` archives: those are Linux/GLIBC binaries and must not be
+passed to Android's Bionic linker. Flint's Bionic libraries are staged instead.
 
-`GL4ESSurfaceView` receives Android Surface, touch, mouse, keyboard and focus
+## Android surface and input flow
+
+`GL4ESSurfaceView` owns a real Android Surface and a dedicated EGL render
+thread. It receives Android surface, touch, mouse, keyboard and focus
 callbacks. Key codes, modifiers and text are converted to GLFW values in
-Kotlin. The callbacks enqueue records through `FlintNativeWindowBridge` into
+Kotlin; the callbacks enqueue records through `FlintNativeWindowBridge` into
 the bounded native FIFO.
 
-The Flint GLFW event loop drains that FIFO from the calling window thread:
+The GLFW event loop drains that FIFO on its calling window thread:
 `glfwPollEvents`, `glfwWaitEvents` and `glfwWaitEventsTimeout` dispatch key,
 Unicode character, cursor, mouse button, scroll, focus, window-size and
 framebuffer-size callbacks. Queue insertion notifies the condition variable,
-so a waiting GLFW event loop can wake without busy-polling.
+so a waiting event loop can wake without busy-polling.
 
-The Android GL4ES preview exercises this path:
+The Android renderer preview exercises the path:
 attach EGL surface -> `glfwInit` -> `glfwCreateWindow` -> event dispatch ->
 GL4ES draw -> `glfwSwapBuffers` -> `glfwDestroyWindow`.
 
-## Android-specific behavior and limits
-
-The backend uses one Android-owned window and the EGL display, draw surface
-and context current on the thread that attaches the surface. Physical window
-position, frame insets, opacity and size constraints are not controlled by
-GLFW on Android. System cursor creation/locking, raw mouse motion, monitor
-gamma, hardware joystick/gamepad discovery and system clipboard integration
-are not implemented; unsupported queries report empty/unavailable values,
-and the clipboard currently stores a process-local string. These stubs keep
-the LWJGL function table resolvable but do not imply those features work.
-
-## Event record
-
-Each queued event is six 64-bit values:
-
-1. event type
-2. code (GLFW key/button code or Unicode code point)
-3. action (0 = release, 1 = press/focus gained, 2 = repeat)
-4. GLFW modifier mask
-5. X coordinate or horizontal scroll (IEEE-754 double bits)
-6. Y coordinate or vertical scroll (IEEE-754 double bits)
-
 The FIFO capacity is 1024 records. When full, new events are rejected and
 `nativeDroppedInputEventCount()` exposes the cumulative drop count. The
-consumer must drain events regularly on the GLFW/window thread. CI now checks
-that every GLFW function declared in the C ABI header is exported from
-`libglfw.so` for arm64-v8a, armeabi-v7a, x86 and x86_64.
+consumer must drain events regularly on the GLFW/window thread.
 
-## EGL and thread ownership
+## Android-specific behavior and limits
 
-The backend attaches to the EGL display, draw surface and context current on
-the calling thread. It cannot steal a context that remains current on another
-thread. Preview calls all execute on the SurfaceView render thread.
+This is symbol-level GLFW compatibility, not complete behavioral parity with
+desktop GLFW. Flint uses one Android-owned window and the EGL display, draw
+surface and context current on the thread that attaches the Surface. Physical
+window position, frame insets, opacity and size constraints are controlled by
+Android rather than GLFW.
 
-This matters for Minecraft: `PojavStyleGameLauncher` invokes JLI on a
-dedicated JVM thread, while the preview's EGL context belongs to the
-SurfaceView render thread. Production launch still requires a safe context
-ownership handoff or a design that runs the game render loop on the context
-owner thread. That handoff is not implemented yet.
+System cursor creation/locking, raw mouse motion, monitor gamma, hardware
+joystick/gamepad discovery and system clipboard integration are not implemented.
+Unsupported queries return empty/unavailable values; the clipboard currently
+stores a process-local string. These stubs keep the LWJGL function table
+resolvable but do not imply those facilities work.
 
-## LWJGL and Minecraft integration boundary
+## Production Minecraft boundary
 
-The backend's GLFW function symbols are available to an Android-built LWJGL
-GLFW JNI adapter; `JNI_OnLoad` promotes `libglfw.so` to process-global
-symbol scope. The repository does **not yet build or package the matching
-Android/Bionic `liblwjgl.so` and `liblwjgl_opengl.so`** native libraries.
-Minecraft's `natives-linux` artifacts are Linux/GLIBC binaries and cannot be
-loaded as Android libraries. Flint must build/package the Android LWJGL
-natives matching each selected Minecraft LWJGL version, then configure native
-library resolution to prefer those files.
+The renderer preview proves that Flint's EGL surface, GL4ES, GLFW C ABI and
+event FIFO can run together on the SurfaceView render thread. It is not yet a
+production Minecraft rendering session.
 
-A passing Android CI build and the GLFW/GL4ES preview are not a real
-Minecraft runtime test. No title-screen or gameplay launch has been verified.
+`PojavStyleGameLauncher` runs `JLI_Launch` on a dedicated JVM worker thread,
+while the preview EGL context belongs to the SurfaceView render thread. The
+backend cannot take an EGL context away from another thread while it remains
+current there. The production game surface lifecycle therefore still needs a
+coordinated EGL ownership transfer (or a design that runs the game render loop
+on the context-owning thread) before Minecraft can render through GLFW.
 
-## Remaining work before a real Minecraft title-screen test
+The LWJGL native build is pinned to 3.3.3 today. This is not a claim that every
+historical Minecraft LWJGL version has been independently validated against
+that native ABI. Legacy/version-specific native compatibility must be checked
+against the actual version metadata and runtime tests.
 
-- Build/package version-matched Android `liblwjgl.so` and
-  `liblwjgl_opengl.so` for the target Minecraft LWJGL versions.
-- Wire the native libraries into Minecraft's runtime extraction and
-  `java.library.path`/LWJGL load path without attempting to load Linux
-  native binaries.
-- Transfer EGL ownership safely to the Minecraft render thread or run
-  rendering on the current EGL owner thread.
-- Replace clipboard/cursor/joystick placeholders with Android integrations
-  where required by Minecraft.
-- Launch the actual Minecraft main class and verify the title screen, input,
-  world load and gameplay on arm64-v8a.
+## Verification boundary
 
+Android CI has previously compiled all modules, packaged the Android native
+libraries and passed the GLFW export check. The repository's latest run before
+the native-extractor test correction failed three installer unit tests; that
+regression is corrected in the source and is being rechecked by CI.
+
+A CI build, ELF/symbol checks and the renderer preview do not prove a real
+Minecraft startup. No Minecraft title screen, world load or gameplay session
+has been verified on a physical Android device.
