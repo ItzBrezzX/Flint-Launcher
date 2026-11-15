@@ -48,13 +48,31 @@ target_compile_options(GL PRIVATE -fvisibility=default)
 # keep this call plain as well (CMake forbids mixing plain/keyword signatures).
 target_link_libraries(GL ${log-lib} ${android-lib} ${egl-lib} ${gles-lib} ${dl-lib} ${m-lib})
 
+# Flint owns this Android GLFW-compatible C ABI. It is intentionally a
+# separate libglfw.so so an Android-built LWJGL JNI adapter can bind to it.
+add_library(flint_glfw SHARED
+    flint_glfw_backend.cpp
+    flint_input_queue.cpp
+)
+set_target_properties(flint_glfw PROPERTIES
+    OUTPUT_NAME "glfw"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
+target_compile_options(flint_glfw PRIVATE -Wall -Wextra -fvisibility=hidden)
+target_link_libraries(flint_glfw
+    ${egl-lib}
+    ${dl-lib}
+    ${log-lib}
+)
+
 add_library(flint_native SHARED
     flint_jni.cpp
     egl_smoke.cpp
-    flint_input_queue.cpp
 )
 target_link_libraries(flint_native
     GL
+    flint_glfw
     ${log-lib}
     ${android-lib}
     ${egl-lib}
