@@ -201,6 +201,7 @@ class GL4ESSurfaceView @JvmOverloads constructor(
 
     private fun renderLoop(holder: SurfaceHolder) {
         var eglCreated = false
+        var glfwCreated = false
         try {
             val eglStatus = NativeBridge.nativeCreateWindowSurface(holder.surface)
             if (eglStatus != "egl-window-ready") {
@@ -227,9 +228,25 @@ class GL4ESSurfaceView @JvmOverloads constructor(
             }
             updateStatus("GL4ES active · $version")
 
+            val surfaceFrame = holder.surfaceFrame
+            val initialWidth = (surfaceWidth.takeIf { it > 0 } ?: surfaceFrame.width()).coerceAtLeast(1)
+            val initialHeight = (surfaceHeight.takeIf { it > 0 } ?: surfaceFrame.height()).coerceAtLeast(1)
+            if (!FlintGlfwBackend.initialize(initialWidth, initialHeight, "Flint Renderer Preview")) {
+                updateStatus("Flint GLFW backend initialization failed; inspect FlintNative logcat")
+                return
+            }
+            glfwCreated = true
+            updateStatus("${FlintGlfwBackend.version()} active · native input queue connected")
+
             var lastWidth = 0
             var lastHeight = 0
             while (renderRequested && holder.surface.isValid) {
+                FlintGlfwBackend.pollEvents()
+                if (FlintGlfwBackend.shouldClose()) {
+                    updateStatus("Flint GLFW window close requested")
+                    break
+                }
+
                 val width = surfaceWidth
                 val height = surfaceHeight
                 if (width > 0 && height > 0 && (width != lastWidth || height != lastHeight)) {
@@ -245,8 +262,8 @@ class GL4ESSurfaceView @JvmOverloads constructor(
                     updateStatus("GL4ES draw call failed")
                     break
                 }
-                if (!NativeBridge.nativeSwapWindowBuffers()) {
-                    updateStatus("EGL buffer swap failed")
+                if (!FlintGlfwBackend.swapBuffers()) {
+                    updateStatus("Flint GLFW buffer swap failed")
                     break
                 }
                 LockSupport.parkNanos(FRAME_INTERVAL_NS)
@@ -256,6 +273,10 @@ class GL4ESSurfaceView @JvmOverloads constructor(
             updateStatus("Renderer thread failed: ${error.message ?: error.javaClass.simpleName}")
             Log.e(TAG, "GL4ES render loop failed", error)
         } finally {
+            if (glfwCreated) {
+                runCatching { FlintGlfwBackend.destroy() }
+                    .onFailure { Log.e(TAG, "Flint GLFW teardown failed", it) }
+            }
             if (eglCreated) {
                 runCatching { NativeBridge.nativeDestroyWindowSurface() }
                     .onFailure { Log.e(TAG, "EGL teardown failed", it) }
