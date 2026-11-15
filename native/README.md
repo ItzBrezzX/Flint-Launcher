@@ -14,12 +14,13 @@ Android JNI/C++ bridge for Flint's mobile Java runtime and game graphics surface
   - `FlintRenderSession` provides a dedicated, event-driven render thread. It coalesces frame requests, invokes a renderer callback only when requested, swaps after successful frame rendering, and releases EGL ownership on the same thread.
   - `FlintGameSurfaceView` quiesces the render thread before resize and waits for in-flight rendering to finish before EGL teardown.
   - Android touch, pointer, scroll, focus, and common hardware-key input is encoded into a bounded 1,024-entry native queue. `FlintRenderSession` drains that queue on the render thread and exposes events through its `dispatchEvents` callback.
+  - `FlintGlfwWindow` exposes Flint-owned window state (pixel size, focus, close flag) and explicit frame requests over the Android Surface. Native event enqueue updates this state, and surface attach/detach resets it.
   - The current window bridge clears a diagnostic background only; it is not a Minecraft renderer.
 
 ## Not implemented yet
 
 - GL4ES, MobileGlues, LTW, or Zink renderer integration.
-- A complete GLFW 3 ABI implementation (GLFWwindow/monitor objects, exported GLFW symbols, context hints, clipboard, timers, joysticks, window callbacks, and LWJGL native-library loading).
+- The actual GLFW 3 C ABI and dedicated `libglfw.so` expected by LWJGL (opaque GLFWwindow/monitor handles, exported symbols, callback registration, context hints, clipboard, timers, joysticks, and native-library loading). The current `FlintGlfwWindow` is a Kotlin/JNI window-state facade, not that ABI.
 - LWJGL 2/3 Android GLFW compatibility and event pump.
 - Wiring a concrete Minecraft renderer into the `FlintRenderSession.renderFrame` callback.
 - An end-to-end Activity/Compose game-session route that creates, attaches, and closes the render session.
