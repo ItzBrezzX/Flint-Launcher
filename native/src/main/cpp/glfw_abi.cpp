@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <mutex>
+#include <new>
 
 #if defined(__GNUC__)
 #define GLFW_EXPORT __attribute__((visibility("default")))
@@ -323,7 +324,6 @@ GLFW_EXPORT void glfwGetWindowFrameSize(GLFWwindow *, int *left, int *top, int *
     if (right) *right = 0;
     if (bottom) *bottom = 0;
 }
-GLFW_EXPORT void glfwGetWindowContentScale(GLFWwindow *, float *xscale, float *yscale);
 
 GLFW_EXPORT int glfwGetWindowAttrib(GLFWwindow *window, int attrib) {
     if (!window) return 0;
