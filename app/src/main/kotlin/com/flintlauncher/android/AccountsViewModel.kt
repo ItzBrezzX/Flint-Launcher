@@ -12,7 +12,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
-class AccountsViewModel(private val manager: AccountManager) : ViewModel() {
+class AccountsViewModel(
+    private val manager: AccountManager,
+    private val microsoftAccountStore: MicrosoftAccountStore,
+) : ViewModel() {
     private val _state = MutableStateFlow(AccountsUiState())
     val state: StateFlow<AccountsUiState> = _state.asStateFlow()
 
@@ -58,8 +61,8 @@ class AccountsViewModel(private val manager: AccountManager) : ViewModel() {
 
     fun remove(id: String) {
         viewModelScope.launch {
-            manager.remove(id)
-            _state.value = _state.value.copy(message = "Account removed.")
+            microsoftAccountStore.removeAccount(id)
+            _state.value = _state.value.copy(message = "Account and any stored credentials removed.")
         }
     }
 
