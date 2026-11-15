@@ -29,6 +29,18 @@ object NativeBridge {
     external fun nativeGL4ESVersion(): String
     external fun nativeGL4ESClear(): Boolean
 
+    /** Create an ANativeWindow-backed EGL context on the calling render thread. */
+    external fun nativeCreateWindowSurface(surface: android.view.Surface): String
+
+    /** Update the GLES viewport; call on the EGL owner thread. */
+    external fun nativeResizeWindowSurface(width: Int, height: Int): Boolean
+
+    /** Present the current GL4ES frame to the Android Surface. */
+    external fun nativeSwapWindowBuffers(): Boolean
+
+    /** Destroy EGL resources on the same thread that created them. */
+    external fun nativeDestroyWindowSurface()
+
     fun safeSmokeTest(): String =
         if (!loaded) "native-not-loaded: $loadError"
         else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
