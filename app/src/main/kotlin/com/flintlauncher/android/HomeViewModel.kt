@@ -308,6 +308,7 @@ class HomeViewModel(
                         accessToken = "0",
                         userType = "legacy",
                         runtime = runtime,
+                        lwjglRuntimeSpec = installed.lwjglRuntimeSpec,
                         renderer = RendererInfo(
                             id = "renderer-unavailable",
                             kind = RendererKind.UNKNOWN,
