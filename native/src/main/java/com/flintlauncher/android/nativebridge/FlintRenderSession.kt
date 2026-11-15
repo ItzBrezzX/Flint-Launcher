@@ -1,11 +1,12 @@
 package com.flintlauncher.android.nativebridge
 
 /**
- * Owns the thread that is allowed to make Flint's EGL context current.
+ * Owns the EGL context for a Flint-managed renderer on a dedicated render thread.
  *
- * Frames are event-driven: callers explicitly request them. This avoids a busy
- * loop while no game renderer is attached. [renderFrame] must issue the actual
- * GL commands; the session only swaps after that callback returns successfully.
+ * Do not attach this worker when LWJGL's GLFW ABI owns the same EGL context: in
+ * that mode the Minecraft render thread must make current, poll events and swap.
+ * Frames here are event-driven; [renderFrame] issues GL commands and the session
+ * swaps only after the callback returns successfully.
  */
 class FlintRenderSession(
     private val renderFrame: (FlintGameSurfaceView) -> Unit,
