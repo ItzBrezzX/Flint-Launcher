@@ -53,14 +53,7 @@ class FlintRenderSession(
     fun onSurfaceAboutToChange() {
         synchronized(monitor) {
             frameRequested = false
-            while (rendering) {
-                try {
-                    monitor.wait()
-                } catch (interrupted: InterruptedException) {
-                    Thread.currentThread().interrupt()
-                    return
-                }
-            }
+            awaitRenderCompletionLocked()
         }
     }
 
@@ -103,6 +96,19 @@ class FlintRenderSession(
                 }
             }
         }
+    }
+
+    /** Wait uninterruptibly so teardown can never race a context-owning frame. */
+    private fun awaitRenderCompletionLocked() {
+        var interrupted = false
+        while (rendering) {
+            try {
+                monitor.wait()
+            } catch (_: InterruptedException) {
+                interrupted = true
+            }
+        }
+        if (interrupted) Thread.currentThread().interrupt()
     }
 
     private fun runLoop() {
