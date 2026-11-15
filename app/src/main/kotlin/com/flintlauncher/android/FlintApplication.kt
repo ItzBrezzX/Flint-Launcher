@@ -77,6 +77,7 @@ class AppContainer(private val app: Application) {
     private val accountRepository = FileAccountRepository(File(app.filesDir, "accounts.json"))
     val accountManager = AccountManager(accountRepository)
     val tokenVault = AndroidKeystoreTokenVault(File(app.filesDir, "account-tokens.enc"))
+    val microsoftAccountStore = MicrosoftAccountStore(accountManager, tokenVault)
 
     // Game files can be over a gigabyte: prefer app-specific external storage, which is larger.
     private val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
@@ -144,7 +145,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(ModsViewModel::class.java) ->
             ModsViewModel(container.modrinthRepository, container.profileRepository)
         modelClass.isAssignableFrom(AccountsViewModel::class.java) ->
-            AccountsViewModel(container.accountManager)
+            AccountsViewModel(container.accountManager, container.microsoftAccountStore)
         modelClass.isAssignableFrom(RuntimeSettingsViewModel::class.java) ->
             RuntimeSettingsViewModel(
                 container.mobileJreManager,
