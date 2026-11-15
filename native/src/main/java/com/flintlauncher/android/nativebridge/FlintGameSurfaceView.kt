@@ -30,6 +30,26 @@ class FlintGameSurfaceView @JvmOverloads constructor(
         isFocusableInTouchMode = true
     }
 
+    /**
+     * Acquire the EGL context on the caller's render thread. Pair every successful
+     * acquisition with [releaseEglContext] on that same thread.
+     */
+    fun makeEglContextCurrent(): Boolean =
+        isEglWindowReady && NativeBridge.isNativeLoaded &&
+            runCatching { NativeBridge.nativeSurfaceMakeCurrent() }.getOrDefault(false)
+
+    /** Swap the EGL window buffer from the thread that currently owns the context. */
+    fun swapEglBuffers(): Boolean =
+        isEglWindowReady && NativeBridge.isNativeLoaded &&
+            runCatching { NativeBridge.nativeSurfaceSwapBuffers() }.getOrDefault(false)
+
+    /** Release EGL context ownership from the same thread that acquired it. */
+    fun releaseEglContext() {
+        if (NativeBridge.isNativeLoaded) {
+            runCatching { NativeBridge.nativeSurfaceReleaseCurrent() }
+        }
+    }
+
     override fun surfaceCreated(holder: SurfaceHolder) {
         val ready = NativeBridge.isNativeLoaded &&
             runCatching { NativeBridge.nativeSurfaceCreated(holder.surface) }.getOrDefault(false)
