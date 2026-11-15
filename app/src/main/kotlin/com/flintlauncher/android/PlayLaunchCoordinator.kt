@@ -94,6 +94,10 @@ class PlayLaunchCoordinator(
         if (!gl4esLibrary.isFile) {
             return LaunchResult.BlockedMissingRenderer
         }
+        val glfwLibrary = File(nativeLibraryDir, "libglfw.so")
+        if (!glfwLibrary.isFile) {
+            return LaunchResult.Failed("Flint's Android GLFW C ABI is missing from the APK: ${glfwLibrary.absolutePath}")
+        }
 
         val installed = try {
             installer.loadInstalledVersion(versionId)
@@ -150,7 +154,9 @@ class PlayLaunchCoordinator(
                 return LaunchResult.Failed("Could not create the native extraction directory.")
             }
             // Keep desktop Linux .so files out of this Android load path, then stage
-            // version-pinned Bionic LWJGL/GLFW/GL4ES binaries from the installed APK.
+            // only LWJGL JNI libraries. GLFW and GL4ES are already loaded from the APK
+            // by libflint_native; reloading copies from this directory would duplicate
+            // their process-global state and split the EGL/GLFW session.
             NativesExtractor.extract(installed.nativeJars, nativeDirectory, excludeSharedObjects = true)
             AndroidLwjglNativesInstaller.install(nativeLibraryDir, nativeDirectory, arch)
         } catch (cancelled: CancellationException) {
@@ -189,9 +195,12 @@ class PlayLaunchCoordinator(
         val extraJvmArguments = buildList {
             add("-Djava.library.path=${nativeDirectory.absolutePath}")
             add("-Dorg.lwjgl.librarypath=${nativeDirectory.absolutePath}")
-            // LWJGL's Linux defaults target desktop GLX/EGL sonames. Resolve the
-            // Android GL4ES, EGL and GLES libraries explicitly before GLFW loads.
-            add("-Dorg.lwjgl.opengl.libname=libGL.so")
+            // Keep the GLFW and GL4ES mappings pointed at the exact same APK
+            // library files already loaded by libflint_native. This prevents a
+            // second copy from being loaded from the per-game native directory.
+            add("-Dorg.lwjgl.glfw.libname=${glfwLibrary.absolutePath}")
+            add("-Dorg.lwjgl.opengl.libname=${gl4esLibrary.absolutePath}")
+            // Android uses these sonames instead of desktop Linux's versioned EGL/GLES names.
             add("-Dorg.lwjgl.egl.libname=libEGL.so")
             add("-Dorg.lwjgl.opengles.libname=libGLESv2.so")
             add("-Djava.io.tmpdir=${File(cacheDir, "minecraft-tmp").absolutePath}")
