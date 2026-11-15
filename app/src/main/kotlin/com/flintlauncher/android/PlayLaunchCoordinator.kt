@@ -46,7 +46,7 @@ class PlayLaunchCoordinator(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            return LaunchResult.Failed("Could not read the selected account: \${error.message ?: "storage error"}")
+            return LaunchResult.Failed("Could not read the selected account: ${error.message ?: "storage error"}")
         } ?: return LaunchResult.BlockedNotReady
 
         if (account.type == AccountType.MICROSOFT) {
@@ -61,7 +61,7 @@ class PlayLaunchCoordinator(
 
         if (!NativeBridge.isNativeLoaded) {
             return LaunchResult.Failed(
-                "Flint native bridge is unavailable: \${NativeBridge.nativeLoadError ?: "library load failed"}.",
+                "Flint native bridge is unavailable: ${NativeBridge.nativeLoadError ?: "library load failed"}.",
             )
         }
 
@@ -77,7 +77,7 @@ class PlayLaunchCoordinator(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            return LaunchResult.Failed("Could not prepare Minecraft $versionId: \${error.message ?: "installation metadata error"}")
+            return LaunchResult.Failed("Could not prepare Minecraft $versionId: ${error.message ?: "installation metadata error"}")
         } ?: return LaunchResult.BlockedNotReady
 
         val runtime = try {
@@ -85,18 +85,18 @@ class PlayLaunchCoordinator(
                 ?: run {
                     val targetMajor = KnownJreArtifacts.compatibleMajor(installed.requiredJavaMajor, arch)
                         ?: return LaunchResult.Failed(
-                            "No published Java runtime for ABI $arch satisfies Java \${installed.requiredJavaMajor}.",
+                            "No published Java runtime for ABI $arch satisfies Java ${installed.requiredJavaMajor}.",
                         )
                     manager.install(targetMajor).getOrElse { error ->
                         return LaunchResult.Failed(
-                            "Could not install Java $targetMajor: \${error.message ?: "download or verification failed"}",
+                            "Could not install Java $targetMajor: ${error.message ?: "download or verification failed"}",
                         )
                     }
                 }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            return LaunchResult.Failed("Could not prepare Java runtime: \${error.message ?: "unknown error"}")
+            return LaunchResult.Failed("Could not prepare Java runtime: ${error.message ?: "unknown error"}")
         }
 
         val runtimeVerified = try {
@@ -104,21 +104,21 @@ class PlayLaunchCoordinator(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            return LaunchResult.Failed("Java runtime verification failed: \${error.message ?: "unknown error"}")
+            return LaunchResult.Failed("Java runtime verification failed: ${error.message ?: "unknown error"}")
         }
         if (!runtimeVerified) {
-            return LaunchResult.Failed("Java \${runtime.majorVersion} (\${runtime.arch}) failed the native JLI verification.")
+            return LaunchResult.Failed("Java ${runtime.majorVersion} (${runtime.arch}) failed the native JLI verification.")
         }
 
         val gameDirectory = File(File(gameRoot, "profiles"), directoryKey(account.id))
         if (!gameDirectory.isDirectory && !gameDirectory.mkdirs()) {
-            return LaunchResult.Failed("Could not create the game directory: \${gameDirectory.absolutePath}")
+            return LaunchResult.Failed("Could not create the game directory: ${gameDirectory.absolutePath}")
         }
         if (!gameDirectory.canWrite()) {
-            return LaunchResult.Failed("The game directory is not writable: \${gameDirectory.absolutePath}")
+            return LaunchResult.Failed("The game directory is not writable: ${gameDirectory.absolutePath}")
         }
 
-        val nativeDirectory = File(File(cacheDir, "minecraft-natives"), directoryKey("$versionId:\${account.id}"))
+        val nativeDirectory = File(File(cacheDir, "minecraft-natives"), directoryKey("$versionId:${account.id}"))
         try {
             if (nativeDirectory.exists() && !nativeDirectory.deleteRecursively()) {
                 return LaunchResult.Failed("Could not clear the previous native extraction directory.")
@@ -130,7 +130,7 @@ class PlayLaunchCoordinator(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            return LaunchResult.Failed("Could not extract Minecraft native libraries: \${error.message ?: "invalid native archive"}")
+            return LaunchResult.Failed("Could not extract Minecraft native libraries: ${error.message ?: "invalid native archive"}")
         }
 
         val classpath = installed.classpath.joinToString(File.pathSeparator) { it.absolutePath }
@@ -161,10 +161,10 @@ class PlayLaunchCoordinator(
         )
 
         val extraJvmArguments = buildList {
-            add("-Djava.library.path=\${nativeDirectory.absolutePath}")
-            add("-Dorg.lwjgl.librarypath=\${nativeDirectory.absolutePath}")
-            add("-Djava.io.tmpdir=\${File(cacheDir, "minecraft-tmp").absolutePath}")
-            add("-Duser.home=\${gameDirectory.absolutePath}")
+            add("-Djava.library.path=${nativeDirectory.absolutePath}")
+            add("-Dorg.lwjgl.librarypath=${nativeDirectory.absolutePath}")
+            add("-Djava.io.tmpdir=${File(cacheDir, "minecraft-tmp").absolutePath}")
+            add("-Duser.home=${gameDirectory.absolutePath}")
             installed.loggingJvmArgument?.let { add(it) }
         }
 
@@ -176,7 +176,7 @@ class PlayLaunchCoordinator(
                 extraJvmArguments = extraJvmArguments,
             )
         } catch (error: Exception) {
-            return LaunchResult.Failed("Could not build Minecraft launch arguments: \${error.message ?: "invalid version metadata"}")
+            return LaunchResult.Failed("Could not build Minecraft launch arguments: ${error.message ?: "invalid version metadata"}")
         }
 
         val renderer = RendererInfo(
