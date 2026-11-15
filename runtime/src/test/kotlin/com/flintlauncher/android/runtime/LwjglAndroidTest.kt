@@ -71,7 +71,7 @@ class LwjglAndroidTest {
     @Test
     fun jvmArgumentsPointLwjglAtFlintsLibraries() {
         val args = LwjglAndroid.jvmArguments(File("/data/app/lib/arm64"))
-        assertTrue("-Dorg.lwjgl.glfw.libname=/data/app/lib/arm64/libglfw.so" in args)
+        assertTrue("-Dorg.lwjgl.glfw.libname=/data/app/lib/arm64/libflint_game_glfw.so" in args)
         assertTrue("-Dorg.lwjgl.opengl.libname=/data/app/lib/arm64/libGL.so" in args)
         assertTrue("-Dorg.lwjgl.librarypath=/data/app/lib/arm64" in args)
     }

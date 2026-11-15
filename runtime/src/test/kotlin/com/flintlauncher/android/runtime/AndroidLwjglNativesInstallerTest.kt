@@ -15,6 +15,7 @@ class AndroidLwjglNativesInstallerTest {
         "liblwjgl.so",
         "liblwjgl_opengl.so",
         "libglfw.so",
+        "libflint_game_glfw.so",
         "libGL.so",
     )
 
