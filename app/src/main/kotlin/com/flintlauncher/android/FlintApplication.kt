@@ -109,7 +109,7 @@ class AppContainer(private val app: Application) {
 
     val profileRepository = ProfileRepository(File(app.filesDir, "profiles.json"))
     val accountManager = AccountManager(FileAccountRepository(File(app.filesDir, "accounts.json")))
-    val controlLayoutRepository = ControlLayoutRepository(File(app.filesDir, "touch-controls.json"))\n    val gameFilesRepository = GameFilesRepository(gameRoot)
+    val controlLayoutRepository = ControlLayoutRepository(File(app.filesDir, "touch-controls.json"))\n    val gameFilesRepository = GameFilesRepository(gameRoot)\n    val gameFilesRepository = GameFilesRepository(gameRoot)
     val modrinthRepository = ModrinthRepository(
         api = ModrinthApi(http),
         installer = ModrinthModInstaller(modDownloadManager, gameRoot),
@@ -132,7 +132,7 @@ class AppContainer(private val app: Application) {
 class AppViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
-        modelClass.isAssignableFrom(GameFilesViewModel::class.java) ->\n            GameFilesViewModel(container.gameFilesRepository)\n        modelClass.isAssignableFrom(ControlEditorViewModel::class.java) ->
+        modelClass.isAssignableFrom(GameFilesViewModel::class.java) ->\n            GameFilesViewModel(container.gameFilesRepository)\n        modelClass.isAssignableFrom(GameFilesViewModel::class.java) ->\n            GameFilesViewModel(container.gameFilesRepository)\n        modelClass.isAssignableFrom(ControlEditorViewModel::class.java) ->
             ControlEditorViewModel(container.controlLayoutRepository)
         modelClass.isAssignableFrom(AccountViewModel::class.java) ->
             AccountViewModel(container.accountManager)
