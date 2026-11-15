@@ -1,9 +1,10 @@
 package com.flintlauncher.android.nativebridge
 
 /**
- * Platform-neutral event record exchanged between Android and the future
- * LWJGL/GLFW platform adapter. Key codes are Android KeyEvent codes until
- * translated by the GLFW adapter; action values follow Android conventions.
+ * Event record exchanged between Android and Flint's native GLFW backend.
+ * Key codes and modifier masks are GLFW 3 values; character records contain
+ * Unicode code points. Actions are GLFW_RELEASE (0), GLFW_PRESS (1), or
+ * GLFW_REPEAT (2).
  */
 data class FlintInputEvent(
     val type: Int,
