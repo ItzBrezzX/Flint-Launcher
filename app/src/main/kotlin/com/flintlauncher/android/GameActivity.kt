@@ -182,7 +182,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         gameThreadStarted = false
         stopButton.isEnabled = false
-        val logs = coordinator.gameLogs().lineSequence().filter { it.isNotBlank() }.takeLast(4).joinToString("\n")
+        val logs = coordinator.gameLogs().lineSequence().filter { it.isNotBlank() }.toList().takeLast(4).joinToString("\n")
         statusView.text = if (logs.isBlank()) {
             "Minecraft JVM exited. The game did not report a confirmed title-screen state."
         } else {
