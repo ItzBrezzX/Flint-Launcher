@@ -117,6 +117,28 @@ class GL4ESSurfaceView @JvmOverloads constructor(
                     )
                     return true
                 }
+                MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
+                    val pressed = event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS
+                    val buttons = event.buttonState
+                    val mapping = listOf(
+                        MotionEvent.BUTTON_PRIMARY to 0,
+                        MotionEvent.BUTTON_SECONDARY to 1,
+                        MotionEvent.BUTTON_TERTIARY to 2,
+                        MotionEvent.BUTTON_BACK to 3,
+                        MotionEvent.BUTTON_FORWARD to 4,
+                    )
+                    mapping.filter { (mask, _) -> buttons and mask != 0 }.forEach { (_, button) ->
+                        enqueueInput(
+                            FlintInputEvent.MOUSE_BUTTON,
+                            code = button,
+                            action = if (pressed) 1 else 0,
+                            modifiers = event.metaState,
+                            x = event.x.toDouble(),
+                            y = event.y.toDouble(),
+                        )
+                    }
+                    return true
+                }
             }
         }
         return super.onGenericMotionEvent(event)
