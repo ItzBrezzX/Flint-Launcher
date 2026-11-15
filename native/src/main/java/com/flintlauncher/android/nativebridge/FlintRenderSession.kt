@@ -87,14 +87,7 @@ class FlintRenderSession(
             surfaceReady = false
             frameRequested = false
             monitor.notifyAll()
-            while (rendering) {
-                try {
-                    monitor.wait()
-                } catch (interrupted: InterruptedException) {
-                    Thread.currentThread().interrupt()
-                    return
-                }
-            }
+            awaitRenderCompletionLocked()
         }
     }
 
