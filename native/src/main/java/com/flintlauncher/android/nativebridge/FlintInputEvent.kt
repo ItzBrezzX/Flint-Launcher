@@ -23,6 +23,8 @@ data class FlintInputEvent(
         const val FOCUS = 6
         const val WINDOW_SIZE = 7
         const val FRAMEBUFFER_SIZE = 8
+        const val WAKE = 9
+        const val WINDOW_CLOSE = 10
 
         internal fun decode(packed: LongArray): List<FlintInputEvent> {
             require(packed.size % 6 == 0) { "Malformed native input event buffer" }
