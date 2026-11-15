@@ -76,16 +76,8 @@ class FlintGameSurfaceView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_CANCEL -> {
-                val index = if (activeTouchPointerId == MotionEvent.INVALID_POINTER_ID) {
-                    -1
-                } else {
-                    event.findPointerIndex(activeTouchPointerId)
-                }
-                val safeIndex = index.takeIf { it in 0 until event.pointerCount }
-                if (!touchMoved && safeIndex != null) {
-                    enqueueTap(event.getX(safeIndex), event.getY(safeIndex), modifiers)
-                }
                 activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
+                touchMoved = false
             }
         }
         return true
