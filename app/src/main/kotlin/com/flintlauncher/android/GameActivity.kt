@@ -35,6 +35,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var stopButton: Button
 
     private var launchRequested = false
+    private var launchComplete = false
     private var gameThreadStarted = false
     private var surfaceAvailable = false
     private var finishingAfterStop = false
@@ -119,6 +120,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 )
             }
 
+            launchComplete = true
             when (result) {
                 is LaunchResult.Started -> {
                     gameThreadStarted = true
@@ -180,7 +182,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun stopGame(finishWhenStopped: Boolean) {
         if (!gameThreadStarted) {
-            if (launchRequested) {
+            if (launchRequested && !launchComplete) {
                 statusView.text = "Minecraft is still preparing its runtime and game Surface. Wait for setup to finish before closing."
             } else if (finishWhenStopped) {
                 finish()
@@ -226,7 +228,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 com.flintlauncher.android.nativebridge.FlintNativeWindowBridge.requestWindowClose()
             }
         }
-        surfaceView.keepScreenOn = false
+        if (::surfaceView.isInitialized) surfaceView.keepScreenOn = false
         activityScope.cancel()
         super.onDestroy()
     }
