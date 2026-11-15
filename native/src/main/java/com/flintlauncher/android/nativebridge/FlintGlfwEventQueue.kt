@@ -1,7 +1,7 @@
 package com.flintlauncher.android.nativebridge
 
 /**
- * Flint's internal event protocol for the future GLFW 3 compatibility layer.
+ * Flint's internal event protocol consumed by the native GLFW 3 Android backend.
  *
  * Payloads are five 32-bit integers per event. Floating-point coordinates are
  * transported as raw IEEE-754 bits so JNI does not lose precision.
@@ -50,8 +50,8 @@ data class FlintGlfwEvent(
 }
 
 /**
- * Thread-safe JNI-backed event transport. This is an internal Flint protocol;
- * it does not yet export the GLFW C symbols expected by LWJGL.
+ * Thread-safe JNI-backed event transport. LWJGL reaches the same queue through
+ * the exported libglfw.so event pump; callers should not drain it during gameplay.
  */
 object FlintGlfwEventQueue {
     private const val STRIDE = 5
