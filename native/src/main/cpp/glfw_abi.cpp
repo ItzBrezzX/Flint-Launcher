@@ -338,7 +338,7 @@ GLFW_EXPORT void glfwGetWindowPos(GLFWwindow *, int *xpos, int *ypos) {
     if (ypos) *ypos = 0;
 }
 GLFW_EXPORT void glfwSetWindowPos(GLFWwindow *, int, int) {}
-GLFW_EXPORT void glfwSetWindowTitle(GLFWwindow *, const char *) {}
+GLFW_EXPORT void glfwSetWindowTitle(GLFWwindow *window, const char *title) { if (window) window->title = title ? title : ""; }
 GLFW_EXPORT void glfwSetWindowIcon(GLFWwindow *, int, const void *) {}
 GLFW_EXPORT void glfwGetWindowFrameSize(GLFWwindow *, int *left, int *top, int *right, int *bottom) {
     if (left) *left = 0;
@@ -492,11 +492,6 @@ GLFW_EXPORT GLFWmonitorfun glfwSetMonitorCallback(GLFWmonitorfun callback) {
     g_monitor_callback = callback;
     return previous;
 }
-GLFW_EXPORT const void *glfwGetVideoModes(void *, int *count) {
-    if (count) *count = 0;
-    return nullptr;
-}
-GLFW_EXPORT const void *glfwGetVideoMode(void *) { return nullptr; }
 GLFW_EXPORT void glfwSetGamma(void *, float) {}
 GLFW_EXPORT const void *glfwGetGammaRamp(void *) { return nullptr; }
 GLFW_EXPORT void glfwSetGammaRamp(void *, const void *) {}
