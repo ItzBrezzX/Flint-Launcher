@@ -31,6 +31,7 @@ FLINT_GLFW_INTERNAL_API uint64_t flint_glfw_dropped_event_count();
 FLINT_GLFW_INTERNAL_API bool flint_egl_window_is_ready();
 FLINT_GLFW_INTERNAL_API bool flint_egl_window_make_current();
 FLINT_GLFW_INTERNAL_API bool flint_egl_window_swap_buffers();
+FLINT_GLFW_INTERNAL_API void flint_egl_window_release_current();
 FLINT_GLFW_INTERNAL_API void flint_egl_window_get_size(int32_t *width, int32_t *height);
 FLINT_GLFW_INTERNAL_API void *flint_egl_get_proc_address(const char *name);
 }
