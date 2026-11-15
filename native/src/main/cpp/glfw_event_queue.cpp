@@ -96,7 +96,8 @@ void enqueue(const Event& event) {
 extern "C" void flint_glfw_post_event(
     int32_t type, int32_t a, int32_t b, int32_t c, int32_t d
 ) {
-    flint_glfw_post_event(type, a, b, c, d);
+    if (type < 1 || type > 8) return;
+    enqueue(Event{type, a, b, c, d});
 }
 
 extern "C" bool flint_glfw_poll_event(FlintGlfwEvent *event) {
