@@ -66,10 +66,64 @@ class MinecraftInstaller(
     /** True only if a previous install of [versionId] ran to completion. */
     fun isInstalled(versionId: String): Boolean =
         try {
-            layout.installMarker(versionId).isFile &&
-                layout.versionJar(versionId).isFile &&
-                layout.versionJson(versionId).isFile
-        } catch (e: InstallPlanException) { false }
+            val marker = layout.installMarker(versionId)
+            if (!marker.isFile || !layout.versionJson(versionId).isFile) {
+                false
+            } else {
+                val vanillaId = marker.readText().trim().ifEmpty { versionId }
+                layout.versionJar(vanillaId).isFile
+            }
+        } catch (e: Exception) { false }
+
+    /**
+     * Rebuilds the exact classpath/native list for an installed version without making a
+     * network request. Loader versions are merged with their locally cached parent JSON.
+     * Missing launch-critical files are reported instead of creating a half-valid request.
+     */
+    suspend fun loadInstalledVersion(versionId: String): InstalledVersion? = withContext(Dispatchers.IO) {
+        if (!isInstalled(versionId)) return@withContext null
+
+        val marker = layout.installMarker(versionId)
+        val vanillaId = marker.readText().trim().ifEmpty { versionId }
+        val child = VersionJsonParser.parse(layout.versionJson(versionId).readText())
+        val version = child.inheritsFrom?.let { parentId ->
+            val parentFile = layout.versionJson(parentId)
+            if (!parentFile.isFile) {
+                throw InstallPlanException("Parent version $parentId is missing; repair this installation.")
+            }
+            child.mergedOnto(VersionJsonParser.parse(parentFile.readText()))
+        } ?: child
+
+        val plan = InstallPlanner.planCore(version, vanillaId, layout, environment)
+        if (plan.unresolvedLibraries.isNotEmpty()) {
+            throw InstallPlanException(
+                "Missing download metadata for: ${plan.unresolvedLibraries.joinToString()}",
+            )
+        }
+
+        val clientJar = layout.versionJar(vanillaId)
+        val assetIndexId = version.assetIndex?.id
+            ?: throw InstallPlanException("Version $versionId has no asset index metadata")
+        val criticalFiles = plan.classpath + plan.nativeJars + layout.assetIndex(assetIndexId)
+        val missing = criticalFiles.filterNot { it.isFile }
+        if (!clientJar.isFile || missing.isNotEmpty()) {
+            val names = (if (!clientJar.isFile) listOf(clientJar.name) else emptyList()) +
+                missing.take(4).map { it.name }
+            throw InstallPlanException("Installed version $versionId is incomplete: ${names.distinct().joinToString()}")
+        }
+
+        InstalledVersion(
+            versionId = versionId,
+            version = version,
+            clientJar = clientJar,
+            classpath = plan.classpath,
+            nativeJars = plan.nativeJars,
+            assetsRoot = layout.assetsDir,
+            assetIndexId = assetIndexId,
+            loggingJvmArgument = plan.logConfig?.jvmArgument,
+            requiredJavaMajor = version.javaVersion?.majorVersion ?: 8,
+        )
+    }
 
     /** Returns fully installed versions only; partial or failed installs are excluded. */
     fun installedVersions(): List<InstalledVersionSummary> =
