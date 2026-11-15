@@ -5,6 +5,7 @@ add_library(flint_native SHARED
     flint_jni.cpp
     egl_smoke.cpp
     window_surface.cpp
+    glfw_event_queue.cpp
 )
 
 find_library(log-lib log)
