@@ -11,6 +11,8 @@ class FlintCrashHandlerTest {
         val input = """
             access_token=access-secret-value
             "refreshToken":"refresh-secret-value"
+            'xstsToken':'xsts-secret-value'
+            "clientSecret":"client-json-secret-value"
             Authorization: Bearer header-secret-value
             client_secret=client-secret-value
         """.trimIndent()
@@ -19,6 +21,8 @@ class FlintCrashHandlerTest {
 
         assertFalse(redacted.contains("access-secret-value"))
         assertFalse(redacted.contains("refresh-secret-value"))
+        assertFalse(redacted.contains("xsts-secret-value"))
+        assertFalse(redacted.contains("client-json-secret-value"))
         assertFalse(redacted.contains("header-secret-value"))
         assertFalse(redacted.contains("client-secret-value"))
         assertTrue(redacted.contains("<redacted>"))
