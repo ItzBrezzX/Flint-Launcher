@@ -35,7 +35,7 @@ LWJGL's normal `glfwCreateWindow` call creates the logical game window backed by
 
 Android events are placed in a bounded native FIFO by `FlintNativeWindowBridge`; the GLFW event thread drains them through `glfwPollEvents` or `glfwWaitEvents`. Supported event records cover key, Unicode character, cursor, mouse button, scroll, focus, window size, framebuffer size, wake and window close.
 
-The virtual touch overlay provides a WASD joystick plus attack, use, jump, sneak, inventory and pause. Touch outside those controls falls through to the game Surface. In `GLFW_CURSOR_DISABLED` mode, native cursor dispatch converts physical Android pointer movement into relative deltas to support camera movement.
+The virtual touch overlay provides a WASD joystick plus attack, use, jump, sneak, inventory and pause. Touch outside those controls falls through to the game Surface. In `GLFW_CURSOR_DISABLED` mode, native cursor dispatch converts physical Android pointer movement into relative deltas to support camera movement. When the 1,024-record FIFO fills, key/button releases, focus-loss cleanup and STOP evict an old queued event rather than being dropped behind cursor-motion records.
 
 STOP queues a close request; it is not a force-kill. If the game does not process the GLFW close event, Flint leaves EGL on its owner thread and reports that it is still running instead of destroying resources from the UI thread.
 
