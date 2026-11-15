@@ -302,8 +302,12 @@ GLFW_EXPORT void glfwPollEvents(void) {
                 break;
             case 2:
                 if (event.a >= 0) {
-                    if (window->charCallback) window->charCallback(window, static_cast<unsigned int>(event.a));
-                    if (window->charModsCallback) window->charModsCallback(window, static_cast<unsigned int>(event.a), 0);
+                    GLFWcharfun charCallback = window->charCallback;
+                    if (charCallback) charCallback(window, static_cast<unsigned int>(event.a));
+                    window = active_window();
+                    if (window && window->charModsCallback) {
+                        window->charModsCallback(window, static_cast<unsigned int>(event.a), 0);
+                    }
                 }
                 break;
             case 3: {
@@ -342,8 +346,12 @@ GLFW_EXPORT void glfwPollEvents(void) {
                 break;
             case 7:
                 update_dimensions(window, event.a, event.b);
-                if (window->sizeCallback) window->sizeCallback(window, window->width, window->height);
-                if (window->framebufferSizeCallback) {
+                if (window->sizeCallback) {
+                    GLFWwindowsizefun callback = window->sizeCallback;
+                    callback(window, window->width, window->height);
+                }
+                window = active_window();
+                if (window && window->framebufferSizeCallback) {
                     window->framebufferSizeCallback(window, window->width, window->height);
                 }
                 break;
