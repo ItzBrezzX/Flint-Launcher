@@ -515,7 +515,7 @@ internal fun ToolsSection(actions: HomeActions) {
 }
 
 @Composable
-private fun ToolButton(label: String, onClick: (() -> Unit)?) {
+private fun androidx.compose.foundation.layout.RowScope.ToolButton(label: String, onClick: (() -> Unit)?) {
     TextButton(
         onClick = { onClick?.invoke() },
         enabled = onClick != null,
