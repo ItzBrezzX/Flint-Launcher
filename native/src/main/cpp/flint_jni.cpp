@@ -1,3 +1,4 @@
+#include "flint_glfw_backend.h"
 #include <jni.h>
 #include <android/log.h>
 #include <EGL/egl.h>
@@ -203,4 +204,82 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSmokeTest(JNIEnv *env, jclass) {
     LOGI("Flint native smoke test OK");
     return env->NewStringUTF("flint-native-smoke-ok");
+}
+
+
+/*
+ * JNI control surface for the Flint GLFW preview and diagnostics. Minecraft's
+ * eventual LWJGL JNI library will call the exported GLFW C ABI in libglfw.so;
+ * these methods let the Android Surface owner validate that same backend now.
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwAttachAndroidSurface(
+    JNIEnv *, jclass, jint width, jint height
+) {
+    return flint_glfw_attach_android_surface(width, height) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwInitialize(
+    JNIEnv *, jclass
+) {
+    return glfwInit() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwCreateWindow(
+    JNIEnv *env, jclass, jint width, jint height, jstring title
+) {
+    const char *nativeTitle = title ? env->GetStringUTFChars(title, nullptr) : nullptr;
+    GLFWwindow *window = glfwCreateWindow(width, height, nativeTitle ? nativeTitle : "Flint", nullptr, nullptr);
+    if (title && nativeTitle) env->ReleaseStringUTFChars(title, nativeTitle);
+    return window ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwPollEvents(
+    JNIEnv *, jclass
+) {
+    return static_cast<jint>(flint_glfw_poll_events());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwSwapBuffers(
+    JNIEnv *, jclass
+) {
+    GLFWwindow *window = flint_glfw_android_window();
+    if (!window) return JNI_FALSE;
+    glfwSwapBuffers(window);
+    const char *description = nullptr;
+    return glfwGetError(&description) == 0 ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwWindowShouldClose(
+    JNIEnv *, jclass
+) {
+    return glfwWindowShouldClose(flint_glfw_android_window()) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwSetWindowShouldClose(
+    JNIEnv *, jclass, jboolean shouldClose
+) {
+    glfwSetWindowShouldClose(flint_glfw_android_window(), shouldClose ? GLFW_TRUE : GLFW_FALSE);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwVersion(
+    JNIEnv *env, jclass
+) {
+    return env->NewStringUTF(glfwGetVersionString());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwDestroyWindow(
+    JNIEnv *, jclass
+) {
+    GLFWwindow *window = flint_glfw_android_window();
+    if (window) glfwDestroyWindow(window);
+    flint_glfw_detach_android_surface();
 }
