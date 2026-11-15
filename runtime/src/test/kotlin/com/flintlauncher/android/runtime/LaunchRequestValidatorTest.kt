@@ -51,7 +51,7 @@ class LaunchRequestValidatorTest {
             classpath = classpath,
             nativeDir = nativeDir,
             mainClass = "net.minecraft.client.main.Main",
-            jvmArgs = listOf("-Xmx1G", "-cp", classpathArgument),
+            jvmArgs = listOf("-Xmx1G", "-Djava.library.path=${nativeDir.absolutePath}", "-cp", classpathArgument),
             gameArgs = listOf("--username", "FlintPlayer"),
             accountUsername = "FlintPlayer",
             accountUuid = "00000000-0000-0000-0000-000000000001",
