@@ -64,13 +64,19 @@ class MinecraftInstaller(
     private val metadataRetryDelayMillis: Long = 500,
 ) {
     /** True only if a previous install of [versionId] ran to completion. */
-    fun isInstalled(versionId: String): Boolean =
-        try {
+    fun isInstalled(versionId: String): Boolean {
+        return try {
             val marker = layout.installMarker(versionId)
-            if (!marker.isFile || !layout.versionJson(versionId).isFile) return false
-            val vanillaId = marker.readText().trim()
-            vanillaId.isNotEmpty() && layout.versionJar(vanillaId).isFile
-        } catch (e: Exception) { false }
+            if (!marker.isFile || !layout.versionJson(versionId).isFile) {
+                false
+            } else {
+                val vanillaId = marker.readText().trim()
+                vanillaId.isNotEmpty() && layout.versionJar(vanillaId).isFile
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     /**
      * Reconstructs the launch inputs from the completed install on disk. Loader profiles
