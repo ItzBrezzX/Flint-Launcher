@@ -100,12 +100,18 @@ fun AccountsScreen(state: AccountsUiState, actions: AccountsActions) {
         Column(
             Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(12.dp))
                 .border(1.dp, Border, RoundedCornerShape(12.dp)).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("Microsoft account", color = MainText, fontWeight = FontWeight.SemiBold)
             Text(
-                "Microsoft OAuth is not connected to the account screen yet. No fake sign-in button is shown.",
-                color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp),
+                "Sign in with a Microsoft account that owns Minecraft: Java Edition. Offline accounts always work and are labelled offline.",
+                color = Muted, fontSize = 12.sp,
             )
+            Button(
+                onClick = { actions.onStartMicrosoftSignIn?.invoke() },
+                enabled = actions.onStartMicrosoftSignIn != null,
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg),
+            ) { Text("Sign in with Microsoft", fontWeight = FontWeight.Bold) }
         }
 
         state.message?.let { message ->

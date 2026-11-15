@@ -24,6 +24,8 @@ import com.flintlauncher.android.runtime.RuntimeArchitecture
 import com.flintlauncher.android.partners.BundledServerFeed
 import com.flintlauncher.android.partners.McStatusClient
 import com.flintlauncher.android.partners.PartnersRepository
+import com.flintlauncher.android.auth.DeviceCodeAuthClient
+import com.flintlauncher.android.auth.MicrosoftAuthClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -79,6 +81,23 @@ class AppContainer(private val app: Application) {
     val tokenVault = AndroidKeystoreTokenVault(File(app.filesDir, "account-tokens.enc"))
     val microsoftAccountStore = MicrosoftAccountStore(accountManager, tokenVault)
 
+    // Microsoft identity. When no Azure client id is baked into this build, the clients
+    // are null and the sign-in UI honestly reports "not configured" instead of offering
+    // a flow that cannot succeed. PKCE + device code are public-client flows: no secret.
+    val authConfig: AuthConfig = AuthConfig.DEFAULT
+    val microsoftAuthClient: MicrosoftAuthClient? = if (authConfig.isConfigured) {
+        MicrosoftAuthClient(http, authConfig.clientId, authConfig.redirectUri)
+    } else {
+        null
+    }
+    val deviceCodeAuthClient: DeviceCodeAuthClient? = if (authConfig.isConfigured) {
+        DeviceCodeAuthClient(http, authConfig.clientId)
+    } else {
+        null
+    }
+    val minecraftSessionManager: MinecraftSessionManager =
+        MinecraftSessionManager(microsoftAuthClient, microsoftAccountStore)
+
     // Game files can be over a gigabyte: prefer app-specific external storage, which is larger.
     private val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
     private val layout = GameLayout(gameRoot)
@@ -128,6 +147,7 @@ class AppContainer(private val app: Application) {
     val playLaunchCoordinator = PlayLaunchCoordinator(
         installer = installer,
         accounts = accountManager,
+        sessionResolver = minecraftSessionManager,
         runtimeManager = mobileJreManager,
         deviceArch = deviceProcessArch,
         gameRoot = gameRoot,
@@ -165,6 +185,14 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             ModsViewModel(container.modrinthRepository, container.profileRepository)
         modelClass.isAssignableFrom(AccountsViewModel::class.java) ->
             AccountsViewModel(container.accountManager, container.microsoftAccountStore)
+        modelClass.isAssignableFrom(SignInViewModel::class.java) ->
+            SignInViewModel(
+                container.authConfig,
+                container.microsoftAuthClient,
+                container.deviceCodeAuthClient,
+                container.microsoftAccountStore,
+                container.minecraftSessionManager,
+            )
         modelClass.isAssignableFrom(RuntimeSettingsViewModel::class.java) ->
             RuntimeSettingsViewModel(
                 container.mobileJreManager,

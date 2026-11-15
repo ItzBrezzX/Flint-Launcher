@@ -26,6 +26,7 @@ import kotlin.coroutines.cancellation.CancellationException
 data class AuthEndpoints(
     val msaAuthorize: String = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize",
     val msaToken: String = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
+    val deviceCode: String = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode",
     val xboxUserAuth: String = "https://user.auth.xboxlive.com/user/authenticate",
     val xsts: String = "https://xsts.auth.xboxlive.com/xsts/authorize",
     val minecraftLogin: String = "https://api.minecraftservices.com/authentication/login_with_xbox",

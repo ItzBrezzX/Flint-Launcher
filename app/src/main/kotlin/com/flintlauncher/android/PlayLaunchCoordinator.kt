@@ -31,6 +31,7 @@ import java.security.MessageDigest
 class PlayLaunchCoordinator(
     private val installer: MinecraftInstaller,
     private val accounts: AccountManager,
+    private val sessionResolver: MinecraftSessionResolver,
     private val runtimeManager: MobileJreManager?,
     private val deviceArch: String?,
     private val gameRoot: File,
@@ -49,9 +50,14 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Could not read the selected account: ${error.message ?: "storage error"}")
         } ?: return LaunchResult.BlockedNotReady
 
-        if (account.type == AccountType.MICROSOFT) {
-            return LaunchResult.Failed(
-                "Microsoft account is selected, but access-token refresh and Minecraft session exchange are not connected yet. Select an offline account or finish Microsoft authentication first.",
+        // Resolve the launch session. Offline accounts return the conventional "0" token
+        // and "legacy" user type. Microsoft accounts go through refresh + Xbox/XSTS/MC
+        // Services and return a live access token held in memory only. A failed refresh
+        // is reported honestly so the UI can offer re-authentication.
+        val session = when (val resolved = sessionResolver.resolve(account)) {
+            is Result.Success -> resolved.getOrThrow()
+            is Result.Failure -> return LaunchResult.Failed(
+                resolved.exception?.message ?: "Could not prepare the account session.",
             )
         }
 
@@ -140,9 +146,9 @@ class PlayLaunchCoordinator(
         )
         val context = LaunchContext(
             playerName = account.username,
-            uuid = account.uuid.replace("-", ""),
-            accessToken = "0",
-            userType = "legacy",
+            uuid = session.uuidNoHyphens,
+            accessToken = session.accessToken,
+            userType = session.userType,
             versionName = installed.version.id,
             versionType = when (installed.version.type) {
                 VersionType.RELEASE -> "release"
@@ -197,8 +203,8 @@ class PlayLaunchCoordinator(
             gameArgs = command.gameArguments,
             accountUsername = account.username,
             accountUuid = account.uuid,
-            accessToken = "0",
-            userType = "legacy",
+            accessToken = session.accessToken,
+            userType = session.userType,
             runtime = runtime,
             renderer = renderer,
         )

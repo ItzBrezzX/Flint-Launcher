@@ -19,4 +19,6 @@ data class AccountsActions(
     val onSelect: (String) -> Unit = {},
     val onRemove: (String) -> Unit = {},
     val onDismissMessage: () -> Unit = {},
+    /** Opens the Microsoft sign-in screen. Null means Microsoft auth is not wired. */
+    val onStartMicrosoftSignIn: (() -> Unit)? = null,
 )
