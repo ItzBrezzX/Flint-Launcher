@@ -36,6 +36,13 @@ class PojavStyleGameLauncher(
             return@withContext LaunchResult.BlockedMissingRuntime
         }
 
+        LaunchRequestValidator.validate(request)?.let { reason ->
+            return@withContext LaunchResult.Failed(reason)
+        }
+        if (!request.renderer.available) {
+            return@withContext LaunchResult.BlockedMissingRenderer
+        }
+
         if (!launchActive.compareAndSet(false, true)) {
             return@withContext LaunchResult.Failed("A Minecraft JVM launch is already active.")
         }
@@ -52,9 +59,9 @@ class PojavStyleGameLauncher(
             // Build argv the way JLI_Launch expects (program name first).
             val args = mutableListOf<String>()
             args += "java"
+            // LaunchCommandBuilder already expanded -cp and its value from version metadata.
+            // Do not append a second classpath here: that can shadow or corrupt the real one.
             args += request.jvmArgs
-            args += "-cp"
-            args += request.classpath.joinToString(File.pathSeparator) { it.absolutePath }
             args += request.mainClass
             args += request.gameArgs
 
