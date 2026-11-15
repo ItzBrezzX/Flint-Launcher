@@ -53,7 +53,8 @@ class LaunchRequestValidatorTest {
         val valid = request(root)
         val request = valid.copy(
             jvmArgs = listOf(
-                "-Djava.library.path=${valid.nativeDir.absolutePath}",
+                "-Djava.library.path=${listOf(valid.nativeDir, valid.androidNativeDir).joinToString(File.pathSeparator) { it.absolutePath }}",
+                "-Dorg.lwjgl.librarypath=${valid.androidNativeDir.absolutePath}",
                 "-cp",
                 File(root, "wrong.jar").absolutePath,
             ),
@@ -69,7 +70,11 @@ class LaunchRequestValidatorTest {
         val root = Files.createTempDirectory("flint-launch-no-cp").toFile()
         val valid = request(root)
         val request = valid.copy(
-            jvmArgs = listOf("-Djava.library.path=${valid.nativeDir.absolutePath}", "-Xmx1G"),
+            jvmArgs = listOf(
+                "-Djava.library.path=${listOf(valid.nativeDir, valid.androidNativeDir).joinToString(File.pathSeparator) { it.absolutePath }}",
+                "-Dorg.lwjgl.librarypath=${valid.androidNativeDir.absolutePath}",
+                "-Xmx1G",
+            ),
         )
 
         val error = LaunchRequestValidator.validate(request)
@@ -81,6 +86,7 @@ class LaunchRequestValidatorTest {
         val library = File(root, "library.jar").apply { writeText("library") }
         val client = File(root, "client.jar").apply { writeText("client") }
         val nativeDir = File(root, "natives").apply { mkdirs() }
+        val androidNativeDir = File(root, "android-native").apply { mkdirs() }
         val gameDir = File(root, "game").apply { mkdirs() }
         val classpath = listOf(library, client)
         val classpathArgument = classpath.joinToString(File.pathSeparator) { it.absolutePath }
@@ -92,8 +98,15 @@ class LaunchRequestValidatorTest {
             assetsDir = File(root, "assets"),
             classpath = classpath,
             nativeDir = nativeDir,
+            androidNativeDir = androidNativeDir,
             mainClass = "net.minecraft.client.main.Main",
-            jvmArgs = listOf("-Xmx1G", "-Djava.library.path=${nativeDir.absolutePath}", "-cp", classpathArgument),
+            jvmArgs = listOf(
+                "-Xmx1G",
+                "-Djava.library.path=${listOf(nativeDir, androidNativeDir).joinToString(File.pathSeparator) { it.absolutePath }}",
+                "-Dorg.lwjgl.librarypath=${androidNativeDir.absolutePath}",
+                "-cp",
+                classpathArgument,
+            ),
             gameArgs = listOf("--username", "FlintPlayer"),
             accountUsername = "FlintPlayer",
             accountUuid = "00000000-0000-0000-0000-000000000001",
