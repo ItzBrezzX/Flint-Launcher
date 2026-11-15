@@ -40,6 +40,12 @@ class PojavStyleGameLauncher(
                     "Build the :native module with NDK/CMake first.",
             )
         }
+        val glfwAbi = NativeBridge.safeGlfwAbiSmoke()
+        if (glfwAbi != "flint-glfw-abi-ok") {
+            return@withContext LaunchResult.Failed(
+                "Flint Android GLFW backend is unavailable: $glfwAbi",
+            )
+        }
 
         if (!launchActive.compareAndSet(false, true)) {
             return@withContext LaunchResult.Failed("A Minecraft JVM launch is already active.")
