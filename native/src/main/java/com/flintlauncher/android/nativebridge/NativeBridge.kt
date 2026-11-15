@@ -35,9 +35,16 @@ object NativeBridge {
     /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
 
-    /** Invoke JLI_Launch with the given argv. */
-    external fun nativeLaunchJvm(args: Array<String>): Int
+    /** Start JLI_Launch on a native worker thread; returns without waiting for Minecraft to exit. */
+    external fun nativeStartJvm(args: Array<String>): Boolean
 
+    /** 0=IDLE, 1=STARTING, 2=RUNNING, 3=EXITED, 4=FAILED. */
+    external fun nativeJvmState(): Int
+
+    /** Exit code returned by JLI_Launch, or -1 while unavailable. */
+    external fun nativeJvmExitCode(): Int
+
+    /** Reap a completed worker. Active JVMs are deliberately not unloaded. */
     external fun nativeShutdown()
 
     /**
