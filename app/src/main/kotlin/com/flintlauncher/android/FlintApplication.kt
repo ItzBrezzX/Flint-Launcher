@@ -7,6 +7,8 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.flintlauncher.android.account.AccountManager
+import com.flintlauncher.android.account.FileAccountRepository
 import com.flintlauncher.android.download.DownloadConfig
 import com.flintlauncher.android.download.DownloadManager
 import com.flintlauncher.android.installer.GameLayout
@@ -106,6 +108,7 @@ class AppContainer(private val app: Application) {
     }
 
     val profileRepository = ProfileRepository(File(app.filesDir, "profiles.json"))
+    val accountManager = AccountManager(FileAccountRepository(File(app.filesDir, "accounts.json")))
     val modrinthRepository = ModrinthRepository(
         api = ModrinthApi(http),
         installer = ModrinthModInstaller(modDownloadManager, gameRoot),
@@ -128,6 +131,8 @@ class AppContainer(private val app: Application) {
 class AppViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
+        modelClass.isAssignableFrom(AccountViewModel::class.java) ->
+            AccountViewModel(container.accountManager)
         modelClass.isAssignableFrom(HomeViewModel::class.java) ->
             HomeViewModel(container.partnersRepository, container.installer, container.mobileJreManager, container.deviceProcessArch, container.launcherVersion)
         modelClass.isAssignableFrom(VersionsViewModel::class.java) ->
