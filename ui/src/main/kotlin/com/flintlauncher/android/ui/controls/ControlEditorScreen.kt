@@ -56,6 +56,7 @@ fun ControlEditorScreen(
     initial: ControlLayout = ControlPresets.defaultLayout(),
     onSave: (ControlLayout) -> Unit = {},
     onCancel: () -> Unit = {},
+    saveMessage: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var layout by remember { mutableStateOf(initial) }
@@ -169,6 +170,8 @@ fun ControlEditorScreen(
                 }
             }
         }
+
+        saveMessage?.let { Text(it, color = FlintColors.TextMuted, style = MaterialTheme.typography.bodySmall) }
 
         // Property panel
         selected?.let { w ->
