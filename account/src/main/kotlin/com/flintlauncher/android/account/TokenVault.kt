@@ -4,6 +4,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.AtomicFile
 import java.io.File
+import java.io.FileNotFoundException
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -54,31 +55,41 @@ class AndroidKeystoreTokenVault(
     }
 
     private fun readAll(): MutableMap<String, String> {
-        if (!atomicFile.baseFile.exists()) return mutableMapOf()
-        val encrypted = atomicFile.openRead().use { it.readBytes() }
+        val encrypted = try {
+            // openRead() also restores AtomicFile's backup after an interrupted write.
+            atomicFile.openRead().use { it.readBytes() }
+        } catch (_: FileNotFoundException) {
+            return mutableMapOf()
+        }
         require(encrypted.size > NONCE_BYTES) { "Encrypted token store is truncated" }
         val nonce = encrypted.copyOfRange(0, NONCE_BYTES)
         val ciphertext = encrypted.copyOfRange(NONCE_BYTES, encrypted.size)
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(TAG_BITS, nonce))
         val plaintext = cipher.doFinal(ciphertext)
-        return json.decodeFromString<Map<String, String>>(plaintext.toString(Charsets.UTF_8)).toMutableMap()
+        return try {
+            json.decodeFromString<Map<String, String>>(plaintext.toString(Charsets.UTF_8)).toMutableMap()
+        } finally {
+            plaintext.fill(0)
+        }
     }
 
     private fun writeAll(values: Map<String, String>) {
         val plaintext = json.encodeToString(values).toByteArray(Charsets.UTF_8)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
-        val nonce = cipher.iv
-        val ciphertext = cipher.doFinal(plaintext)
-        val output = atomicFile.startWrite()
         try {
-            output.write(nonce)
-            output.write(ciphertext)
-            atomicFile.finishWrite(output)
-        } catch (failure: Throwable) {
-            atomicFile.failWrite(output)
-            throw failure
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+            val nonce = cipher.iv
+            val ciphertext = cipher.doFinal(plaintext)
+            val output = atomicFile.startWrite()
+            try {
+                output.write(nonce)
+                output.write(ciphertext)
+                atomicFile.finishWrite(output)
+            } catch (failure: Throwable) {
+                atomicFile.failWrite(output)
+                throw failure
+            }
         } finally {
             plaintext.fill(0)
         }
