@@ -123,6 +123,19 @@ class AppContainer(private val app: Application) {
 
     val installer = MinecraftInstaller(http = http, layout = layout, downloads = downloadManager)
 
+    // The PLAY screen and game launcher share the same installer, account selection,
+    // verified mobile JRE manager, game root and APK-native library directory.
+    val playLaunchCoordinator = PlayLaunchCoordinator(
+        installer = installer,
+        accounts = accountManager,
+        runtimeManager = mobileJreManager,
+        deviceArch = deviceProcessArch,
+        gameRoot = gameRoot,
+        cacheDir = app.cacheDir,
+        nativeLibraryDir = File(app.applicationInfo.nativeLibraryDir),
+        launcherVersion = launcherVersion,
+    )
+
     val installCoordinator = InstallCoordinator(
         runner = MinecraftInstallRunner(installer),
         controls = ManagerControls(downloadManager),
@@ -139,7 +152,13 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(HomeViewModel::class.java) ->
-            HomeViewModel(container.partnersRepository, container.installer, container.mobileJreManager, container.deviceProcessArch, container.launcherVersion)
+            HomeViewModel(
+                container.partnersRepository,
+                container.installer,
+                container.accountManager,
+                container.playLaunchCoordinator,
+                container.launcherVersion,
+            )
         modelClass.isAssignableFrom(VersionsViewModel::class.java) ->
             VersionsViewModel(container.installer, container.installCoordinator, container::startInstallService)
         modelClass.isAssignableFrom(ModsViewModel::class.java) ->
