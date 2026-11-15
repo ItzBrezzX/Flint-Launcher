@@ -85,29 +85,58 @@ class FlintGameSurfaceView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!isEglWindowReady) return false
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                val index = event.actionIndex
-                postInput(FlintGlfwEvent.cursor(event.getX(index), event.getY(index)))
+            MotionEvent.ACTION_DOWN -> {
+                postInput(FlintGlfwEvent.cursor(event.x, event.y))
                 postInput(FlintGlfwEvent.mouseButton(0, GLFW_PRESS, modifiers(event.metaState)))
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP -> {
                 val index = event.actionIndex
                 postInput(FlintGlfwEvent.cursor(event.getX(index), event.getY(index)))
+            }
+            MotionEvent.ACTION_UP -> {
+                postInput(FlintGlfwEvent.cursor(event.x, event.y))
                 postInput(FlintGlfwEvent.mouseButton(0, GLFW_RELEASE, modifiers(event.metaState)))
             }
             MotionEvent.ACTION_MOVE -> {
                 val index = event.actionIndex.coerceIn(0, event.pointerCount - 1)
                 postInput(FlintGlfwEvent.cursor(event.getX(index), event.getY(index)))
             }
+            else -> return true
+        }
+        return true
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (!isEglWindowReady) return super.onGenericMotionEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_MOVE -> {
+                postInput(FlintGlfwEvent.cursor(event.x, event.y))
+                return true
+            }
             MotionEvent.ACTION_SCROLL -> {
                 postInput(FlintGlfwEvent.scroll(
                     event.getAxisValue(MotionEvent.AXIS_HSCROLL),
                     event.getAxisValue(MotionEvent.AXIS_VSCROLL),
                 ))
+                return true
             }
-            else -> return true
+            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
+                val button = toGlfwMouseButton(event.actionButton) ?: return super.onGenericMotionEvent(event)
+                val action = if (event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS) GLFW_PRESS else GLFW_RELEASE
+                postInput(FlintGlfwEvent.mouseButton(button, action, modifiers(event.metaState)))
+                return true
+            }
+            else -> return super.onGenericMotionEvent(event)
         }
-        return true
+    }
+
+    private fun toGlfwMouseButton(buttonState: Int): Int? = when (buttonState) {
+        MotionEvent.BUTTON_PRIMARY -> 0
+        MotionEvent.BUTTON_SECONDARY -> 1
+        MotionEvent.BUTTON_TERTIARY -> 2
+        MotionEvent.BUTTON_BACK -> 3
+        MotionEvent.BUTTON_FORWARD -> 4
+        else -> null
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
