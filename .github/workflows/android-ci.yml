@@ -37,10 +37,10 @@ jobs:
         uses: gradle/actions/wrapper-validation@v4
 
       - name: Dependency resolution check
-        run: gradle :app:dependencies --configuration releaseRuntimeClasspath --quiet > /dev/null
+        run: gradle :app:dependencies --configuration releaseRuntimeClasspath --quiet --no-parallel --max-workers=2 > /dev/null
 
       - name: Compile all modules (debug)
-        run: gradle assembleDebug --stacktrace
+        run: gradle assembleDebug --no-parallel --max-workers=2 --stacktrace
 
       - name: Verify native libraries are packaged in the debug APK
         run: |
@@ -74,10 +74,13 @@ jobs:
           if-no-files-found: error
 
       - name: Unit tests
-        run: gradle test --stacktrace
+        run: gradle test --no-parallel --max-workers=2 --stacktrace
 
       - name: Android Lint
-        run: gradle lintDebug --stacktrace
+        run: |
+          # Release the daemon heap used by compilation/tests before lint analysis.
+          gradle --stop
+          gradle lintDebug --no-parallel --max-workers=2 --stacktrace
 
       - name: Upload reports
         if: always()
