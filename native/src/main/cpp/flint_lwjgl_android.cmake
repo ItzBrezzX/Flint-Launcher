@@ -146,6 +146,10 @@ target_include_directories(flint_lwjgl PRIVATE
     "${flint_libffi_source_SOURCE_DIR}/include"
 )
 target_compile_definitions(flint_lwjgl PRIVATE LWJGL_LINUX)
+# LWJGL 3.3.x defines cross-translation-unit helpers with GNU C inline
+# semantics. Clang defaults to C99 inline semantics and otherwise leaves
+# tlsGetEnvData/__aligned_alloc undefined at shared-library link time.
+target_compile_options(flint_lwjgl PRIVATE -fgnu89-inline)
 target_link_libraries(flint_lwjgl PRIVATE
     "${_flint_ffi_archive}"
     ${log-lib}
@@ -171,6 +175,7 @@ target_include_directories(flint_lwjgl_opengl PRIVATE
     "${_flint_lwjgl_opengl}/src/main/c"
 )
 target_compile_definitions(flint_lwjgl_opengl PRIVATE LWJGL_LINUX)
+target_compile_options(flint_lwjgl_opengl PRIVATE -fgnu89-inline)
 target_link_libraries(flint_lwjgl_opengl PRIVATE
     flint_lwjgl
     ${log-lib}
