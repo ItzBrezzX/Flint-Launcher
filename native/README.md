@@ -24,7 +24,7 @@ Android JNI/C++ bridge for Flint's mobile Java runtime and game graphics surface
 - LWJGL 2/3 Android GLFW compatibility and event pump.
 - Wiring a concrete Minecraft renderer into the `FlintRenderSession.renderFrame` callback.
 - An end-to-end Activity/Compose game-session route that creates, attaches, and closes the render session.
-- Translation from the internal event protocol into actual GLFW callbacks and LWJGL-visible window/input state.
+- Translation from the internal event protocol into actual GLFW callbacks and LWJGL-visible window/input state. The current state facade is only a prerequisite and does not replace GLFW callback registration or its C ABI.
 - Audio and actual Minecraft frame presentation.
 
 Do not mark a renderer available or report Minecraft as playable until those components are integrated and tested on a physical Android device.
