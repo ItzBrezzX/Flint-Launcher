@@ -25,7 +25,10 @@ class FlintGameSurfaceView @JvmOverloads constructor(
         FlintGlfwWindow(this)
     }
 
-    /** Assign before attaching [FlintRenderSession] to this view. */
+    /**
+     * Assign only for a Flint-managed renderer. Leave null when LWJGL's GLFW ABI
+     * owns the EGL context and render/event loop on Minecraft's render thread.
+     */
     var renderSession: FlintRenderSession? = null
 
     var onEglWindowReadyChanged: ((Boolean) -> Unit)? = null
