@@ -52,6 +52,26 @@ object NativeBridge {
     /** Number of events rejected because the bounded native queue was full. */
     external fun nativeDroppedInputEventCount(): Long
 
+    /** Attach the current EGL owner-thread window to Flint's GLFW platform backend. */
+    external fun nativeGlfwAttachAndroidSurface(width: Int, height: Int): Boolean
+
+    /** Initialize the GLFW C ABI after the Android EGL surface is attached. */
+    external fun nativeGlfwInitialize(): Boolean
+
+    /** Create the single logical GLFW window backed by the attached Android Surface. */
+    external fun nativeGlfwCreateWindow(width: Int, height: Int, title: String): Boolean
+
+    /** Dispatch the native FIFO into the registered GLFW callbacks on the caller thread. */
+    external fun nativeGlfwPollEvents(): Int
+
+    /** Swap the attached EGL window through the GLFW entry point. */
+    external fun nativeGlfwSwapBuffers(): Boolean
+
+    external fun nativeGlfwWindowShouldClose(): Boolean
+    external fun nativeGlfwSetWindowShouldClose(shouldClose: Boolean)
+    external fun nativeGlfwVersion(): String
+    external fun nativeGlfwDestroyWindow()
+
     fun safeSmokeTest(): String =
         if (!loaded) "native-not-loaded: $loadError"
         else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
