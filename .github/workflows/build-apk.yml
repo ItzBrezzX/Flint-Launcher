@@ -38,9 +38,13 @@ jobs:
           set -euo pipefail
           APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
           test -s "$APK"
-          apksigner verify --verbose "$APK"
-          aapt dump badging "$APK" | grep -F "package: name='com.flintlauncher.android'"
-          aapt dump badging "$APK" | grep -F "sdkVersion:'26'"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -n1)"
+          AAPT="$(dirname "$APKSIGNER")/aapt"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose "$APK"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.flintlauncher.android'"
+          "$AAPT" dump badging "$APK" | grep -F "sdkVersion:'26'"
           unzip -t "$APK" >/dev/null
 
       - name: Upload debug APK
@@ -68,8 +72,12 @@ jobs:
           gradle :app:assembleRelease --stacktrace
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -s "$APK"
-          apksigner verify --verbose "$APK"
-          aapt dump badging "$APK" | grep -F "package: name='com.flintlauncher.android'"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -n1)"
+          AAPT="$(dirname "$APKSIGNER")/aapt"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose "$APK"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.flintlauncher.android'"
 
       - name: Upload release APK
         if: ${{ env.HAS_SIGNING == 'true' }}
