@@ -210,7 +210,7 @@ class PlayLaunchCoordinator(
             kind = RendererKind.GL4ES,
             displayName = "GL4ES",
             available = gl4esLibrary.isFile,
-            notes = "Android GLFW/LWJGL native libraries are staged; production EGL context hand-off is still pending.",
+            notes = "Android LWJGL and Flint GLFW C ABI are staged; the game thread owns EGL, GL4ES and GLFW for this session.",
         )
         val request = LaunchRequest(
             versionId = installed.versionId,
