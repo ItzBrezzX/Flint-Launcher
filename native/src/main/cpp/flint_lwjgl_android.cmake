@@ -116,7 +116,7 @@ file(GLOB_RECURSE _flint_lwjgl_core_generated
     "${_flint_lwjgl_core}/src/generated/c/*.c"
 )
 list(FILTER _flint_lwjgl_core_generated EXCLUDE REGEX ".*/(windows|macos|freebsd)/.*")
-list(FILTER _flint_lwjgl_core_generated EXCLUDE REGEX ".*/liburing/.*")
+list(FILTER _flint_lwjgl_core_generated EXCLUDE REGEX ".*liburing.*")
 list(FILTER _flint_lwjgl_core_generated EXCLUDE REGEX ".*UIO.*")
 list(FILTER _flint_lwjgl_core_generated EXCLUDE REGEX ".*/org_lwjgl_system_libffi_LibFFI.c$")
 list(APPEND _flint_lwjgl_core_generated "${_flint_lwjgl_libffi_patched}")
