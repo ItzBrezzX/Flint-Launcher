@@ -53,6 +53,10 @@ fun RuntimeSettingsScreen(
                         Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         Text("Device-aware defaults and game compatibility", color = FlintColors.TextMuted)
                     }
+                    OutlinedButton(onClick = { actions.onOpenControls?.invoke() }, enabled = actions.onOpenControls != null) {
+                        Text("Touch controls")
+                    }
+                    Spacer(Modifier.width(6.dp))
                     OutlinedButton(onClick = { actions.onRefresh?.invoke() }, enabled = actions.onRefresh != null) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh runtimes")
                         Spacer(Modifier.width(6.dp))
