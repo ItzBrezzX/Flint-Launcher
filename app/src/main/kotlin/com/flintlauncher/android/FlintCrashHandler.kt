@@ -25,15 +25,13 @@ object FlintCrashHandler {
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             try {
                 val saved = saveReport(filesDir, thread, error)
-                Log.e(TAG, "Crash report saved: ${saved.absolutePath}", error)
+                Log.e(TAG, "Crash report saved: ${saved.absolutePath}; forwarding original crash.")
             } catch (writeError: Throwable) {
                 Log.e(TAG, "Could not save crash report; forwarding original crash", writeError)
                 Log.e(TAG, "Original uncaught exception", error)
             }
 
-            if (previous != null && previous !== Thread.getDefaultUncaughtExceptionHandler()) {
-                previous.uncaughtException(thread, error)
-            } else if (previous != null) {
+            if (previous != null) {
                 previous.uncaughtException(thread, error)
             } else {
                 Process.killProcess(Process.myPid())
@@ -53,9 +51,10 @@ object FlintCrashHandler {
             """(?i)((?:access|refresh|xsts|client)[_-]?(?:token|secret)|authorization)\s*([:=])\s*("[^"]*"|'[^']*'|[^\s,;&]+)""",
         )
         val bearer = Regex("""(?i)\bBearer\s+[^\s,;"']+""")
-        return bearer.replace(assignments.replace(value) { match ->
+        val withoutBearerSecrets = bearer.replace(value, "Bearer <redacted>")
+        return assignments.replace(withoutBearerSecrets) { match ->
             match.groupValues[1] + match.groupValues[2] + "<redacted>"
-        }, "Bearer <redacted>")
+        }
     }
 
     private fun saveReport(filesDir: File, thread: Thread, error: Throwable): File {
