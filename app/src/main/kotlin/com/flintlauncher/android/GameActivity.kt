@@ -103,7 +103,9 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         surfaceAvailable = holder.surface.isValid && width > 0 && height > 0
-        if (!surfaceAvailable || launchRequested) return
+        if (!surfaceAvailable) return
+        surfaceView.notifySurfaceSize(width, height)
+        if (launchRequested) return
 
         val versionId = intent.getStringExtra(EXTRA_VERSION_ID) ?: return
         launchRequested = true
