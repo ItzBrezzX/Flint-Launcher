@@ -37,6 +37,7 @@ class FlintApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        FlintCrashHandler.install(filesDir)
         container = AppContainer(this)
     }
 }
