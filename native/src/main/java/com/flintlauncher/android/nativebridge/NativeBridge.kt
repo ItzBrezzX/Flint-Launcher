@@ -9,6 +9,8 @@ package com.flintlauncher.android.nativebridge
 object NativeBridge {
     private var loaded = false
     private var loadError: String? = null
+    private var lwjglLoaded = false
+    private var lwjglLoadError: String? = null
 
     init {
         try {
@@ -25,9 +27,6 @@ object NativeBridge {
 
     /** Pure JNI smoke (no JRE). */
     external fun nativeSmokeTest(): String
-
-    /** Load libglfw.so and verify the minimum LWJGL-facing C ABI symbols. */
-    external fun nativeGlfwAbiSmoke(): String
 
     /** EGL + GLES2 pbuffer clear test. */
     external fun nativeEglSmoke(): String
@@ -94,9 +93,25 @@ object NativeBridge {
         if (!loaded) "native-not-loaded: $loadError"
         else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
 
-    fun safeGlfwAbiSmoke(): String =
-        if (!loaded) "native-not-loaded: $loadError"
-        else runCatching { nativeGlfwAbiSmoke() }.getOrElse { "glfw-abi-exception: ${it.message}" }
+    @Synchronized
+    fun safeLwjglNativeLoad(): String {
+        if (!loaded) return "native-not-loaded: $loadError"
+        if (lwjglLoaded) return "flint-lwjgl-native-ok"
+        return try {
+            // Load dependencies before LWJGL's JNI modules; System.loadLibrary
+            // associates them with the app ClassLoader for later LWJGL reuse.
+            System.loadLibrary("glfw")
+            System.loadLibrary("lwjgl")
+            System.loadLibrary("lwjgl_glfw")
+            System.loadLibrary("lwjgl_opengl")
+            lwjglLoaded = true
+            lwjglLoadError = null
+            "flint-lwjgl-native-ok"
+        } catch (error: Throwable) {
+            lwjglLoadError = error.message ?: error.javaClass.simpleName
+            "lwjgl-native-load-failed: $lwjglLoadError"
+        }
+    }
 
     fun safeEglSmoke(): String =
         if (!loaded) "native-not-loaded: $loadError"
