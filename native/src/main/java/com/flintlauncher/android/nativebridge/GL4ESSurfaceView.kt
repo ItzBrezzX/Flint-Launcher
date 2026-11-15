@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.PixelFormat
 import android.util.AttributeSet
 import android.util.Log
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import java.io.File
@@ -36,6 +38,8 @@ class GL4ESSurfaceView @JvmOverloads constructor(
     init {
         holder.setFormat(PixelFormat.RGBA_8888)
         holder.addCallback(this)
+        isFocusable = true
+        isFocusableInTouchMode = true
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -49,6 +53,8 @@ class GL4ESSurfaceView @JvmOverloads constructor(
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         surfaceWidth = width
         surfaceHeight = height
+        enqueueInput(FlintInputEvent.WINDOW_SIZE, x = width.toDouble(), y = height.toDouble())
+        enqueueInput(FlintInputEvent.FRAMEBUFFER_SIZE, x = width.toDouble(), y = height.toDouble())
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -61,6 +67,96 @@ class GL4ESSurfaceView @JvmOverloads constructor(
         }
         renderThread = null
         updateStatus("Android surface destroyed")
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!isEnabled) return false
+        val index = event.actionIndex.coerceIn(0, (event.pointerCount - 1).coerceAtLeast(0))
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                val pointer = event.getPointerId(index)
+                enqueueInput(FlintInputEvent.CURSOR, code = pointer, x = event.getX(index).toDouble(), y = event.getY(index).toDouble())
+                enqueueInput(FlintInputEvent.MOUSE_BUTTON, code = 0, action = 1, modifiers = event.metaState, x = event.getX(index).toDouble(), y = event.getY(index).toDouble())
+            }
+            MotionEvent.ACTION_MOVE -> {
+                for (pointerIndex in 0 until event.pointerCount) {
+                    enqueueInput(
+                        FlintInputEvent.CURSOR,
+                        code = event.getPointerId(pointerIndex),
+                        x = event.getX(pointerIndex).toDouble(),
+                        y = event.getY(pointerIndex).toDouble(),
+                    )
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+                enqueueInput(
+                    FlintInputEvent.MOUSE_BUTTON,
+                    code = 0,
+                    action = 0,
+                    modifiers = event.metaState,
+                    x = event.getX(index).toDouble(),
+                    y = event.getY(index).toDouble(),
+                )
+            }
+        }
+        return true
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_MOVE -> {
+                    enqueueInput(FlintInputEvent.CURSOR, x = event.x.toDouble(), y = event.y.toDouble())
+                    return true
+                }
+                MotionEvent.ACTION_SCROLL -> {
+                    enqueueInput(
+                        FlintInputEvent.SCROLL,
+                        x = event.getAxisValue(MotionEvent.AXIS_HSCROLL).toDouble(),
+                        y = event.getAxisValue(MotionEvent.AXIS_VSCROLL).toDouble(),
+                    )
+                    return true
+                }
+            }
+        }
+        return super.onGenericMotionEvent(event)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) {
+            enqueueInput(
+                FlintInputEvent.KEY,
+                code = event.keyCode,
+                action = if (event.action == KeyEvent.ACTION_DOWN) 1 else 0,
+                modifiers = event.metaState,
+            )
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val codePoint = event.unicodeChar
+                if (codePoint != 0) {
+                    enqueueInput(FlintInputEvent.CHARACTER, code = codePoint)
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        enqueueInput(FlintInputEvent.FOCUS, action = if (hasWindowFocus) 1 else 0)
+    }
+
+    private fun enqueueInput(
+        type: Int,
+        code: Int = 0,
+        action: Int = 0,
+        modifiers: Int = 0,
+        x: Double = 0.0,
+        y: Double = 0.0,
+    ) {
+        if (!NativeBridge.isNativeLoaded) return
+        runCatching {
+            FlintNativeWindowBridge.enqueue(type, code, action, modifiers, x, y)
+        }.onFailure { Log.w(TAG, "Could not enqueue input event", it) }
     }
 
     private fun renderLoop(holder: SurfaceHolder) {
