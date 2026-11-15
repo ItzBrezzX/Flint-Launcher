@@ -30,6 +30,9 @@ class FlintGameSurfaceView @JvmOverloads constructor(
         val accepted = activeSession.attach(holder.surface) { result ->
             onStatus?.invoke(result)
             if (result == "egl-window-ready" && width > 0 && height > 0) {
+                activeSession.renderTestFrame { rendered ->
+                    onStatus?.invoke(if (rendered) "egl-frame-presented" else "egl-frame-present-failed")
+                }
                 activeSession.resize(width, height)
             }
         }
