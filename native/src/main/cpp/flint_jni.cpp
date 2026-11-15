@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <mutex>
 
 #define LOG_TAG "FlintNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -34,6 +35,9 @@ typedef int (*JLI_Launch_func)(
 static void *g_libjli = nullptr;
 static JLI_Launch_func g_jli_launch = nullptr;
 static char g_jre_home[4096] = {0};
+static std::mutex g_jvm_mutex;
+static bool g_jvm_launching = false;
+static bool g_shutdown_requested = false;
 
 static void reset_signal_handlers(void) {
     /* Give the JVM a clean slate for its own signal detection (Pojav pattern). */
@@ -53,7 +57,20 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     const char *home = env->GetStringUTFChars(jreHomePath, nullptr);
     if (!home) return JNI_FALSE;
 
+    std::lock_guard<std::mutex> lock(g_jvm_mutex);
+    if (g_jvm_launching) {
+        env->ReleaseStringUTFChars(jreHomePath, home);
+        LOGE("nativeLoadJre: refusing to replace a runtime while the JVM is launching");
+        return JNI_FALSE;
+    }
+    if (g_libjli) {
+        dlclose(g_libjli);
+        g_libjli = nullptr;
+        g_jli_launch = nullptr;
+    }
+    g_shutdown_requested = false;
     strncpy(g_jre_home, home, sizeof(g_jre_home) - 1);
+    g_jre_home[sizeof(g_jre_home) - 1] = '\0';
 
     const char *candidates[] = {
         "/lib/libjli.so",
@@ -98,6 +115,8 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     g_jli_launch = (JLI_Launch_func) dlsym(handle, "JLI_Launch");
     if (!g_jli_launch) {
         LOGE("JLI_Launch not found: %s", dlerror());
+        dlclose(g_libjli);
+        g_libjli = nullptr;
         env->ReleaseStringUTFChars(jreHomePath, home);
         return JNI_FALSE;
     }
@@ -111,10 +130,6 @@ extern "C" JNIEXPORT jint JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     JNIEnv *env, jclass, jobjectArray argsArray
 ) {
-    if (!g_jli_launch) {
-        LOGE("nativeLaunchJvm: JRE not loaded");
-        return -1;
-    }
     if (argsArray == nullptr) {
         LOGE("nativeLaunchJvm: null args");
         return -3;
@@ -141,10 +156,30 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
         env->DeleteLocalRef(jstr);
     }
 
+    JLI_Launch_func launch_func = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_jvm_mutex);
+        if (!g_jli_launch || !g_libjli) {
+            LOGE("nativeLaunchJvm: JRE not loaded");
+            for (jsize i = 0; i < argc; ++i) free(argv[i]);
+            free(argv);
+            return -1;
+        }
+        if (g_jvm_launching) {
+            LOGE("nativeLaunchJvm: another JVM launch is already active");
+            for (jsize i = 0; i < argc; ++i) free(argv[i]);
+            free(argv);
+            return -6;
+        }
+        g_jvm_launching = true;
+        g_shutdown_requested = false;
+        launch_func = g_jli_launch;
+    }
+
     LOGI("Calling JLI_Launch with argc=%d argv0=%s", (int)argc, argv[0] ? argv[0] : "(null)");
     reset_signal_handlers();
 
-    int code = g_jli_launch(
+    int code = launch_func(
         (int)argc, argv,
         0, nullptr,
         0, nullptr,
@@ -160,6 +195,18 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
 
     LOGI("JLI_Launch returned %d", code);
 
+    {
+        std::lock_guard<std::mutex> lock(g_jvm_mutex);
+        g_jvm_launching = false;
+        if (g_shutdown_requested && g_libjli) {
+            dlclose(g_libjli);
+            g_libjli = nullptr;
+            g_jli_launch = nullptr;
+            g_shutdown_requested = false;
+            LOGI("Deferred JRE unload completed after JLI_Launch returned");
+        }
+    }
+
     for (jsize i = 0; i < argc; ++i) free(argv[i]);
     free(argv);
     return code;
@@ -169,10 +216,17 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeShutdown(
     JNIEnv *, jclass
 ) {
+    std::lock_guard<std::mutex> lock(g_jvm_mutex);
+    if (g_jvm_launching) {
+        g_shutdown_requested = true;
+        LOGI("JRE unload deferred: JLI_Launch is still active");
+        return;
+    }
     if (g_libjli) {
         dlclose(g_libjli);
         g_libjli = nullptr;
         g_jli_launch = nullptr;
+        g_shutdown_requested = false;
         LOGI("JRE native handle closed");
     }
 }
