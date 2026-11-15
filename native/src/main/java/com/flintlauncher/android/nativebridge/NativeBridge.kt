@@ -26,6 +26,9 @@ object NativeBridge {
     /** Pure JNI smoke (no JRE). */
     external fun nativeSmokeTest(): String
 
+    /** Load libglfw.so and verify the minimum LWJGL-facing C ABI symbols. */
+    external fun nativeGlfwAbiSmoke(): String
+
     /** EGL + GLES2 pbuffer clear test. */
     external fun nativeEglSmoke(): String
 
@@ -90,6 +93,10 @@ object NativeBridge {
     fun safeSmokeTest(): String =
         if (!loaded) "native-not-loaded: $loadError"
         else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
+
+    fun safeGlfwAbiSmoke(): String =
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeGlfwAbiSmoke() }.getOrElse { "glfw-abi-exception: ${it.message}" }
 
     fun safeEglSmoke(): String =
         if (!loaded) "native-not-loaded: $loadError"
