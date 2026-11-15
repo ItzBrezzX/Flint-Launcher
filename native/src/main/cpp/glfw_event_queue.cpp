@@ -26,9 +26,19 @@ std::array<Event, kCapacity> g_events{};
 size_t g_head = 0;
 size_t g_size = 0;
 uint64_t g_dropped = 0;
+int32_t g_window_width = 0;
+int32_t g_window_height = 0;
+bool g_window_focused = false;
+bool g_window_should_close = false;
 
 void enqueue(const Event& event) {
     std::lock_guard<std::mutex> lock(g_mutex);
+    if (event.type == 6) g_window_focused = event.a != 0;
+    if (event.type == 7) {
+        g_window_width = event.a > 0 ? event.a : 0;
+        g_window_height = event.b > 0 ? event.b : 0;
+    }
+    if (event.type == 8) g_window_should_close = true;
     if (g_size == kCapacity) {
         // Preserve the newest input/window state while bounding memory use.
         g_head = (g_head + 1) % kCapacity;
@@ -88,4 +98,49 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwDroppedEventC
 ) {
     std::lock_guard<std::mutex> lock(g_mutex);
     return static_cast<jlong>(g_dropped);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwResetWindowState(
+    JNIEnv*, jclass
+) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_window_width = 0;
+    g_window_height = 0;
+    g_window_focused = false;
+    g_window_should_close = false;
+    g_head = 0;
+    g_size = 0;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwWindowShouldClose(
+    JNIEnv*, jclass
+) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    return g_window_should_close ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwSetWindowShouldClose(
+    JNIEnv*, jclass, jboolean should_close
+) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_window_should_close = should_close == JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwGetWindowSize(
+    JNIEnv* env, jclass
+) {
+    jint values[3];
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        values[0] = g_window_width;
+        values[1] = g_window_height;
+        values[2] = g_window_focused ? 1 : 0;
+    }
+    jintArray result = env->NewIntArray(3);
+    if (result != nullptr) env->SetIntArrayRegion(result, 0, 3, values);
+    return result;
 }
