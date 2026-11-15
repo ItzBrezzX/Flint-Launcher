@@ -6,6 +6,8 @@ include(FetchContent)
 include(ExternalProject)
 
 set(FLINT_LWJGL_VERSION "3.3.3" CACHE STRING "LWJGL native/JAR compatibility version")
+# Keep the auxiliary libffi cross-compiler aligned with native/build.gradle.kts.
+set(FLINT_LWJGL_ANDROID_API "26" CACHE STRING "Android API level used for LWJGL/libffi builds")
 
 FetchContent_Declare(
     flint_lwjgl_source
@@ -56,7 +58,7 @@ else()
 endif()
 
 set(_flint_llvm_bin "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/${_flint_host_os}-${_flint_host_arch}/bin")
-set(_flint_ffi_cc "${_flint_llvm_bin}/${_flint_ffi_host}${CMAKE_SYSTEM_VERSION}-clang")
+set(_flint_ffi_cc "${_flint_llvm_bin}/${_flint_ffi_host}${FLINT_LWJGL_ANDROID_API}-clang")
 set(_flint_ffi_ar "${_flint_llvm_bin}/llvm-ar")
 set(_flint_ffi_ranlib "${_flint_llvm_bin}/llvm-ranlib")
 if(NOT EXISTS "${_flint_ffi_cc}")
