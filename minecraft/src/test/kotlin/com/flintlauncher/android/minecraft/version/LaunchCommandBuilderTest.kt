@@ -57,114 +57,12 @@ class LaunchCommandBuilderTest {
 
     @Test
     fun gameAssetsPlaceholderUsesLegacyVirtualAssetsPathWhenProvided() {
+        val gameAssetsPlaceholder = "$" + "{game_assets}"
+        val classpathPlaceholder = "$" + "{classpath}"
         val version = VersionJsonParser.parse(
             """{"id":"legacy","mainClass":"net.minecraft.client.main.Main",
-                "arguments":{"game":["--assetsDir","${'
-        val command = LaunchCommandBuilder.build(modern, context, extraJvmArguments = listOf("-Xmx2G"), extraGameArguments = listOf("--fullscreen"))
-        assertEquals("-Xmx2G", command.jvmArguments.first())
-        assertEquals("--fullscreen", command.gameArguments.last())
-        assertEquals("-Xmx2G", command.toArgumentList().first())
-    }
-
-    @Test
-    fun legacyVersionsUseMinecraftArgumentsAndDefaultJvmArguments() {
-        val legacy = VersionJsonParser.parse(
-            """{"id":"1.8.9","mainClass":"net.minecraft.client.main.Main",
-                "minecraftArguments":"--username ${'$'}{auth_player_name} --session ${'$'}{auth_session} --gameDir ${'$'}{game_directory}"}""",
-        )
-        val command = LaunchCommandBuilder.build(legacy, context)
-
-        assertEquals(listOf("-Djava.library.path=/n", "-cp", "/c/a.jar:/c/b.jar"), command.jvmArguments)
-        assertEquals(
-            listOf("--username", "Steve", "--session", "token:token:00000000-0000-0000-0000-000000000001", "--gameDir", "/g"),
-            command.gameArguments,
-        )
-    }
-
-    @Test
-    fun unresolvedPlaceholdersAreAnErrorNotASilentBadLaunch() {
-        val broken = VersionJsonParser.parse(
-            """{"id":"x","mainClass":"M","arguments":{"game":["--thing","${'$'}{mystery_value}"],"jvm":["-cp","${'$'}{classpath}"]}}""",
-        )
-        try {
-            LaunchCommandBuilder.build(broken, context)
-            fail("expected LaunchConfigurationException")
-        } catch (e: LaunchConfigurationException) {
-            assertTrue(e.message!!.contains("mystery_value"))
-        }
-    }
-
-    @Test
-    fun missingMainClassIsAnError() {
-        val noMain = VersionJsonParser.parse("""{"id":"x","minecraftArguments":"--a b"}""")
-        try {
-            LaunchCommandBuilder.build(noMain, context)
-            fail("expected LaunchConfigurationException")
-        } catch (e: LaunchConfigurationException) {
-            assertTrue(e.message!!.contains("main class"))
-        }
-    }
-
-    @Test
-    fun tokensAreNotLeakedIntoUnrelatedArguments() {
-        val command = LaunchCommandBuilder.build(modern, context)
-        assertFalse(command.toArgumentList().any { it.contains("token") })
-    }
-}
-}{game_assets}"],
-                    "jvm":["-cp","${'
-        val command = LaunchCommandBuilder.build(modern, context, extraJvmArguments = listOf("-Xmx2G"), extraGameArguments = listOf("--fullscreen"))
-        assertEquals("-Xmx2G", command.jvmArguments.first())
-        assertEquals("--fullscreen", command.gameArguments.last())
-        assertEquals("-Xmx2G", command.toArgumentList().first())
-    }
-
-    @Test
-    fun legacyVersionsUseMinecraftArgumentsAndDefaultJvmArguments() {
-        val legacy = VersionJsonParser.parse(
-            """{"id":"1.8.9","mainClass":"net.minecraft.client.main.Main",
-                "minecraftArguments":"--username ${'$'}{auth_player_name} --session ${'$'}{auth_session} --gameDir ${'$'}{game_directory}"}""",
-        )
-        val command = LaunchCommandBuilder.build(legacy, context)
-
-        assertEquals(listOf("-Djava.library.path=/n", "-cp", "/c/a.jar:/c/b.jar"), command.jvmArguments)
-        assertEquals(
-            listOf("--username", "Steve", "--session", "token:token:00000000-0000-0000-0000-000000000001", "--gameDir", "/g"),
-            command.gameArguments,
-        )
-    }
-
-    @Test
-    fun unresolvedPlaceholdersAreAnErrorNotASilentBadLaunch() {
-        val broken = VersionJsonParser.parse(
-            """{"id":"x","mainClass":"M","arguments":{"game":["--thing","${'$'}{mystery_value}"],"jvm":["-cp","${'$'}{classpath}"]}}""",
-        )
-        try {
-            LaunchCommandBuilder.build(broken, context)
-            fail("expected LaunchConfigurationException")
-        } catch (e: LaunchConfigurationException) {
-            assertTrue(e.message!!.contains("mystery_value"))
-        }
-    }
-
-    @Test
-    fun missingMainClassIsAnError() {
-        val noMain = VersionJsonParser.parse("""{"id":"x","minecraftArguments":"--a b"}""")
-        try {
-            LaunchCommandBuilder.build(noMain, context)
-            fail("expected LaunchConfigurationException")
-        } catch (e: LaunchConfigurationException) {
-            assertTrue(e.message!!.contains("main class"))
-        }
-    }
-
-    @Test
-    fun tokensAreNotLeakedIntoUnrelatedArguments() {
-        val command = LaunchCommandBuilder.build(modern, context)
-        assertFalse(command.toArgumentList().any { it.contains("token") })
-    }
-}
-}{classpath}"]}}""",
+                "arguments":{"game":["--assetsDir","$gameAssetsPlaceholder"],
+                    "jvm":["-cp","$classpathPlaceholder"]}}""",
         )
 
         val command = LaunchCommandBuilder.build(
