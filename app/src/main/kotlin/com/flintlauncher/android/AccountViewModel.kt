@@ -3,21 +3,11 @@ package com.flintlauncher.android
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flintlauncher.android.account.AccountManager
-import com.flintlauncher.android.account.FlintAccount
+import com.flintlauncher.android.ui.state.AccountsUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-
-data class AccountsUiState(
-    val accounts: List<FlintAccount> = emptyList(),
-    val selectedId: String? = null,
-    val username: String = "",
-    val busy: Boolean = false,
-    val message: String? = null,
-) {
-    val selected: FlintAccount? get() = accounts.firstOrNull { it.id == selectedId }
-}
 
 class AccountViewModel(private val manager: AccountManager) : ViewModel() {
     private val _state = MutableStateFlow(AccountsUiState())
