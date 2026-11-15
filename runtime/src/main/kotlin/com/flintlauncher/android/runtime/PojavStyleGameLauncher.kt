@@ -64,7 +64,7 @@ class PojavStyleGameLauncher(
                 "Android native modules are not built yet: ${unsupportedModules.joinToString()}.",
             )
         }
-        val lwjglLoad = NativeBridge.safeLwjglNativeLoad()
+        val lwjglLoad = NativeBridge.safeLwjglAbiSmoke()
         if (lwjglLoad != "flint-lwjgl-native-ok") {
             return@withContext LaunchResult.Failed(
                 "Android LWJGL native libraries could not be loaded: $lwjglLoad",
