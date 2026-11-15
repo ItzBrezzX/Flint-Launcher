@@ -82,11 +82,9 @@ class PojavStyleGameLauncher(
     override suspend fun isRunning(): Boolean = launchActive.get()
 
     override suspend fun stop() {
-        // nativeShutdown() only unloads/defer-unloads libjli; it does NOT stop
-        // a JVM inside JLI_Launch. Do not clear launchActive or unload underneath it.
-        if (!launchActive.get()) {
-            NativeBridge.nativeShutdown()
-        }
+        // The current JNI contract has no JVM termination primitive. In particular,
+        // unloading libjli here can race a new launch or invalidate its JLI entry point.
+        // Keep the active state truthful; process termination needs a dedicated native API.
     }
 
     override fun stdout(): String = logBuffer.toString()
