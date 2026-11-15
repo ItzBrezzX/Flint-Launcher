@@ -101,8 +101,9 @@ data class LaunchRequest(
 
 /**
  * Result of attempting to start the game process.
- * SUCCESS means the process was started and is believed to be running —
- * not that the user reached the main menu.
+ * Started means a live game process/session has been attached and is believed
+ * to be running — not that the user reached the main menu. Implementations must
+ * not return Started merely because a synchronous JVM entry point returned 0.
  */
 sealed class LaunchResult {
     data class Started(val pid: Int?, val logFile: File?) : LaunchResult()
