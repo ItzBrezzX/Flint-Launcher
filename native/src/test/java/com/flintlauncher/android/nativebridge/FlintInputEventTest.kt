@@ -35,7 +35,7 @@ class FlintInputEventTest {
     @Test
     fun decodesMultipleEventsInQueueOrder() {
         val packed = longArrayOf(
-            FlintInputEvent.KEY.toLong(), 29L, 1L, 0L, 0L, 0L,
+            FlintInputEvent.KEY.toLong(), FlintGlfwInputMapper.GLFW_KEY_A.toLong(), 1L, 0L, 0L, 0L,
             FlintInputEvent.FOCUS.toLong(), 0L, 1L, 0L, 0L, 0L,
         )
 
