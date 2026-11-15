@@ -145,12 +145,20 @@ class GL4ESSurfaceView @JvmOverloads constructor(
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) {
-            enqueueInput(
-                FlintInputEvent.KEY,
-                code = event.keyCode,
-                action = if (event.action == KeyEvent.ACTION_DOWN) 1 else 0,
-                modifiers = event.metaState,
-            )
+            val glfwKey = FlintGlfwInputMapper.key(event.keyCode)
+            if (glfwKey != null) {
+                val action = when {
+                    event.action == KeyEvent.ACTION_UP -> 0
+                    event.repeatCount > 0 -> 2
+                    else -> 1
+                }
+                enqueueInput(
+                    FlintInputEvent.KEY,
+                    code = glfwKey,
+                    action = action,
+                    modifiers = FlintGlfwInputMapper.modifiers(event.metaState),
+                )
+            }
             if (event.action == KeyEvent.ACTION_DOWN) {
                 val codePoint = event.unicodeChar
                 if (codePoint != 0) {
