@@ -56,7 +56,7 @@ struct GLFWwindow {
 };
 
 namespace {
-std::mutex g_glfw_mutex;
+std::recursive_mutex g_glfw_mutex;
 GLFWwindow *g_window = nullptr;
 GLFWwindow *g_current_context = nullptr;
 bool g_initialized = false;
@@ -91,7 +91,7 @@ int32_t float_to_bits(float value) {
 }
 
 GLFWwindow *active_window() {
-    std::lock_guard<std::mutex> lock(g_glfw_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     return g_window;
 }
 
@@ -105,7 +105,7 @@ void update_dimensions(GLFWwindow *window, int width, int height) {
 extern "C" {
 
 GLFW_EXPORT int glfwInit(void) {
-    std::lock_guard<std::mutex> lock(g_glfw_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     g_initialized = true;
     clock_gettime(CLOCK_MONOTONIC, &g_time_origin);
     g_time_offset = 0.0;
@@ -113,7 +113,8 @@ GLFW_EXPORT int glfwInit(void) {
 }
 
 GLFW_EXPORT void glfwTerminate(void) {
-    std::lock_guard<std::mutex> lock(g_glfw_mutex);
+    flint_egl_window_release_current();
+    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     delete g_window;
     g_window = nullptr;
     g_current_context = nullptr;
@@ -135,7 +136,7 @@ GLFW_EXPORT const char *glfwGetVersionString(void) {
 }
 
 GLFW_EXPORT GLFWerrorfun glfwSetErrorCallback(GLFWerrorfun callback) {
-    std::lock_guard<std::mutex> lock(g_glfw_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     GLFWerrorfun previous = g_error_callback;
     g_error_callback = callback;
     return previous;
@@ -159,7 +160,7 @@ GLFW_EXPORT GLFWwindow *glfwCreateWindow(
         set_error(0x00010008, "No Android game Surface is attached to the EGL backend");
         return nullptr;
     }
-    std::lock_guard<std::mutex> lock(g_glfw_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     if (!g_initialized) {
         set_error(0x00010001, "glfwInit must be called before glfwCreateWindow");
         return nullptr;
@@ -187,17 +188,21 @@ GLFW_EXPORT GLFWwindow *glfwCreateWindow(
 }
 
 GLFW_EXPORT void glfwDestroyWindow(GLFWwindow *window) {
-    std::lock_guard<std::mutex> lock(g_glfw_mutex);
-    if (window == nullptr || window != g_window) return;
+    if (window == nullptr || window != active_window()) return;
     if (g_current_context == window) {
-        g_current_context = nullptr;
+        flint_egl_window_release_current();
     }
+    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
+    if (window != g_window) return;
+    if (g_current_context == window) g_current_context = nullptr;
     delete g_window;
     g_window = nullptr;
 }
 
 GLFW_EXPORT void glfwMakeContextCurrent(GLFWwindow *window) {
     if (window == nullptr) {
+        flint_egl_window_release_current();
+        std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
         g_current_context = nullptr;
         return;
     }
@@ -205,10 +210,12 @@ GLFW_EXPORT void glfwMakeContextCurrent(GLFWwindow *window) {
         set_error(0x00010008, "Could not make the Android EGL context current");
         return;
     }
+    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     g_current_context = window;
 }
 
 GLFW_EXPORT GLFWwindow *glfwGetCurrentContext(void) {
+    std::lock_guard<std::recursive_mutex> lock(g_glfw_mutex);
     return g_current_context;
 }
 
@@ -229,6 +236,8 @@ GLFW_EXPORT void glfwPollEvents(void) {
     if (!window) return;
     FlintGlfwEvent event{};
     while (flint_glfw_poll_event(&event)) {
+        window = active_window();
+        if (!window) return;
         switch (event.type) {
             case 1:
                 if (window->keyCallback) window->keyCallback(window, event.a, event.b, event.c, event.d);
@@ -272,7 +281,8 @@ GLFW_EXPORT void glfwPollEvents(void) {
                 break;
         }
     }
-    if (flint_glfw_window_should_close()) window->shouldClose = true;
+    window = active_window();
+    if (window && flint_glfw_window_should_close()) window->shouldClose = true;
 }
 
 GLFW_EXPORT void glfwWaitEvents(void) { glfwPollEvents(); }
