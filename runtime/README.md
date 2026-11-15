@@ -1,16 +1,17 @@
 # :runtime
 
-Java runtime management, renderer selection, game process lifecycle, launch readiness.
+Java runtime management, renderer selection, launch readiness and the in-process game lifecycle.
 
-## Spike 0 status
+## Current source integration
 
 | Component | State |
-|-----------|--------|
+|-----------|-------|
 | `LaunchReadinessResolver` | Implemented |
-| `MobileJreManager` | Implemented (download + SHA-256 + probe). Artifact URLs are placeholders. |
-| `PojavStyleGameLauncher` | Implemented; fails precisely until JRE + full JLI path exist |
-| `RuntimeSmoke` | Implemented |
-| Native `flint_native` | JNI + EGL smoke + JRE dlopen skeleton |
-| Real Minecraft main menu | **NOT VERIFIED** — requires device + real JRE + completed JLI path |
+| `MobileJreManager` | Local import, SHA-256 verification and JRE probing implemented; remote artifact URLs remain intentionally unavailable until trusted artifacts/checksums are selected |
+| `PojavStyleGameLauncher` | Production Surface/EGL/GL4ES/GLFW/JLI sequence wired to a single dedicated game thread |
+| `AndroidLwjglNativesInstaller` | Stages APK-built Android LWJGL, GLFW and GL4ES libraries |
+| Native `flint_native` | JNI, ANativeWindow EGL, JRE loading, JLI entry and input FIFO are wired in source |
+| Graceful STOP | GLFW close request routed through the native event queue; no unsafe cross-thread EGL destruction |
+| Minecraft title screen / world | **NOT VERIFIED on a physical device** |
 
-See [docs/SPIKE0.md](../docs/SPIKE0.md).
+A `LaunchResult.Started` means native EGL/GL4ES/GLFW setup completed and the worker entered `JLI_Launch`. It is not proof that Minecraft reached the title screen. See [docs/ANDROID_RUNTIME_INTEGRATION.md](../docs/ANDROID_RUNTIME_INTEGRATION.md) and [docs/SPIKE0.md](../docs/SPIKE0.md).
