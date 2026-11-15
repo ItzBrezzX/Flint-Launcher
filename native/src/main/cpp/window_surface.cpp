@@ -62,6 +62,18 @@ bool create_egl_locked() {
         return false;
     }
 
+    EGLint native_visual_id = 0;
+    if (!eglGetConfigAttrib(g_display, g_config, EGL_NATIVE_VISUAL_ID, &native_visual_id)) {
+        LOGE("Could not read EGL_NATIVE_VISUAL_ID: 0x%x", eglGetError());
+        destroy_egl_locked();
+        return false;
+    }
+    if (ANativeWindow_setBuffersGeometry(g_window, 0, 0, native_visual_id) != 0) {
+        LOGE("ANativeWindow_setBuffersGeometry failed");
+        destroy_egl_locked();
+        return false;
+    }
+
     const EGLint context_attributes[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
     g_context = eglCreateContext(g_display, g_config, EGL_NO_CONTEXT, context_attributes);
     if (g_context == EGL_NO_CONTEXT) {
