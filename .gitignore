@@ -21,3 +21,6 @@ secrets.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# Downloaded LWJGL sources and per-ABI libffi build cache
+native/lwjgl/_work/
