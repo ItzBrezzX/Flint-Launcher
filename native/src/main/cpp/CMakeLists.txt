@@ -21,3 +21,20 @@ target_link_libraries(flint_native
 )
 
 target_compile_options(flint_native PRIVATE -Wall -Wextra -fvisibility=hidden)
+
+
+# LWJGL loads the GLFW platform library by its canonical soname (libglfw.so).
+# Keep it separate from Flint's JNI bridge while sharing the EGL/event backend.
+add_library(flint_glfw SHARED
+    glfw_abi.cpp
+)
+set_target_properties(flint_glfw PROPERTIES OUTPUT_NAME glfw)
+target_include_directories(flint_glfw PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(flint_glfw
+    flint_native
+    ${log-lib}
+    ${android-lib}
+    ${egl-lib}
+    ${gles-lib}
+)
+target_compile_options(flint_glfw PRIVATE -Wall -Wextra -fvisibility=hidden)
