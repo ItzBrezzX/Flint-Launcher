@@ -37,8 +37,6 @@ static void *g_libjli = nullptr;
 static JLI_Launch_func g_jli_launch = nullptr;
 static char g_jre_home[4096] = {0};
 static std::mutex g_jvm_mutex;
-static std::mutex g_glfw_abi_mutex;
-static void *g_glfw_abi_handle = nullptr;
 static bool g_jvm_launching = false;
 static bool g_shutdown_requested = false;
 
@@ -258,45 +256,6 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeShutdown(
     }
 }
 
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwAbiSmoke(
-    JNIEnv *env, jclass
-) {
-    std::lock_guard<std::mutex> lock(g_glfw_abi_mutex);
-    if (!g_glfw_abi_handle) {
-        dlerror();
-        g_glfw_abi_handle = dlopen("libglfw.so", RTLD_NOW | RTLD_LOCAL);
-        if (!g_glfw_abi_handle) {
-            const char *error = dlerror();
-            char message[512];
-            snprintf(message, sizeof(message), "glfw-load-failed: %s", error ? error : "unknown linker error");
-            return env->NewStringUTF(message);
-        }
-    }
-
-    const char *required[] = {
-        "glfwInit", "glfwTerminate", "glfwCreateWindow",
-        "glfwDestroyWindow", "glfwPollEvents", "glfwMakeContextCurrent",
-        "glfwSwapBuffers", "glfwGetProcAddress", "glfwSetKeyCallback",
-        "glfwSetCharCallback", "glfwSetMouseButtonCallback",
-        "glfwSetCursorPosCallback", "glfwGetWindowSize", nullptr
-    };
-    for (int i = 0; required[i] != nullptr; ++i) {
-        dlerror();
-        if (dlsym(g_glfw_abi_handle, required[i]) == nullptr) {
-            const char *error = dlerror();
-            char message[512];
-            snprintf(message, sizeof(message), "glfw-symbol-missing: %s (%s)",
-                     required[i], error ? error : "unknown symbol error");
-            dlclose(g_glfw_abi_handle);
-            g_glfw_abi_handle = nullptr;
-            return env->NewStringUTF(message);
-        }
-    }
-
-    return env->NewStringUTF("flint-glfw-abi-ok");
-}
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSmokeTest(
