@@ -61,6 +61,7 @@ class FlintGameSurfaceView @JvmOverloads constructor(
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        renderSession?.onSurfaceAboutToChange()
         val ready = width > 0 && height > 0 && NativeBridge.isNativeLoaded &&
             runCatching { NativeBridge.nativeSurfaceChanged(width, height) }.getOrDefault(false)
         updateReady(ready)
