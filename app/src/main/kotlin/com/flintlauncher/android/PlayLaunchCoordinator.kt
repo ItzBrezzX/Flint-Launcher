@@ -189,6 +189,11 @@ class PlayLaunchCoordinator(
         val extraJvmArguments = buildList {
             add("-Djava.library.path=${nativeDirectory.absolutePath}")
             add("-Dorg.lwjgl.librarypath=${nativeDirectory.absolutePath}")
+            // LWJGL's Linux defaults target desktop GLX/EGL sonames. Resolve the
+            // Android GL4ES, EGL and GLES libraries explicitly before GLFW loads.
+            add("-Dorg.lwjgl.opengl.libname=libGL.so")
+            add("-Dorg.lwjgl.egl.libname=libEGL.so")
+            add("-Dorg.lwjgl.opengles.libname=libGLESv2.so")
             add("-Djava.io.tmpdir=${File(cacheDir, "minecraft-tmp").absolutePath}")
             add("-Duser.home=${gameDirectory.absolutePath}")
             installed.loggingJvmArgument?.let { add(it) }
