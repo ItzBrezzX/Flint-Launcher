@@ -13,6 +13,7 @@ import com.flintlauncher.android.download.DownloadConfig
 import com.flintlauncher.android.download.DownloadManager
 import com.flintlauncher.android.installer.GameLayout
 import com.flintlauncher.android.installer.MinecraftInstaller
+import com.flintlauncher.android.minecraft.version.Environment
 import com.flintlauncher.android.network.FlintHttp
 import com.flintlauncher.android.mods.ModrinthApi
 import com.flintlauncher.android.mods.ModrinthModInstaller
@@ -116,7 +117,12 @@ class AppContainer(private val app: Application) {
         installer = ModrinthModInstaller(modDownloadManager, gameRoot),
     )
 
-    val installer = MinecraftInstaller(http = http, layout = layout, downloads = downloadManager)
+    val installer = MinecraftInstaller(
+        http = http,
+        layout = layout,
+        downloads = downloadManager,
+        environment = Environment(osName = "linux", osArch = deviceProcessArch ?: "arm64"),
+    )
 
     val installCoordinator = InstallCoordinator(
         runner = MinecraftInstallRunner(installer),
