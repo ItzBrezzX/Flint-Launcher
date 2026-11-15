@@ -7,6 +7,8 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.flintlauncher.android.account.AccountManager
+import com.flintlauncher.android.account.FileAccountRepository
 import com.flintlauncher.android.download.DownloadConfig
 import com.flintlauncher.android.download.DownloadManager
 import com.flintlauncher.android.installer.GameLayout
@@ -17,6 +19,7 @@ import com.flintlauncher.android.mods.ModrinthModInstaller
 import com.flintlauncher.android.mods.ModrinthRepository
 import com.flintlauncher.android.profiles.ProfileRepository
 import com.flintlauncher.android.runtime.MobileJreManager
+import com.flintlauncher.android.runtime.PojavStyleGameLauncher
 import com.flintlauncher.android.runtime.RuntimeArchitecture
 import com.flintlauncher.android.partners.BundledServerFeed
 import com.flintlauncher.android.partners.McStatusClient
@@ -106,6 +109,8 @@ class AppContainer(private val app: Application) {
     }
 
     val profileRepository = ProfileRepository(File(app.filesDir, "profiles.json"))
+    val accountManager = AccountManager(FileAccountRepository(File(app.filesDir, "accounts.json")))
+    val gameLauncher = mobileJreManager?.let(::PojavStyleGameLauncher)
     val modrinthRepository = ModrinthRepository(
         api = ModrinthApi(http),
         installer = ModrinthModInstaller(modDownloadManager, gameRoot),
@@ -129,7 +134,17 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(HomeViewModel::class.java) ->
-            HomeViewModel(container.partnersRepository, container.installer, container.mobileJreManager, container.deviceProcessArch, container.launcherVersion)
+            HomeViewModel(
+                partners = container.partnersRepository,
+                installer = container.installer,
+                runtimeManager = container.mobileJreManager,
+                deviceArch = container.deviceProcessArch,
+                launcherVersion = container.launcherVersion,
+                accountManager = container.accountManager,
+                profileRepository = container.profileRepository,
+                gameLauncher = container.gameLauncher,
+                gameRoot = container.installer.gameRoot,
+            )
         modelClass.isAssignableFrom(VersionsViewModel::class.java) ->
             VersionsViewModel(container.installer, container.installCoordinator, container::startInstallService)
         modelClass.isAssignableFrom(ModsViewModel::class.java) ->
