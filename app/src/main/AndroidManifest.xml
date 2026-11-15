@@ -22,6 +22,11 @@
             android:foregroundServiceType="dataSync" />
 
         <activity
+            android:name=".RendererTestActivity"
+            android:screenOrientation="sensorLandscape"
+            android:exported="false" />
+
+        <activity
             android:name=".MainActivity"
             android:screenOrientation="sensorLandscape"
             android:exported="true">
