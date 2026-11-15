@@ -143,6 +143,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             VersionsViewModel(container.installer, container.installCoordinator, container::startInstallService)
         modelClass.isAssignableFrom(ModsViewModel::class.java) ->
             ModsViewModel(container.modrinthRepository, container.profileRepository)
+        modelClass.isAssignableFrom(AccountsViewModel::class.java) ->
+            AccountsViewModel(container.accountManager)
         modelClass.isAssignableFrom(RuntimeSettingsViewModel::class.java) ->
             RuntimeSettingsViewModel(
                 container.mobileJreManager,
