@@ -54,16 +54,10 @@ class PojavStyleGameLauncher(
                 )
             }
 
-            // Build argv the way JLI_Launch expects (program name first).
-            val args = mutableListOf<String>()
-            args += "java"
             // LaunchCommandBuilder already expanded -cp and its value from version metadata.
-            // Do not append a second classpath here: that can shadow or corrupt the real one.
-            args += request.jvmArgs
-            args += request.mainClass
-            args += request.gameArgs
+            // The request-to-JLI adapter preserves that classpath exactly once.
+            val args = buildJliArguments(request)
 
-            // Account identity (offline or Microsoft) is already expected in gameArgs / jvmArgs.
             logBuffer.appendLine("Launch argv (${args.size} entries):")
             args.take(12).forEach { logBuffer.appendLine("  $it") }
             if (args.size > 12) logBuffer.appendLine("  ...")
