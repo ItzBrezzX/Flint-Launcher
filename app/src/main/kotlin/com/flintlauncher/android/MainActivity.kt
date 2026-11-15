@@ -141,9 +141,13 @@ class MainActivity : ComponentActivity() {
                         // account storage on every repeated tap caused avoidable main-thread work.
                         if (destination != it) {
                             destination = it
-                            if (it == Destination.PLAY) {
-                                homeViewModel.refreshInstallations()
-                                homeViewModel.refreshAccount()
+                            when (it) {
+                                Destination.PLAY -> {
+                                    homeViewModel.refreshInstallations()
+                                    homeViewModel.refreshAccount()
+                                }
+                                Destination.SETTINGS -> runtimeSettingsViewModel.refresh()
+                                else -> Unit
                             }
                         }
                     },
