@@ -59,7 +59,7 @@ object NativeBridge {
     /** Total number of events dropped because the bounded queue was full. */
     external fun nativeGlfwDroppedEventCount(): Long
 
-    /** Reset per-window state when a new Android Surface is attached. */
+    /** Reset all active window and input state when a new Android Surface is attached. */
     external fun nativeGlfwResetWindowState()
 
     /** GLFW-style close flag for Flint's active game window. */
@@ -69,6 +69,15 @@ object NativeBridge {
 
     /** Returns [width, height, focused] for the active game window. */
     external fun nativeGlfwGetWindowSize(): IntArray?
+
+    /** Return GLFW-compatible input action: 0 release, 1 press, 2 repeat. */
+    external fun nativeGlfwGetKeyState(key: Int): Int
+
+    /** Return GLFW-compatible mouse action: 0 release or 1 press. */
+    external fun nativeGlfwGetMouseButtonState(button: Int): Int
+
+    /** Return the most recent cursor position as [x, y] in surface pixels. */
+    external fun nativeGlfwGetCursorPosition(): FloatArray?
 
     /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
     external fun nativeLoadJre(jreHomePath: String): Boolean
