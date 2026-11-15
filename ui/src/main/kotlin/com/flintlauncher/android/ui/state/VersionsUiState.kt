@@ -73,8 +73,3 @@ data class VersionsActions(
     val onRepair: ((String) -> Unit)? = null,
 )
 
-sealed class Loadable<out T> {
-    data object Loading : Loadable<Nothing>()
-    data class Ready<T>(val value: T) : Loadable<T>()
-    data class Error(val message: String) : Loadable<Nothing>()
-}

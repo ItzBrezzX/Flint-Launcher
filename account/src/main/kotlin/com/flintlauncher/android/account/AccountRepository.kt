@@ -8,6 +8,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.UUID
 
 /**
@@ -56,6 +59,7 @@ class FileAccountRepository(
 ) : AccountRepository {
     private val _accounts = MutableStateFlow<List<FlintAccount>>(emptyList())
     private val _selectedId = MutableStateFlow<String?>(null)
+    private val persistenceLock = Any()
 
     override val accounts: Flow<List<FlintAccount>> = _accounts.asStateFlow()
     override val selectedId: Flow<String?> = _selectedId.asStateFlow()
@@ -80,15 +84,42 @@ class FileAccountRepository(
         }
     }
 
-    private fun persist() {
-        file.absoluteFile.parentFile?.mkdirs()
+    /**
+     * Replace the account index atomically. A failed rename must never be reported as a
+     * successful save: otherwise the UI can show an account that disappears on restart.
+     * The temporary file is kept beside the destination so the move stays on one filesystem.
+     */
+    private fun persist() = synchronized(persistenceLock) {
+        val parent = file.absoluteFile.parentFile
+        check(parent == null || (parent.isDirectory || parent.mkdirs())) {
+            "Could not create account storage directory"
+        }
+
         val payload = AccountFile(
             selectedId = _selectedId.value,
             accounts = _accounts.value.map { it.toStored() },
         )
-        val tmp = File(file.path + ".tmp")
-        tmp.writeText(json.encodeToString(AccountFile.serializer(), payload))
-        tmp.renameTo(file)
+        val temporary = File(file.absolutePath + ".tmp")
+        try {
+            temporary.writeText(json.encodeToString(AccountFile.serializer(), payload))
+            try {
+                Files.move(
+                    temporary.toPath(),
+                    file.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(
+                    temporary.toPath(),
+                    file.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            }
+        } finally {
+            // A failed write/move leaves the previous account file intact.
+            if (temporary.exists()) temporary.delete()
+        }
     }
 
     override suspend fun list(): List<FlintAccount> = _accounts.value

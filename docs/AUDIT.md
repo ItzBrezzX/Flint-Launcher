@@ -57,3 +57,10 @@ Date: 12 Nov 2026. Scope: everything in this repository. Method: reading and sta
 4. Only then continue with accounts UI, profiles UI, mods and settings.
 
 A feature should be called supported only when the launch matrix in `tests/README.md` has a passing row for it.
+
+## Update 15 Nov 2026
+
+Added: device-code Microsoft sign-in (client, ViewModel, Accounts card), token refresh and Minecraft session hand-off in `PlayLaunchCoordinator`,
+re-login updates the existing account instead of duplicating it, JVM process environment (`JvmEnvironment`, `nativeSetEnv`). New unit tests were written
+for each. Same caveat as above: **not compiled, not run**. The game still cannot render: GLFW, LWJGL and OpenAL for Android do not exist in this repository.
+See [CHECKLIST_STATUS.md](CHECKLIST_STATUS.md).

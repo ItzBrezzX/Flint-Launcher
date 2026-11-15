@@ -134,7 +134,7 @@ data class AssetObject(val hash: String, val size: Long)
 @Serializable
 data class AssetIndex(
     val objects: Map<String, AssetObject> = emptyMap(),
-    /** Legacy indexes (about 1.7 and older) need files copied to a virtual tree; not supported yet. */
+    /** Legacy indexes (about 1.7 and older) require materializing objects into their virtual or resources paths. */
     val virtual: Boolean = false,
     @SerialName("map_to_resources") val mapToResources: Boolean = false,
 )

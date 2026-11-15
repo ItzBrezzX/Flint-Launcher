@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -94,7 +95,7 @@ fun InstallProgressScreen(
 }
 
 @Composable
-private fun RunningPanel(panel: InstallPanelState, actions: VersionsActions) {
+private fun ColumnScope.RunningPanel(panel: InstallPanelState, actions: VersionsActions) {
     val targetFraction = panel.percent?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) } ?: 0f
     val animatedFraction by animateFloatAsState(
         targetValue = targetFraction,
@@ -157,7 +158,7 @@ private fun RunningPanel(panel: InstallPanelState, actions: VersionsActions) {
 
     // Current file
     AnimatedVisibility(visible = panel.activeFile != null) {
-        Column(Modifier = Modifier.padding(top = 8.dp)) {
+        Column(modifier = Modifier.padding(top = 8.dp)) {
             Text("Current file", style = MaterialTheme.typography.labelMedium, color = FlintColors.TextMuted)
             Text(
                 text = panel.activeFile ?: "",
@@ -186,7 +187,7 @@ private fun RunningPanel(panel: InstallPanelState, actions: VersionsActions) {
                 strokeWidth = 2.dp,
                 color = FlintColors.Ember,
             )
-            Spacer(Modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = if (panel.speedBytesPerSecond <= 0) "Waiting for network…" else "Downloading",
                 style = MaterialTheme.typography.labelMedium,

@@ -82,4 +82,21 @@ class OfflineAccountTest {
         assertEquals(created.uuid, loaded?.uuid)
         assertEquals(AccountType.OFFLINE, loaded?.type)
     }
+    @Test
+    fun removingSelectedAccountSelectsAnotherAndPersists() = runBlocking {
+        val dir = createTempDir()
+        val file = File(dir, "accounts.json")
+        val manager = AccountManager(FileAccountRepository(file))
+        val first = manager.createOfflineAccount("FirstPlayer").getOrThrow()
+        val second = manager.createOfflineAccount("SecondPlayer").getOrThrow()
+
+        assertEquals(second.id, manager.selected()?.id)
+        manager.remove(second.id)
+        assertEquals(first.id, manager.selected()?.id)
+
+        val reloaded = AccountManager(FileAccountRepository(file))
+        assertEquals(first.id, reloaded.selected()?.id)
+        assertEquals(listOf(first.id), reloaded.list().map { it.id })
+    }
+
 }

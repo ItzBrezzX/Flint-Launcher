@@ -11,8 +11,12 @@ object FlintHttp {
             .addInterceptor { chain ->
                 chain.proceed(chain.request().newBuilder().header("User-Agent", userAgent).build())
             }
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(20, TimeUnit.SECONDS)
+            // A download may pause between chunks on slow mobile networks. OkHttp's read
+            // timeout is an inactivity limit per socket read, not a total transfer deadline.
+            // Keep it generous; DownloadManager owns bounded retries and checkpoint recovery.
+            .readTimeout(90, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .cache(cache)
             .build()
 }

@@ -1,11 +1,5 @@
 package com.flintlauncher.android.nativebridge
 
-/**
- * JNI surface for Spike 0.
- *
- * loadLibrary is attempted once; if the .so is missing (no NDK build yet),
- * all methods degrade gracefully and report the failure instead of crashing.
- */
 object NativeBridge {
     private var loaded = false
     private var loadError: String? = null
@@ -23,27 +17,45 @@ object NativeBridge {
     val isNativeLoaded: Boolean get() = loaded
     val nativeLoadError: String? get() = loadError
 
-    /** Pure JNI smoke (no JRE). */
     external fun nativeSmokeTest(): String
-
-    /** EGL + GLES2 pbuffer clear test. */
     external fun nativeEglSmoke(): String
-
-    /** dlopen mobile OpenJDK libjli and resolve JLI_Launch. */
+    external fun nativeEglCapabilities(): String
     external fun nativeLoadJre(jreHomePath: String): Boolean
-
-    /**
-     * Invoke JLI_Launch with the given argv.
-     * Returns process-style exit code, or negative on bridge errors.
-     * Not fully wired until a verified JRE is present.
-     */
     external fun nativeLaunchJvm(args: Array<String>): Int
 
+    /** Points this process's stdout and stderr (what the JVM writes to) at [path]. */
+    external fun nativeRedirectStdio(path: String): Boolean
+
+    /** Sets a process environment variable (setenv). Must run before [nativeLaunchJvm]. */
+    external fun nativeSetEnv(key: String, value: String): Boolean
     external fun nativeShutdown()
 
+    /** Must be called on the thread where the Android EGL context is current. */
+    external fun nativeLoadGL4ES(libraryPath: String): Boolean
+    external fun nativeGL4ESVersion(): String
+    external fun nativeGL4ESClear(): Boolean
+
+    /** Create an ANativeWindow-backed EGL context on the calling render thread. */
+    external fun nativeCreateWindowSurface(surface: android.view.Surface): String
+
+    /** Update the GLES viewport; call on the EGL owner thread. */
+    external fun nativeResizeWindowSurface(width: Int, height: Int): Boolean
+
+    /** Present the current GL4ES frame to the Android Surface. */
+    external fun nativeSwapWindowBuffers(): Boolean
+
+    /** Destroy EGL resources on the same thread that created them. */
+    external fun nativeDestroyWindowSurface()
+
     fun safeSmokeTest(): String =
-        if (!loaded) "native-not-loaded: $loadError" else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeSmokeTest() }.getOrElse { "smoke-exception: ${it.message}" }
 
     fun safeEglSmoke(): String =
-        if (!loaded) "native-not-loaded: $loadError" else runCatching { nativeEglSmoke() }.getOrElse { "egl-exception: ${it.message}" }
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeEglSmoke() }.getOrElse { "egl-exception: ${it.message}" }
+
+    fun safeEglCapabilities(): String =
+        if (!loaded) "native-not-loaded: $loadError"
+        else runCatching { nativeEglCapabilities() }.getOrElse { "gpu-probe-exception: ${it.message}" }
 }

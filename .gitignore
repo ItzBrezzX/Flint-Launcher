@@ -21,3 +21,7 @@ secrets.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# Placed by CI from the LWJGL Android build (see .github/workflows/build-lwjgl-android.yml)
+native/src/main/jniLibs/
+app/src/main/assets/lwjgl3/

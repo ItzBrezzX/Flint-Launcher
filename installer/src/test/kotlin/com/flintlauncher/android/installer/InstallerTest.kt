@@ -83,14 +83,24 @@ class InstallPlannerTest {
     }
 
     @Test
-    fun legacyAssetIndexesAreRejectedClearly() {
-        val index = VersionJsonParser.parseAssetIndex("""{"objects":{},"virtual":true}""")
-        try {
-            InstallPlanner.planAssets(index, GameLayout(tmp.root))
-            fail("expected InstallPlanException")
-        } catch (e: InstallPlanException) {
-            assertTrue(e.message!!.contains("Legacy"))
-        }
+    fun legacyAssetIndexesStillPlanContentAddressedDownloads() {
+        val index = VersionJsonParser.parseAssetIndex(
+            """{"objects":{"sounds/old.ogg":{"hash":"$hashA","size":3}},"virtual":true}""",
+        )
+
+        val requests = InstallPlanner.planAssets(index, GameLayout(tmp.root))
+
+        assertEquals(1, requests.size)
+        assertEquals(File(tmp.root, "assets/objects/aa/$hashA").canonicalFile, requests.single().destination.canonicalFile)
+    }
+
+    @Test
+    fun mapToResourcesIndexesAlsoPlanContentAddressedDownloads() {
+        val index = VersionJsonParser.parseAssetIndex(
+            """{"objects":{"sound/old.ogg":{"hash":"$hashA","size":3}},"map_to_resources":true}""",
+        )
+
+        assertEquals(1, InstallPlanner.planAssets(index, GameLayout(tmp.root)).size)
     }
 
     @Test

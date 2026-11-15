@@ -9,22 +9,59 @@ permissions:
   contents: read
 
 jobs:
+  lwjgl:
+    name: LWJGL for Android
+    uses: ./.github/workflows/build-lwjgl-android.yml
+
   apk:
     name: Build APK
+    needs: lwjgl
+    # Still build the launcher when the LWJGL job fails: the app works, only game launch needs LWJGL.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       # 'true' only when a signing keystore secret is configured.
       HAS_SIGNING: ${{ secrets.FLINT_KEYSTORE_BASE64 != '' }}
+      # Azure app (client) ID for Microsoft sign-in. Set it under Settings > Secrets and variables >
+      # Actions > Variables. Empty builds still work; the Accounts screen then says sign-in is not configured.
+      FLINT_MS_CLIENT_ID: ${{ vars.FLINT_MS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: GLFW shim host tests (event queue, callbacks, cursor grab)
+        run: bash native/src/test/c/run.sh
+
+      - name: Download LWJGL Android build
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          pattern: lwjgl-android-*
+          path: lwjgl-android
+
+      - name: Place LWJGL jars (assets) and natives (jniLibs)
+        run: |
+          if [ -d lwjgl-android ]; then
+            mkdir -p app/src/main/assets/lwjgl3
+            # Jars are architecture independent: take them from one build.
+            src=$(ls -d lwjgl-android/lwjgl-android-arm64 2>/dev/null | head -n1)
+            [ -n "$src" ] && cp -v "$src"/jars/*.jar app/src/main/assets/lwjgl3/ && cp -v "$src"/BUILD_INFO.txt app/src/main/assets/lwjgl3/BUILD_INFO.txt
+            for d in lwjgl-android/lwjgl-android-*; do
+              for abi in "$d"/jniLibs/*; do
+                mkdir -p "native/src/main/jniLibs/$(basename "$abi")"
+                cp -v "$abi"/*.so "native/src/main/jniLibs/$(basename "$abi")/"
+              done
+            done
+          else
+            echo "::warning::No LWJGL build available: the APK will install but cannot launch Minecraft."
+          fi
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -34,7 +71,7 @@ jobs:
         run: gradle :app:assembleDebug --stacktrace
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flint-launcher-debug-apk
           path: app/build/outputs/apk/debug/*.apk
@@ -57,7 +94,7 @@ jobs:
 
       - name: Upload release APK
         if: ${{ env.HAS_SIGNING == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flint-launcher-release-apk
           path: app/build/outputs/apk/release/*.apk

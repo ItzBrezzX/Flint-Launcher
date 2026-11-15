@@ -7,14 +7,14 @@ import androidx.compose.ui.graphics.Color
 
 /** Flint palette: charcoal surfaces with a single ember-orange accent. */
 object FlintColors {
-    val Charcoal = Color(0xFF141416)
-    val Panel = Color(0xFF1E1E21)
-    val PanelRaised = Color(0xFF28282C)
-    val Ember = Color(0xFFFF7A1A)
-    val EmberDark = Color(0xFFD9600C)
-    val OnEmber = Color(0xFF1A0E02)
-    val TextPrimary = Color(0xFFECECEE)
-    val TextMuted = Color(0xFF9A9AA2)
+    val Charcoal = Color(0xFF07110B)
+    val Panel = Color(0xFF101B14)
+    val PanelRaised = Color(0xFF19271D)
+    val Ember = Color(0xFF35D12C)
+    val EmberDark = Color(0xFF208D26)
+    val OnEmber = Color(0xFFFFFFFF)
+    val TextPrimary = Color(0xFFEAF2EA)
+    val TextMuted = Color(0xFFA6B4A8)
     val StatusOnline = Color(0xFF4CAF50)
     val StatusOffline = Color(0xFFE5484D)
     val StatusUnknown = Color(0xFF6E6E76)

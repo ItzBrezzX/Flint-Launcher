@@ -137,7 +137,15 @@ class MinecraftInstallerTest {
         val installed = success(installer.install("1.0-test") { stages += it })
 
         assertEquals(
-            listOf(InstallStage.RESOLVING_METADATA, InstallStage.PREPARING_QUEUE, InstallStage.DOWNLOADING_ASSETS, InstallStage.VALIDATING_INTEGRITY, InstallStage.READY),
+            listOf(
+                InstallStage.RESOLVING_METADATA,
+                InstallStage.PREPARING_QUEUE,
+                InstallStage.DOWNLOADING_ASSETS,
+                InstallStage.VALIDATING_INTEGRITY,
+                InstallStage.GENERATING_METADATA,
+                InstallStage.FINAL_VERIFICATION,
+                InstallStage.READY,
+            ),
             stages,
         )
         assertTrue(layout.versionJar("1.0-test").readBytes().contentEquals(clientJar))

@@ -76,9 +76,6 @@ object InstallPlanner {
 
     /** One request per distinct asset hash (many asset names share a file). */
     fun planAssets(index: AssetIndex, layout: GameLayout, baseUrl: String = DEFAULT_ASSET_BASE_URL): List<DownloadRequest> {
-        if (index.virtual || index.mapToResources) {
-            throw InstallPlanException("Legacy (virtual) asset indexes are not supported yet")
-        }
         val base = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
         return index.objects.values.distinctBy { it.hash }.map { asset ->
             if (!sha1Hex.matches(asset.hash)) throw InstallPlanException("Invalid asset hash in index: ${asset.hash}")

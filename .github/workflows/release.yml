@@ -28,7 +28,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -51,6 +51,7 @@ jobs:
           FLINT_KEYSTORE_PASSWORD: ${{ secrets.FLINT_KEYSTORE_PASSWORD }}
           FLINT_KEY_ALIAS: ${{ secrets.FLINT_KEY_ALIAS }}
           FLINT_KEY_PASSWORD: ${{ secrets.FLINT_KEY_PASSWORD }}
+          FLINT_MS_CLIENT_ID: ${{ vars.FLINT_MS_CLIENT_ID }}
         run: >
           gradle :app:assembleRelease --stacktrace
           -PflintVersionName=${{ steps.ver.outputs.name }}

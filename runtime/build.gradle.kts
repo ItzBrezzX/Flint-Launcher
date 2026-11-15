@@ -27,6 +27,8 @@ dependencies {
     implementation(project(":minecraft"))
     implementation(project(":account"))
     implementation(project(":native"))
+    implementation(project(":download"))
+    implementation(libs.tukaani.xz)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     testImplementation(libs.junit)
