@@ -133,6 +133,13 @@ extern "C" bool flint_egl_window_swap_buffers() {
     return eglSwapBuffers(g_display, g_surface) == EGL_TRUE;
 }
 
+extern "C" void flint_egl_window_release_current() {
+    std::lock_guard<std::mutex> lock(g_surface_mutex);
+    if (g_display != EGL_NO_DISPLAY) {
+        eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    }
+}
+
 extern "C" void flint_egl_window_get_size(int32_t *width, int32_t *height) {
     std::lock_guard<std::mutex> lock(g_surface_mutex);
     if (width) *width = g_width;
@@ -216,10 +223,7 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSurfaceReleaseCurrent(
     JNIEnv *, jclass
 ) {
-    std::lock_guard<std::mutex> lock(g_surface_mutex);
-    if (g_display != EGL_NO_DISPLAY) {
-        eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    }
+    flint_egl_window_release_current();
 }
 
 extern "C" JNIEXPORT void JNICALL
