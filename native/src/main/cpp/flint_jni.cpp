@@ -39,6 +39,14 @@ static std::mutex g_jvm_mutex;
 static bool g_jvm_launching = false;
 static bool g_shutdown_requested = false;
 
+static void free_argv(char **argv, jsize argc) {
+    if (!argv) return;
+    for (jsize i = 0; i < argc; ++i) {
+        free(argv[i]);
+    }
+    free(argv);
+}
+
 static void reset_signal_handlers(void) {
     /* Give the JVM a clean slate for its own signal detection (Pojav pattern). */
     struct sigaction sa;
@@ -146,14 +154,33 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
 
     for (jsize i = 0; i < argc; ++i) {
         auto jstr = (jstring) env->GetObjectArrayElement(argsArray, i);
-        if (!jstr) {
-            argv[i] = strdup("");
-            continue;
+        if (env->ExceptionCheck()) {
+            free_argv(argv, argc);
+            return -7;
         }
+        if (!jstr) {
+            LOGE("nativeLaunchJvm: null argument at index %d", (int)i);
+            free_argv(argv, argc);
+            return -7;
+        }
+
         const char *utf = env->GetStringUTFChars(jstr, nullptr);
-        argv[i] = strdup(utf ? utf : "");
+        if (!utf) {
+            // Keep any pending JNI exception (typically OutOfMemoryError) intact.
+            env->DeleteLocalRef(jstr);
+            free_argv(argv, argc);
+            return -7;
+        }
+
+        argv[i] = strdup(utf);
         env->ReleaseStringUTFChars(jstr, utf);
         env->DeleteLocalRef(jstr);
+
+        if (!argv[i]) {
+            LOGE("nativeLaunchJvm: could not allocate argument %d", (int)i);
+            free_argv(argv, argc);
+            return -5;
+        }
     }
 
     JLI_Launch_func launch_func = nullptr;
@@ -161,14 +188,12 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
         std::lock_guard<std::mutex> lock(g_jvm_mutex);
         if (!g_jli_launch || !g_libjli) {
             LOGE("nativeLaunchJvm: JRE not loaded");
-            for (jsize i = 0; i < argc; ++i) free(argv[i]);
-            free(argv);
+            free_argv(argv, argc);
             return -1;
         }
         if (g_jvm_launching) {
             LOGE("nativeLaunchJvm: another JVM launch is already active");
-            for (jsize i = 0; i < argc; ++i) free(argv[i]);
-            free(argv);
+            free_argv(argv, argc);
             return -6;
         }
         g_jvm_launching = true;
@@ -207,8 +232,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
         }
     }
 
-    for (jsize i = 0; i < argc; ++i) free(argv[i]);
-    free(argv);
+    free_argv(argv, argc);
     return code;
 }
 
