@@ -1,6 +1,5 @@
 package com.flintlauncher.android.modpacks
 
-import com.flintlauncher.android.core.FlintError
 import com.flintlauncher.android.download.DownloadConfig
 import com.flintlauncher.android.download.DownloadManager
 import kotlinx.coroutines.runBlocking
@@ -93,8 +92,9 @@ class MrpackInstallerTest {
 
         val result = MrpackInstaller().install(pack, gameDir, downloads)
 
-        assertTrue(result.isSuccess)
-        assertEquals(2, result.getOrNull()!!.extractedOverrides)
+        val success = result as? MrpackInstallResult.Success
+            ?: throw AssertionError("expected successful mrpack install: $result")
+        assertEquals(2, success.summary.extractedOverrides)
         assertEquals("config-data", File(gameDir, "config/mod.toml").readText())
         assertEquals("resource-pack", File(gameDir, "resourcepacks/sample.zip").readText())
     }
@@ -160,7 +160,7 @@ class MrpackInstallerTest {
         val invalid = File(tmp.root, "not-a-pack.mrpack").apply { writeText("not a zip") }
         val downloads = DownloadManager(OkHttpClient(), DownloadConfig(maxAttempts = 1))
         val result = MrpackInstaller().install(invalid, File(tmp.root, "profile"), downloads)
-        assertTrue(result.isError)
-        assertTrue(result.errorOrNull() is FlintError.ConfigError)
+        assertTrue(result is MrpackInstallResult.Failure)
+        assertTrue((result as MrpackInstallResult.Failure).message.contains("Could not read"))
     }
 }
