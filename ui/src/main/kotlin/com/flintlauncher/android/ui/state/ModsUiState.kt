@@ -20,6 +20,7 @@ data class ModProjectUi(
     val downloads: Long,
     val installed: Boolean,
     val iconUrl: String? = null,
+    val projectType: String = "mod",
 )
 
 data class ModVersionUi(
@@ -45,6 +46,7 @@ data class ModsUiState(
     val gameVersions: List<ModFilterOption> = emptyList(),
     val loaders: List<ModFilterOption> = emptyList(),
     val selectedCategory: String = "",
+    val selectedProjectType: String = "all",
     val selectedGameVersion: String = "",
     val selectedLoader: String = "",
     val clientSide: String = "",
@@ -61,6 +63,14 @@ data class ModsUiState(
     val selectedVersions: List<ModVersionUi> = emptyList(),
     val detailLoading: Boolean = false,
     val busyProjectId: String? = null,
+    val downloadState: String = "IDLE",
+    val downloadPercent: Float? = null,
+    val downloadBytes: Long = 0,
+    val downloadTotalBytes: Long? = null,
+    val downloadSpeedBytesPerSecond: Long = 0,
+    val downloadActiveFiles: List<String> = emptyList(),
+    val downloadCompletedFiles: Int = 0,
+    val downloadTotalFiles: Int = 0,
     val errorMessage: String? = null,
     val notice: String? = null,
 ) {
@@ -73,6 +83,7 @@ data class ModsActions(
     val onSearch: (() -> Unit)? = null,
     val onRefresh: (() -> Unit)? = null,
     val onCategoryChange: ((String) -> Unit)? = null,
+    val onProjectTypeChange: ((String) -> Unit)? = null,
     val onGameVersionChange: ((String) -> Unit)? = null,
     val onLoaderChange: ((String) -> Unit)? = null,
     val onClientSideChange: ((String) -> Unit)? = null,
