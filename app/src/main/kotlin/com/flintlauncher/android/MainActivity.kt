@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,9 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flintlauncher.android.ui.accounts.AccountsScreen
 import com.flintlauncher.android.ui.home.HomeScreen
+import com.flintlauncher.android.ui.files.GameFilesScreen
 import com.flintlauncher.android.ui.mods.ModsScreen
 import com.flintlauncher.android.ui.settings.RuntimeSettingsScreen
 import com.flintlauncher.android.ui.nav.Destination
@@ -31,6 +34,7 @@ import com.flintlauncher.android.ui.nav.FlintScaffold
 import com.flintlauncher.android.ui.nav.NotImplementedScreen
 import com.flintlauncher.android.ui.state.AccountsActions
 import com.flintlauncher.android.ui.state.HomeActions
+import com.flintlauncher.android.ui.state.GameFilesActions
 import com.flintlauncher.android.ui.state.ModsActions
 import com.flintlauncher.android.ui.state.RuntimeSettingsActions
 import com.flintlauncher.android.ui.state.VersionsActions
@@ -45,6 +49,7 @@ class MainActivity : ComponentActivity() {
     private val modsViewModel: ModsViewModel by viewModels { factory }
     private val runtimeSettingsViewModel: RuntimeSettingsViewModel by viewModels { factory }
     private val accountsViewModel: AccountsViewModel by viewModels { factory }
+    private val gameFilesViewModel: GameFilesViewModel by viewModels { factory }
 
     // The install works without the notification permission; this only controls the progress notification.
     private val notificationPermission =
@@ -62,6 +67,7 @@ class MainActivity : ComponentActivity() {
                 val modsState by modsViewModel.state.collectAsStateWithLifecycle()
                 val runtimeSettingsState by runtimeSettingsViewModel.state.collectAsStateWithLifecycle()
                 val accountsState by accountsViewModel.state.collectAsStateWithLifecycle()
+                val gameFilesState by gameFilesViewModel.state.collectAsStateWithLifecycle()
 
                 // Only capabilities that really exist are wired. Every other action stays
                 // null, which the UI renders as a disabled control.
@@ -113,6 +119,16 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                val gameFilesActions = remember {
+                    GameFilesActions(
+                        onRefresh = { gameFilesViewModel.refresh() },
+                        onCategoryChange = { gameFilesViewModel.setCategory(it) },
+                        onOpen = { openGameFile(it) },
+                        onShare = { shareGameFile(it) },
+                        onDelete = { gameFilesViewModel.delete(it) },
+                    )
+                }
+
                 val runtimeSettingsActions = remember {
                     RuntimeSettingsActions(
                         onRefresh = { runtimeSettingsViewModel.refresh() },
@@ -157,6 +173,7 @@ class MainActivity : ComponentActivity() {
                                     homeViewModel.refreshAccount()
                                 }
                                 Destination.SETTINGS -> runtimeSettingsViewModel.refresh()
+                                Destination.GAME_FILES -> gameFilesViewModel.refresh()
                                 else -> Unit
                             }
                         }
@@ -167,6 +184,7 @@ class MainActivity : ComponentActivity() {
                         Destination.PROFILES -> InstallationsScreen(state = versionsState, actions = versionsActions)
                         Destination.MODS -> ModsScreen(state = modsState, actions = modsActions)
                         Destination.ACCOUNTS -> AccountsScreen(state = accountsState, actions = accountsActions)
+                        Destination.GAME_FILES -> GameFilesScreen(state = gameFilesState, actions = gameFilesActions)
                         Destination.SETTINGS -> RuntimeSettingsScreen(
                             state = runtimeSettingsState,
                             actions = runtimeSettingsActions,
@@ -175,6 +193,53 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+
+    private fun openGameFile(path: String) {
+        val container = (application as FlintApplication).container
+        val file = container.gameFilesRepository.resolveSupportedFile(path)
+        if (file == null) {
+            Toast.makeText(this, "File is unavailable or outside the game folders.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            val mime = contentResolver.getType(uri)
+                ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase())
+                ?: "application/octet-stream"
+            val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(intent)
+        } catch (error: ActivityNotFoundException) {
+            Toast.makeText(this, "No app can open this file.", Toast.LENGTH_SHORT).show()
+        } catch (error: IllegalArgumentException) {
+            Toast.makeText(this, "Could not open this file securely.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun shareGameFile(path: String) {
+        val container = (application as FlintApplication).container
+        val file = container.gameFilesRepository.resolveSupportedFile(path)
+        if (file == null) {
+            Toast.makeText(this, "File is unavailable or outside the game folders.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            val mime = contentResolver.getType(uri)
+                ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase())
+                ?: "application/octet-stream"
+            val send = Intent(Intent.ACTION_SEND).setType(mime)
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            send.clipData = ClipData.newUri(contentResolver, file.name, uri)
+            startActivity(Intent.createChooser(send, "Share ${file.name}"))
+        } catch (error: ActivityNotFoundException) {
+            Toast.makeText(this, "No app can share this file.", Toast.LENGTH_SHORT).show()
+        } catch (error: IllegalArgumentException) {
+            Toast.makeText(this, "Could not share this file securely.", Toast.LENGTH_SHORT).show()
         }
     }
 

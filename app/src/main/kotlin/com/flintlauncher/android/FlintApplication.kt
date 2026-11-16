@@ -92,6 +92,7 @@ class AppContainer(private val app: Application) {
 
     // Game files can be over a gigabyte: prefer app-specific external storage, which is larger.
     private val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
+    val gameFilesRepository = GameFilesRepository(gameRoot)
     private val layout = GameLayout(gameRoot)
     private val downloadManager = DownloadManager(downloadHttp, DownloadConfig(concurrency = 4))
     private val runtimeDownloadManager = DownloadManager(downloadHttp, DownloadConfig(concurrency = 1, maxAttempts = 4))
@@ -174,6 +175,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             )
         modelClass.isAssignableFrom(VersionsViewModel::class.java) ->
             VersionsViewModel(container.installer, container.installCoordinator, container::startInstallService)
+        modelClass.isAssignableFrom(GameFilesViewModel::class.java) ->
+            GameFilesViewModel(container.gameFilesRepository)
         modelClass.isAssignableFrom(ModsViewModel::class.java) ->
             ModsViewModel(container.modrinthRepository, container.profileRepository)
         modelClass.isAssignableFrom(AccountsViewModel::class.java) ->
