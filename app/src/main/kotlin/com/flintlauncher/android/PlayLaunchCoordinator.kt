@@ -15,6 +15,7 @@ import com.flintlauncher.android.nativebridge.NativeBridge
 import com.flintlauncher.android.runtime.AndroidLwjglNativesInstaller
 import com.flintlauncher.android.runtime.GameLauncher
 import com.flintlauncher.android.runtime.KnownJreArtifacts
+import com.flintlauncher.android.runtime.JvmEnvironment
 import com.flintlauncher.android.runtime.LaunchRequest
 import com.flintlauncher.android.runtime.LaunchResult
 import com.flintlauncher.android.runtime.MobileJreManager
@@ -173,6 +174,22 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Could not extract Minecraft native libraries: ${error.message ?: "invalid native archive"}")
         }
 
+        val temporaryDirectory = File(cacheDir, "minecraft-tmp")
+        if (!temporaryDirectory.isDirectory && !temporaryDirectory.mkdirs()) {
+            return LaunchResult.Failed("Could not create the JVM temporary directory: ${temporaryDirectory.absolutePath}")
+        }
+        if (!temporaryDirectory.canWrite()) {
+            return LaunchResult.Failed("The JVM temporary directory is not writable: ${temporaryDirectory.absolutePath}")
+        }
+        val processEnvironment = JvmEnvironment.build(
+            runtimeHome = runtime.homeDir,
+            gameNativeDirectory = nativeDirectory,
+            appNativeLibraryDirectory = nativeLibraryDir,
+            gameDirectory = gameDirectory,
+            temporaryDirectory = temporaryDirectory,
+            inheritedLdLibraryPath = System.getenv("LD_LIBRARY_PATH"),
+        )
+
         val classpath = installed.classpath.joinToString(File.pathSeparator) { it.absolutePath }
         val environment = Environment(
             osName = "linux",
@@ -211,7 +228,7 @@ class PlayLaunchCoordinator(
             // Android uses these sonames instead of desktop Linux's versioned EGL/GLES names.
             add("-Dorg.lwjgl.egl.libname=libEGL.so")
             add("-Dorg.lwjgl.opengles.libname=libGLESv2.so")
-            add("-Djava.io.tmpdir=${File(cacheDir, "minecraft-tmp").absolutePath}")
+            add("-Djava.io.tmpdir=${temporaryDirectory.absolutePath}")
             add("-Duser.home=${gameDirectory.absolutePath}")
             installed.loggingJvmArgument?.let { add(it) }
         }
@@ -253,6 +270,7 @@ class PlayLaunchCoordinator(
             windowWidth = width,
             windowHeight = height,
             rendererLibrary = gl4esLibrary,
+            environment = processEnvironment,
         )
         return launcher.launch(request)
     }

@@ -178,6 +178,31 @@ static std::string jre_dot_version(const std::string &version) {
     return second == std::string::npos ? version : version.substr(0, second);
 }
 
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSetEnv(
+    JNIEnv *env, jclass, jstring jkey, jstring jvalue
+) {
+    if (!jkey || !jvalue) return JNI_FALSE;
+
+    const char *key = env->GetStringUTFChars(jkey, nullptr);
+    if (!key) return JNI_FALSE;
+
+    const char *value = env->GetStringUTFChars(jvalue, nullptr);
+    if (!value) {
+        env->ReleaseStringUTFChars(jkey, key);
+        return JNI_FALSE;
+    }
+
+    const bool validKey = key[0] != '\0' && strchr(key, '=') == nullptr;
+    const bool success = validKey && setenv(key, value, 1) == 0;
+    if (!success) LOGE("Could not set process environment variable: %s", key);
+
+    env->ReleaseStringUTFChars(jvalue, value);
+    env->ReleaseStringUTFChars(jkey, key);
+    return success ? JNI_TRUE : JNI_FALSE;
+}
+
 static void reset_signal_handlers(void) {
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
