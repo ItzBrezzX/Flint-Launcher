@@ -167,6 +167,22 @@ class ModrinthApiTest {
     }
 
     @Test
+    fun projectDetailsAllowReadOnlyBrowsingOfNonModResources() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"shader-id","project_type":"shader","title":"Example Shader","description":"Shader pack","slug":"example-shader"}""",
+            ),
+        )
+
+        val project = api().project("shader-id")
+
+        assertEquals("shader-id", project.id)
+        assertEquals("shader", project.projectType)
+        assertEquals("Example Shader", project.title)
+        assertEquals("/v2/project/shader-id", server.takeRequest().requestUrl?.encodedPath)
+    }
+
+    @Test
     fun searchSupportsShaderAndAllProjectTypes() = runBlocking {
         server.enqueue(MockResponse().setBody("""{"hits":[],"offset":0,"limit":20,"total_hits":0}"""))
         api().search(ModrinthFilters(projectType = "shader"))
