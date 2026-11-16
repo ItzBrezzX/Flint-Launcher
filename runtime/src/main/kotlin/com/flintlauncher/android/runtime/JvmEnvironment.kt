@@ -3,11 +3,12 @@ package com.flintlauncher.android.runtime
 import java.io.File
 
 /**
- * Process environment required by the in-process JVM before JLI_Launch.
+ * Process environment consumed by the in-process JLI/JVM before Minecraft starts.
  *
- * The JVM shares the Android app process, so its native libraries must be
- * discoverable alongside the selected JRE and extracted game libraries.
- * This builder is pure over filesystem paths and can be tested on a host JVM.
+ * Android Bionic initializes its linker namespace/search paths before app code runs.
+ * Updating LD_LIBRARY_PATH here does not add directories to that already-created
+ * linker namespace; native dependencies still need an explicit, supported load path.
+ * This builder supplies the environment visible to JLI/Java and is host-testable.
  */
 object JvmEnvironment {
     private val jreLibraryDirectories = listOf(
