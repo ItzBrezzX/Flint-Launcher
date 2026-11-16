@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
@@ -55,6 +56,7 @@ enum class Destination(val label: String, val icon: ImageVector) {
     MODS("Mod Menu", Icons.Filled.Extension),
     SETTINGS("Settings", Icons.Filled.Settings),
     ACCOUNTS("Accounts", Icons.Filled.AccountCircle),
+    GAME_FILES("Game Files", Icons.Filled.FolderOpen),
     ABOUT("About", Icons.Filled.Info),
 }
 
