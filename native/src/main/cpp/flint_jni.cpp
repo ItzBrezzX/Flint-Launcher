@@ -16,7 +16,6 @@
 #include <string>
 #include <algorithm>
 #include <mutex>
-#include <unordered_set>
 #include <unordered_map>
 #include <fstream>
 
@@ -58,7 +57,6 @@ typedef jint (*JLI_Launch_func)(
 static void *g_libjli = nullptr;
 static JLI_Launch_func g_jli_launch = nullptr;
 static std::vector<void *> g_jre_handles;
-static std::unordered_set<std::string> g_jre_loaded_paths;
 static std::unordered_map<std::string, void *> g_jre_library_handles;
 static std::string g_loaded_jre_home;
 static std::mutex g_jre_load_mutex;
@@ -128,7 +126,6 @@ static bool load_jre_library(const std::string &path, bool required, void **load
         return !required;
     }
     g_jre_handles.push_back(handle);
-    g_jre_loaded_paths.insert(path);
     g_jre_library_handles[path] = handle;
     if (loadedHandle) *loadedHandle = handle;
     LOGI("Loaded JRE library: %s", path.c_str());
