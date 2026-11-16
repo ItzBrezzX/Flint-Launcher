@@ -205,10 +205,13 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
         LOGI("JRE already initialized: %s", home.c_str());
         return JNI_TRUE;
     }
-    if (g_jli_launch && g_loaded_jre_home != home) {
-        LOGE("Refusing to mix JRE runtimes in one process: already loaded %s", g_loaded_jre_home.c_str());
+    if (!g_loaded_jre_home.empty() && g_loaded_jre_home != home) {
+        LOGE("Refusing to mix JRE runtimes in one process: already initialized for %s", g_loaded_jre_home.c_str());
         return JNI_FALSE;
     }
+    // Pin the process to one runtime before the first dlopen. A partial failure
+    // cannot be safely rolled back because dependencies are process-global.
+    if (g_loaded_jre_home.empty()) g_loaded_jre_home = home;
 
     std::string jliPath;
     const std::vector<std::string> jliCandidates = {
