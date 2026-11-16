@@ -1,7 +1,5 @@
 package com.flintlauncher.android.modpacks
 
-import com.flintlauncher.android.core.FlintError
-import com.flintlauncher.android.core.Outcome
 import com.flintlauncher.android.download.DownloadManager
 import com.flintlauncher.android.download.DownloadRequest
 import com.flintlauncher.android.download.ExpectedHash
@@ -36,6 +34,12 @@ data class MrpackInstallSummary(
     val downloadedFiles: Int,
     val extractedOverrides: Int,
 )
+
+sealed interface MrpackInstallResult {
+    data class Success(val summary: MrpackInstallSummary) : MrpackInstallResult
+    data class Failure(val message: String, val failedFiles: List<String> = emptyList()) : MrpackInstallResult
+    data object Cancelled : MrpackInstallResult
+}
 
 class MrpackFormatException(message: String) : IllegalArgumentException(message)
 
@@ -144,30 +148,28 @@ class MrpackInstaller(
         zipFile: File,
         gameDir: File,
         downloads: DownloadManager,
-    ): Outcome<MrpackInstallSummary> {
+    ): MrpackInstallResult {
         return try {
             val manifest = parse(zipFile)
             val plan = plan(manifest, zipFile, gameDir)
             if (plan.downloads.isNotEmpty()) {
                 val result = downloads.run(plan.downloads)
-                if (result.cancelled) return Outcome.error(FlintError.Cancelled)
+                if (result.cancelled) return MrpackInstallResult.Cancelled
                 if (result.failed.isNotEmpty()) {
-                    return Outcome.error(
-                        FlintError.DownloadFailed(
-                            "${result.failed.size} modpack file(s) failed to download",
-                            result.failed.map { it.request.destination.name },
-                        ),
+                    return MrpackInstallResult.Failure(
+                        "${result.failed.size} modpack file(s) failed to download",
+                        result.failed.map { it.request.destination.name },
                     )
                 }
             }
             val extracted = extractOverrides(zipFile, gameDir, plan.overrideEntries)
-            Outcome.success(MrpackInstallSummary(plan.metadata, plan.downloads.size, extracted))
+            MrpackInstallResult.Success(MrpackInstallSummary(plan.metadata, plan.downloads.size, extracted))
         } catch (e: CancellationException) {
             throw e
         } catch (e: MrpackFormatException) {
-            Outcome.error(FlintError.ConfigError(e.message ?: "Invalid mrpack"))
+            MrpackInstallResult.Failure(e.message ?: "Invalid mrpack")
         } catch (e: Exception) {
-            Outcome.error(FlintError.Unknown(e.message ?: "mrpack install failed", e.javaClass.simpleName))
+            MrpackInstallResult.Failure(e.message ?: "mrpack install failed")
         }
     }
 
