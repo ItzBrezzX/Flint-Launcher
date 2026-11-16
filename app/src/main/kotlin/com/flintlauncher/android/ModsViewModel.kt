@@ -20,6 +20,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -33,6 +34,20 @@ class ModsViewModel(
 
     init {
         load()
+        viewModelScope.launch {
+            mods.downloadProgress.collect { progress ->
+                _state.value = _state.value.copy(
+                    downloadState = progress.state.name,
+                    downloadPercent = progress.percent?.toFloat(),
+                    downloadBytes = progress.downloadedBytes,
+                    downloadTotalBytes = progress.totalBytes,
+                    downloadSpeedBytesPerSecond = progress.speedBytesPerSecond,
+                    downloadActiveFiles = progress.activeFiles,
+                    downloadCompletedFiles = progress.completedFiles,
+                    downloadTotalFiles = progress.totalFiles,
+                )
+            }
+        }
     }
 
     fun load() {
@@ -78,6 +93,18 @@ class ModsViewModel(
 
     fun setCategory(value: String) {
         _state.value = _state.value.copy(selectedCategory = value)
+        search()
+    }
+
+    fun setProjectType(value: String) {
+        if (value !in setOf("all", "mod", "shader", "resourcepack", "modpack", "datapack", "world", "plugin")) return
+        _state.value = _state.value.copy(
+            selectedProjectType = value,
+            selectedCategory = "",
+            selectedLoader = if (value == "mod") _state.value.selectedLoader else "",
+            clientSide = "",
+            serverSide = "",
+        )
         search()
     }
 
@@ -219,7 +246,7 @@ class ModsViewModel(
         }
         viewModelScope.launch {
             try {
-                val versions = mods.versions(profile, projectId).map {
+                val versions = mods.versions(profile, projectId, project.projectType).map {
                     ModVersionUi(it.id, it.versionNumber, it.gameVersions, it.loaders, it.downloads, it.changelog)
                 }
                 _state.value = _state.value.copy(selectedVersions = versions, detailLoading = false)
@@ -240,22 +267,40 @@ class ModsViewModel(
         val current = _state.value
         val project = (current.results as? Loadable.Content)?.value?.firstOrNull { it.id == projectId }
         val version = current.selectedVersions.firstOrNull { it.id == versionId }
+        if (project != null && project.projectType != "mod") {
+            _state.value = current.copy(
+                errorMessage = "Direct installation for ${project.projectType} resources is not connected yet.",
+            )
+            return
+        }
         if (profile == null || project == null || version == null) {
             _state.value = current.copy(errorMessage = "Select a profile and compatible mod version first")
             return
         }
         val modProject = ModrinthProject(
             projectId = project.id,
-            projectType = "mod",
+            projectType = project.projectType,
             title = project.title,
             description = project.description,
             author = project.author,
             categories = project.categories,
         )
-        _state.value = current.copy(busyProjectId = projectId, notice = null, errorMessage = null)
+        _state.value = current.copy(
+            busyProjectId = projectId,
+            downloadState = "IDLE",
+            downloadPercent = null,
+            downloadBytes = 0,
+            downloadTotalBytes = null,
+            downloadSpeedBytesPerSecond = 0,
+            downloadActiveFiles = emptyList(),
+            downloadCompletedFiles = 0,
+            downloadTotalFiles = 0,
+            notice = null,
+            errorMessage = null,
+        )
         viewModelScope.launch {
             try {
-                val actualVersion = mods.versions(profile, projectId).firstOrNull { it.id == versionId }
+                val actualVersion = mods.versions(profile, projectId, project.projectType).firstOrNull { it.id == versionId }
                     ?: throw IllegalStateException("This version is no longer available for the selected profile")
                 val installed = mods.install(profile, modProject, actualVersion)
                 loadInstalled()
@@ -329,6 +374,7 @@ class ModsViewModel(
 
     private fun ModsUiState.toFilters(offset: Int): ModrinthFilters = ModrinthFilters(
         query = query,
+        projectType = selectedProjectType,
         category = selectedCategory.takeIf { it.isNotBlank() },
         clientSide = clientSide.toSideSupport(),
         serverSide = serverSide.toSideSupport(),
@@ -349,6 +395,7 @@ class ModsViewModel(
         title = title,
         description = description,
         author = author,
+        projectType = projectType,
         categories = displayCategories.ifEmpty { categories },
         clientSide = clientSide,
         serverSide = serverSide,
