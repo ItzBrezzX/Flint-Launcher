@@ -19,6 +19,7 @@ dependencies {
     implementation(project(":mods"))
     implementation(project(":installer"))
     implementation(project(":download"))
+    implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
 }
