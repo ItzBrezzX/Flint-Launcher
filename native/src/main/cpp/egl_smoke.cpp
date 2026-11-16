@@ -4,10 +4,13 @@
 #include <GLES2/gl2.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
+#include <mutex>
 
 #define LOG_TAG "FlintEGL"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 static const char *safe_gl_string(GLenum name) {
     const GLubyte *value = glGetString(name);
@@ -188,14 +191,49 @@ static EGLDisplay g_window_display = EGL_NO_DISPLAY;
 static EGLSurface g_window_surface = EGL_NO_SURFACE;
 static EGLContext g_window_context = EGL_NO_CONTEXT;
 static ANativeWindow *g_native_window = nullptr;
+static pthread_t g_window_owner_thread{};
+static bool g_window_owner_valid = false;
+static std::mutex g_window_egl_mutex;
 
-static void destroy_window_egl(JNIEnv *env) {
-    if (g_window_display != EGL_NO_DISPLAY) {
-        eglMakeCurrent(g_window_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        if (g_window_context != EGL_NO_CONTEXT) eglDestroyContext(g_window_display, g_window_context);
-        if (g_window_surface != EGL_NO_SURFACE) eglDestroySurface(g_window_display, g_window_surface);
-        eglTerminate(g_window_display);
+static bool is_window_egl_owner_thread() {
+    return g_window_owner_valid && pthread_equal(g_window_owner_thread, pthread_self()) != 0;
+}
+
+/*
+ * EGL contexts are thread-affine. Never try to migrate this context implicitly:
+ * Android EGL drivers reject cross-thread use while the previous owner still
+ * has it current, and destroying the ANativeWindow from another thread can
+ * invalidate the renderer's surface lifetime.
+ *
+ * Returns false without changing global state when called by a non-owner.
+ */
+static bool destroy_window_egl(JNIEnv *env) {
+    if (g_window_owner_valid && !is_window_egl_owner_thread()) {
+        LOGE("Refusing to destroy EGL resources from a non-owner thread");
+        return false;
     }
+
+    if (g_window_display != EGL_NO_DISPLAY) {
+        if (g_window_context != EGL_NO_CONTEXT &&
+            eglGetCurrentContext() == g_window_context &&
+            !eglMakeCurrent(g_window_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)) {
+            LOGE("Could not release the EGL context on its owner thread: 0x%x", eglGetError());
+            return false;
+        }
+        if (g_window_context != EGL_NO_CONTEXT &&
+            !eglDestroyContext(g_window_display, g_window_context)) {
+            LOGE("eglDestroyContext failed: 0x%x", eglGetError());
+            return false;
+        }
+        if (g_window_surface != EGL_NO_SURFACE &&
+            !eglDestroySurface(g_window_display, g_window_surface)) {
+            LOGW("eglDestroySurface failed during teardown: 0x%x", eglGetError());
+        }
+        if (!eglTerminate(g_window_display)) {
+            LOGW("eglTerminate failed during teardown: 0x%x", eglGetError());
+        }
+    }
+
     g_window_display = EGL_NO_DISPLAY;
     g_window_surface = EGL_NO_SURFACE;
     g_window_context = EGL_NO_CONTEXT;
@@ -203,14 +241,19 @@ static void destroy_window_egl(JNIEnv *env) {
         ANativeWindow_release(g_native_window);
         g_native_window = nullptr;
     }
+    g_window_owner_valid = false;
     (void)env;
+    return true;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeCreateWindowSurface(
     JNIEnv *env, jclass, jobject surface
 ) {
-    destroy_window_egl(env);
+    std::lock_guard<std::mutex> lock(g_window_egl_mutex);
+    if (!destroy_window_egl(env)) {
+        return env->NewStringUTF("egl-window-owned-by-another-thread");
+    }
     if (!surface) return env->NewStringUTF("window-surface-null");
 
     g_native_window = ANativeWindow_fromSurface(env, surface);
@@ -272,6 +315,8 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeCreateWindowSurfa
         snprintf(message, sizeof(message), "egl-window-context-failed:0x%x", error);
         return env->NewStringUTF(message);
     }
+    g_window_owner_thread = pthread_self();
+    g_window_owner_valid = true;
 
     const EGLint width = ANativeWindow_getWidth(g_native_window);
     const EGLint height = ANativeWindow_getHeight(g_native_window);
@@ -284,13 +329,14 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeResizeWindowSurface(
     JNIEnv *, jclass, jint width, jint height
 ) {
-    if (g_window_display == EGL_NO_DISPLAY || g_window_surface == EGL_NO_SURFACE ||
-        g_window_context == EGL_NO_CONTEXT || width <= 0 || height <= 0) return JNI_FALSE;
-    if (eglGetCurrentContext() != g_window_context &&
-        !eglMakeCurrent(g_window_display, g_window_surface, g_window_surface, g_window_context)) {
-        LOGE("eglMakeCurrent during resize failed: 0x%x", eglGetError());
+    std::lock_guard<std::mutex> lock(g_window_egl_mutex);
+    if (!is_window_egl_owner_thread() ||
+        eglGetCurrentContext() != g_window_context) {
+        LOGE("EGL resize must run on the thread that owns the current context");
         return JNI_FALSE;
     }
+    if (g_window_display == EGL_NO_DISPLAY || g_window_surface == EGL_NO_SURFACE ||
+        g_window_context == EGL_NO_CONTEXT || width <= 0 || height <= 0) return JNI_FALSE;
     glViewport(0, 0, width, height);
     return JNI_TRUE;
 }
@@ -299,13 +345,14 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSwapWindowBuffers(
     JNIEnv *, jclass
 ) {
-    if (g_window_display == EGL_NO_DISPLAY || g_window_surface == EGL_NO_SURFACE ||
-        g_window_context == EGL_NO_CONTEXT) return JNI_FALSE;
-    if (eglGetCurrentContext() != g_window_context &&
-        !eglMakeCurrent(g_window_display, g_window_surface, g_window_surface, g_window_context)) {
-        LOGE("eglMakeCurrent before swap failed: 0x%x", eglGetError());
+    std::lock_guard<std::mutex> lock(g_window_egl_mutex);
+    if (!is_window_egl_owner_thread() ||
+        eglGetCurrentContext() != g_window_context) {
+        LOGE("EGL swap must run on the thread that owns the current context");
         return JNI_FALSE;
     }
+    if (g_window_display == EGL_NO_DISPLAY || g_window_surface == EGL_NO_SURFACE ||
+        g_window_context == EGL_NO_CONTEXT) return JNI_FALSE;
     if (!eglSwapBuffers(g_window_display, g_window_surface)) {
         LOGE("eglSwapBuffers failed: 0x%x", eglGetError());
         return JNI_FALSE;
@@ -317,6 +364,8 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeDestroyWindowSurface(
     JNIEnv *env, jclass
 ) {
-    destroy_window_egl(env);
-    LOGI("Android EGL window released");
+    std::lock_guard<std::mutex> lock(g_window_egl_mutex);
+    if (destroy_window_egl(env)) {
+        LOGI("Android EGL window released");
+    }
 }
