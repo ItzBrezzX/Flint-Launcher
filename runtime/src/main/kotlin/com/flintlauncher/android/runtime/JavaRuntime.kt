@@ -104,6 +104,8 @@ data class LaunchRequest(
     val windowHeight: Int = 0,
     /** APK-packaged GL4ES library used to initialize the production render context. */
     val rendererLibrary: File? = null,
+    /** Process environment values applied natively before JLI_Launch is invoked. */
+    val environment: Map<String, String> = emptyMap(),
 )
 
 /**
