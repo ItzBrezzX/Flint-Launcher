@@ -81,6 +81,12 @@ class PojavStyleGameLauncher(
             if (!runtimeManager.verify(request.runtime)) {
                 return@withContext fail("Java ${request.runtime.majorVersion} failed native JLI verification.")
             }
+            for ((key, value) in request.environment) {
+                if (!NativeBridge.nativeSetEnv(key, value)) {
+                    return@withContext fail("Could not set process environment variable $key for JLI.")
+                }
+            }
+
             if (!NativeBridge.nativeLoadJre(request.runtime.homeDir.absolutePath)) {
                 return@withContext fail(
                     "Failed to load libjli.so from " + request.runtime.homeDir.absolutePath +
