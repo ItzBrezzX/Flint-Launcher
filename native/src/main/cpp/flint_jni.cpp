@@ -214,6 +214,28 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     // cannot be safely rolled back because dependencies are process-global.
     if (g_loaded_jre_home.empty()) g_loaded_jre_home = home;
 
+    // Configure the JRE search paths before the first dlopen. Absolute paths
+    // are still used below; this also helps Bionic resolve transitive NEEDED
+    // dependencies by SONAME where the process linker namespace permits it.
+    std::string jreLdPath =
+        join_path(home, "lib/jli") + ":" +
+        join_path(home, "lib") + ":" +
+        join_path(home, "lib/server") + ":" +
+        join_path(home, "lib/aarch64") + ":" +
+        join_path(home, "lib/aarch64/server") + ":" +
+        join_path(home, "lib/arm64") + ":" +
+        join_path(home, "lib/arm64/server");
+    const char *oldLdPath = getenv("LD_LIBRARY_PATH");
+    if (oldLdPath && *oldLdPath) jreLdPath += ":" + std::string(oldLdPath);
+    if (setenv("JAVA_HOME", home.c_str(), 1) != 0) {
+        LOGW("Could not update JAVA_HOME for JRE loading: %s", strerror(errno));
+    }
+    if (setenv("LD_LIBRARY_PATH", jreLdPath.c_str(), 1) != 0) {
+        LOGW("Could not update LD_LIBRARY_PATH for JRE loading: %s", strerror(errno));
+    } else {
+        LOGI("Configured JRE native search path before dlopen");
+    }
+
     std::string jliPath;
     const std::vector<std::string> jliCandidates = {
         "lib/jli/libjli.so", "lib/libjli.so", "lib/aarch64/libjli.so",
