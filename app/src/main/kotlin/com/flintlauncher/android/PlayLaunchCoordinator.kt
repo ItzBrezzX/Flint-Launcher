@@ -2,6 +2,9 @@ package com.flintlauncher.android
 
 import com.flintlauncher.android.account.AccountManager
 import com.flintlauncher.android.account.AccountType
+import com.flintlauncher.android.account.FlintAccount
+import com.flintlauncher.android.auth.AuthException
+import com.flintlauncher.android.auth.MicrosoftAuthClient
 import com.flintlauncher.android.installer.MinecraftInstaller
 import com.flintlauncher.android.installer.NativesExtractor
 import com.flintlauncher.android.minecraft.manifest.VersionType
@@ -25,9 +28,8 @@ import java.security.MessageDigest
 /**
  * Prepares a real Minecraft launch request and delegates it to the Pojav-style in-process JVM.
  *
- * This is deliberately conservative: Microsoft accounts are blocked until Flint can exchange
- * their stored refresh token for a live Minecraft access token. Offline accounts use the
- * standard offline identity and never receive a fabricated Microsoft credential.
+ * Microsoft accounts exchange the stored refresh token for a Minecraft Services access token.
+ * Offline accounts use the standard offline identity. Neither path invents a credential.
  */
 class PlayLaunchCoordinator(
     private val installer: MinecraftInstaller,
@@ -38,6 +40,8 @@ class PlayLaunchCoordinator(
     private val cacheDir: File,
     private val nativeLibraryDir: File,
     private val launcherVersion: String,
+    private val microsoftAccounts: MicrosoftAccountStore? = null,
+    private val microsoftAuth: MicrosoftAuthClient? = null,
 ) {
     private val gameLauncher: GameLauncher? = runtimeManager?.let(::PojavStyleGameLauncher)
 
@@ -50,10 +54,14 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Could not read the selected account: ${error.message ?: "storage error"}")
         } ?: return LaunchResult.BlockedNotReady
 
-        if (account.type == AccountType.MICROSOFT) {
-            return LaunchResult.Failed(
-                "Microsoft account is selected, but access-token refresh and Minecraft session exchange are not connected yet. Select an offline account or finish Microsoft authentication first.",
-            )
+        val session = try {
+            resolveSession(account)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: AuthException) {
+            return LaunchResult.Failed(error.error.userMessage)
+        } catch (error: Exception) {
+            return LaunchResult.Failed("Could not create a Minecraft session: ${error.message ?: "authentication failed"}")
         }
 
         val manager = runtimeManager ?: return LaunchResult.BlockedMissingRuntime
@@ -143,10 +151,10 @@ class PlayLaunchCoordinator(
             osArch = arch,
         )
         val context = LaunchContext(
-            playerName = account.username,
-            uuid = account.uuid.replace("-", ""),
-            accessToken = "0",
-            userType = "legacy",
+            playerName = session.username,
+            uuid = session.uuid,
+            accessToken = session.accessToken,
+            userType = session.userType,
             versionName = installed.version.id,
             versionType = when (installed.version.type) {
                 VersionType.RELEASE -> "release"
@@ -199,14 +207,54 @@ class PlayLaunchCoordinator(
             mainClass = command.mainClass,
             jvmArgs = command.jvmArguments,
             gameArgs = command.gameArguments,
-            accountUsername = account.username,
-            accountUuid = account.uuid,
-            accessToken = "0",
-            userType = "legacy",
+            accountUsername = session.username,
+            accountUuid = session.uuid,
+            accessToken = session.accessToken,
+            userType = session.userType,
             runtime = runtime,
             renderer = renderer,
         )
         return launcher.launch(request)
+    }
+
+    private data class LaunchSession(
+        val username: String,
+        val uuid: String,
+        val accessToken: String,
+        val userType: String,
+    )
+
+    private suspend fun resolveSession(account: FlintAccount): LaunchSession {
+        if (account.type != AccountType.MICROSOFT) {
+            return LaunchSession(
+                username = account.username,
+                uuid = account.uuid.replace("-", ""),
+                accessToken = "0",
+                userType = "legacy",
+            )
+        }
+        val auth = microsoftAuth ?: throw IllegalStateException(
+            "Microsoft sign-in is not configured. Set flintMsaClientId to a Mojang-approved Azure application id before launching with this account.",
+        )
+        val store = microsoftAccounts ?: throw IllegalStateException(
+            "Microsoft account storage is not available.",
+        )
+        val refreshToken = store.refreshToken(account.id)
+        val tokens = auth.refresh(refreshToken)
+        val rotated = tokens.refreshToken
+        if (!rotated.isNullOrBlank() && rotated != refreshToken) {
+            store.updateRefreshToken(account.id, rotated)
+        }
+        val minecraft = auth.loginMinecraft(tokens.accessToken)
+        if (minecraft.accessToken.isBlank() || minecraft.profile.id.isBlank() || minecraft.profile.name.isBlank()) {
+            throw IllegalStateException("Minecraft Services did not return a usable session.")
+        }
+        return LaunchSession(
+            username = minecraft.profile.name,
+            uuid = minecraft.profile.id.replace("-", ""),
+            accessToken = minecraft.accessToken,
+            userType = "msa",
+        )
     }
 
     private fun directoryKey(value: String): String =

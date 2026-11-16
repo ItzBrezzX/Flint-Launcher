@@ -14,6 +14,7 @@ import com.flintlauncher.android.download.DownloadConfig
 import com.flintlauncher.android.download.DownloadManager
 import com.flintlauncher.android.installer.GameLayout
 import com.flintlauncher.android.installer.MinecraftInstaller
+import com.flintlauncher.android.auth.MicrosoftAuthClient
 import com.flintlauncher.android.network.FlintHttp
 import com.flintlauncher.android.mods.ModrinthApi
 import com.flintlauncher.android.mods.ModrinthModInstaller
@@ -78,6 +79,15 @@ class AppContainer(private val app: Application) {
     val accountManager = AccountManager(accountRepository)
     val tokenVault = AndroidKeystoreTokenVault(File(app.filesDir, "account-tokens.enc"))
     val microsoftAccountStore = MicrosoftAccountStore(accountManager, tokenVault)
+    val microsoftAuthClient: MicrosoftAuthClient? = BuildConfig.MSA_CLIENT_ID
+        .takeIf { it.isNotBlank() }
+        ?.let { clientId ->
+            MicrosoftAuthClient(
+                http = http,
+                clientId = clientId,
+                redirectUri = BuildConfig.MSA_REDIRECT_URI.ifBlank { "flint://auth" },
+            )
+        }
 
     // Game files can be over a gigabyte: prefer app-specific external storage, which is larger.
     private val gameRoot = File(app.getExternalFilesDir(null) ?: app.filesDir, "minecraft")
@@ -134,6 +144,8 @@ class AppContainer(private val app: Application) {
         cacheDir = app.cacheDir,
         nativeLibraryDir = File(app.applicationInfo.nativeLibraryDir),
         launcherVersion = launcherVersion,
+        microsoftAccounts = microsoftAccountStore,
+        microsoftAuth = microsoftAuthClient,
     )
 
     val installCoordinator = InstallCoordinator(

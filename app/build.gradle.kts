@@ -19,6 +19,10 @@ android {
         targetSdk = 35
         versionCode = (findProperty("flintVersionCode") as String?)?.toInt() ?: 1
         versionName = (findProperty("flintVersionName") as String?) ?: "0.1.0-dev"
+        val msaClientId = ((findProperty("flintMsaClientId") as String?) ?: "").replace("\\", "\\\\").replace("\"", "\\\"")
+        val msaRedirectUri = ((findProperty("flintMsaRedirectUri") as String?) ?: "flint://auth").replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "MSA_CLIENT_ID", "\"$msaClientId\"")
+        buildConfigField("String", "MSA_REDIRECT_URI", "\"$msaRedirectUri\"")
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
         }
@@ -53,6 +57,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

@@ -1,5 +1,5 @@
-# Spike 0.4 — reproducible ARM64 debug APK with native library verification.
-# Fails the job if libflint_native.so is missing from the APK.
+# Reproducible multi-ABI debug APK with native library verification.
+# Fails if libflint_native.so, libGL.so, or libglfw.so is missing from the APK.
 name: Android Build (multi-ABI native)
 
 on:
@@ -19,14 +19,15 @@ env:
   ANDROID_API_LEVEL: "35"
   ANDROID_NDK_VERSION: "27.0.12077973"
   ANDROID_BUILD_TOOLS: "35.0.0"
-  # Quoted so YAML does not coerce 8.9 → 8.9 (float) incorrectly in some parsers.
   GRADLE_VERSION: "8.9"
+  # Cap workers and heap so NDK + CMake + GL4ES compile stay inside runner RAM.
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8 -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=false -Dorg.gradle.daemon=false"
 
 jobs:
-  build-arm64:
+  build:
     name: Build debug APK + verify native .so
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -39,9 +40,12 @@ jobs:
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools"
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null || true
 
       - name: Install platform, build-tools, NDK, CMake (pinned)
         run: |
@@ -51,43 +55,46 @@ jobs:
             "build-tools;${ANDROID_BUILD_TOOLS}" \
             "ndk;${ANDROID_NDK_VERSION}" \
             "cmake;3.22.1"
+          echo "ANDROID_HOME=${ANDROID_HOME}" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=${ANDROID_HOME}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
           test -d "${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
+          test -d "${ANDROID_HOME}/cmake/3.22.1"
+          # CMake package ships ninja on Linux runners.
+          test -x "${ANDROID_HOME}/cmake/3.22.1/bin/ninja" || command -v ninja
           sdkmanager --list_installed | tee "${RUNNER_TEMP}/sdk-installed.txt"
 
-      # Official behavior: when gradle-version is set, that distribution is
-      # downloaded, cached, and added to PATH. The `gradle` executable is then
-      # available even if gradle-wrapper.jar is not committed.
-      # Docs: https://github.com/gradle/actions/blob/main/docs/setup-gradle.md
       - name: Set up Gradle ${{ env.GRADLE_VERSION }}
-        id: setup-gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+          cache-read-only: false
 
-      - name: Verify Gradle on PATH
+      - name: Verify wrapper and Gradle
         run: |
           set -euo pipefail
-          command -v gradle
-          gradle --version | tee "${RUNNER_TEMP}/gradle-version.txt"
-          gradle --version | grep -q "Gradle 8.9"
+          test -f ./gradlew
+          test -f gradle/wrapper/gradle-wrapper.jar
+          chmod +x ./gradlew
+          ./gradlew --version | tee "${RUNNER_TEMP}/gradle-version.txt"
+          ./gradlew --version | grep -q "Gradle 8.9"
 
-      - name: Wrapper validation (only when wrapper jar is committed)
-        if: ${{ hashFiles('gradle/wrapper/gradle-wrapper.jar') != '' }}
+      - name: Wrapper validation
         uses: gradle/actions/wrapper-validation@v4
 
-      - name: Compile native module (arm64-v8a)
+      # Sequential stages reduce peak memory versus one combined assemble.
+      - name: Compile native module (all packaged ABIs)
         run: |
           set -euo pipefail
-          gradle :native:assembleDebug --stacktrace --info | tee "${RUNNER_TEMP}/native-build.log"
+          ./gradlew :native:assembleDebug --stacktrace --no-daemon | tee "${RUNNER_TEMP}/native-build.log"
 
-      - name: Verify native library for every packaged ABI
+      - name: Verify native libraries for every packaged ABI
         run: |
           set -euo pipefail
           : > "${RUNNER_TEMP}/so-path.txt"
           for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
-            for LIB in libflint_native.so libGL.so; do
+            for LIB in libflint_native.so libGL.so libglfw.so; do
               SO=$(find native/build -name "${LIB}" -path "*/${ABI}/*" | head -n1 || true)
               if [ -z "${SO}" ]; then
                 echo "::error::${LIB} not found under native/build for ${ABI}"
@@ -97,6 +104,8 @@ jobs:
               echo "Found ${ABI}: ${SO}"
               ls -la "${SO}"
               file "${SO}" || true
+              # Non-empty ELF
+              test -s "${SO}"
               echo "${ABI} ${LIB}: ${SO}" >> "${RUNNER_TEMP}/so-path.txt"
             done
           done
@@ -104,14 +113,14 @@ jobs:
       - name: Unit tests (host JVM)
         run: |
           set -euo pipefail
-          gradle test --stacktrace | tee "${RUNNER_TEMP}/unit-tests.log"
+          ./gradlew test --stacktrace --no-daemon | tee "${RUNNER_TEMP}/unit-tests.log"
 
       - name: Assemble debug APK
         run: |
           set -euo pipefail
-          gradle :app:assembleDebug --stacktrace | tee "${RUNNER_TEMP}/app-build.log"
+          ./gradlew :app:assembleDebug --stacktrace --no-daemon | tee "${RUNNER_TEMP}/app-build.log"
 
-      - name: Verify libflint_native.so is packaged in the generated APK
+      - name: Verify natives packaged in APK
         run: |
           set -euo pipefail
           mapfile -t APKS < <(find app/build/outputs/apk/debug -name '*.apk' -type f | sort)
@@ -123,10 +132,9 @@ jobs:
           APK="${APKS[0]}"
           echo "Checking APK: ${APK}"
           unzip -l "${APK}" | tee "${RUNNER_TEMP}/apk-listing.txt"
-          # Every ABI advertised by app/build.gradle.kts must be present in the final APK.
           TMP=$(mktemp -d)
           for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
-            for LIB in libflint_native.so libGL.so; do
+            for LIB in libflint_native.so libGL.so libglfw.so; do
               ENTRY="lib/${ABI}/${LIB}"
               if ! unzip -l "${APK}" | grep -F "${ENTRY}"; then
                 echo "::error::APK is missing ${ENTRY}"
@@ -134,12 +142,13 @@ jobs:
               fi
               unzip -o -d "${TMP}" "${APK}" "${ENTRY}"
               test -s "${TMP}/${ENTRY}"
+              file "${TMP}/${ENTRY}" || true
               echo "OK: ${ENTRY} is present and non-empty"
             done
           done
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: flint-launcher-debug-apk
           path: app/build/outputs/apk/debug/*.apk
@@ -147,7 +156,7 @@ jobs:
 
       - name: Upload build logs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: flint-build-logs
           path: |
