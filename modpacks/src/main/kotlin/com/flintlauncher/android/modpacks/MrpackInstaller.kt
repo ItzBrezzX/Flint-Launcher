@@ -55,13 +55,21 @@ class MrpackInstaller(
                 val entry = zip.getEntry(INDEX_JSON)
                     ?: throw MrpackFormatException("mrpack is missing $INDEX_JSON")
                 if (entry.size > MAX_INDEX_BYTES) throw MrpackFormatException("$INDEX_JSON is too large")
-                val text = zip.getInputStream(entry).bufferedReader().use { reader ->
-                    val value = reader.readText()
-                    if (value.toByteArray(Charsets.UTF_8).size > MAX_INDEX_BYTES) {
-                        throw MrpackFormatException("$INDEX_JSON is too large")
+                val bytes = java.io.ByteArrayOutputStream()
+                zip.getInputStream(entry).use { input ->
+                    val buffer = ByteArray(8 * 1024)
+                    var total = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        if (total > MAX_INDEX_BYTES) {
+                            throw MrpackFormatException("$INDEX_JSON is too large")
+                        }
+                        bytes.write(buffer, 0, count)
                     }
-                    value
                 }
+                val text = bytes.toString(Charsets.UTF_8.name())
                 return try {
                     json.decodeFromString(MrpackManifest.serializer(), text)
                 } catch (e: MrpackFormatException) {
