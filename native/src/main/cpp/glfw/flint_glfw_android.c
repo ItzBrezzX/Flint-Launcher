@@ -26,7 +26,8 @@
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_cond = PTHREAD_COND_INITIALIZER;
-static ANativeWindow *g_window = NULL;
+static ANativeWindow *g_window = NULL;          /* one reference owned by the UI publisher */
+static ANativeWindow *g_surface_window = NULL; /* one reference held while EGLSurface uses it */
 static unsigned g_generation = 0;
 static int g_width = 0, g_height = 0;
 
@@ -38,19 +39,26 @@ static unsigned g_bound_generation = 0;
 static int g_want_current = 0;
 static int g_gl4es_ready = 0;
 static void *g_gl = NULL;
-static volatile unsigned long long g_frames = 0;
+static unsigned long long g_frames = 0;
 
 /* ------------------------------------------------------- surface from Java */
 
 void flint_android_surface_set(ANativeWindow *window, int width, int height) {
+    ANativeWindow *release_window = NULL;
     pthread_mutex_lock(&g_lock);
-    if (g_window && g_window != window) ANativeWindow_release(g_window);
-    g_window = window;
-    g_generation++;
+    if (g_window == window) {
+        /* ANativeWindow_fromSurface returned an extra reference to the same object. */
+        release_window = window;
+    } else {
+        release_window = g_window;
+        g_window = window;
+        g_generation++;
+    }
     g_width = width;
     g_height = height;
     pthread_cond_broadcast(&g_cond);
     pthread_mutex_unlock(&g_lock);
+    if (release_window) ANativeWindow_release(release_window);
     flint_push_size(width, height);
 }
 
@@ -64,11 +72,12 @@ void flint_android_surface_resize(int width, int height) {
 
 void flint_android_surface_clear(void) {
     pthread_mutex_lock(&g_lock);
-    if (g_window) ANativeWindow_release(g_window);
+    ANativeWindow *release_window = g_window;
     g_window = NULL;
     g_generation++;
     pthread_cond_broadcast(&g_cond);
     pthread_mutex_unlock(&g_lock);
+    if (release_window) ANativeWindow_release(release_window);
 }
 
 /* -------------------------------------------------------------- GL4ES glue */
@@ -151,37 +160,63 @@ static int platform_create_context(void) {
 
 /* Brings the EGL surface in line with the latest Android window. Render thread only. */
 static int ensure_surface(void) {
+    /*
+     * Hold a temporary native-window reference while using the snapshot. The UI
+     * thread may clear/replace g_window immediately after releasing g_lock.
+     */
     pthread_mutex_lock(&g_lock);
     ANativeWindow *window = g_window;
+    if (window) ANativeWindow_acquire(window);
     unsigned generation = g_generation;
     pthread_mutex_unlock(&g_lock);
 
-    if (g_surface != EGL_NO_SURFACE && generation == g_bound_generation) return 1;
+    if (g_surface != EGL_NO_SURFACE && generation == g_bound_generation) {
+        if (window) ANativeWindow_release(window);
+        return 1;
+    }
 
     if (g_surface != EGL_NO_SURFACE) {
         eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         eglDestroySurface(g_display, g_surface);
         g_surface = EGL_NO_SURFACE;
     }
-    g_bound_generation = generation; /* remember we handled this generation even if there is no window */
+    if (g_surface_window) {
+        ANativeWindow_release(g_surface_window);
+        g_surface_window = NULL;
+    }
+
+    g_bound_generation = generation;
     if (!window) return 0;
 
     EGLint format = 0;
-    if (eglGetConfigAttrib(g_display, g_config, EGL_NATIVE_VISUAL_ID, &format)) {
-        ANativeWindow_setBuffersGeometry(window, 0, 0, format);
+    if (eglGetConfigAttrib(g_display, g_config, EGL_NATIVE_VISUAL_ID, &format) && format != 0) {
+        if (ANativeWindow_setBuffersGeometry(window, 0, 0, format) != 0) {
+            LOGE("ANativeWindow_setBuffersGeometry failed for EGL visual %d", format);
+            ANativeWindow_release(window);
+            return 0;
+        }
     }
+
     g_surface = eglCreateWindowSurface(g_display, g_config, window, NULL);
     if (g_surface == EGL_NO_SURFACE) {
         LOGE("eglCreateWindowSurface failed (0x%x)", eglGetError());
+        ANativeWindow_release(window);
         return 0;
     }
+
+    /* Transfer the acquired snapshot reference to the EGL-surface lifetime. */
+    g_surface_window = window;
     if (g_want_current && !eglMakeCurrent(g_display, g_surface, g_surface, g_context)) {
         LOGE("eglMakeCurrent after surface change failed (0x%x)", eglGetError());
+        eglDestroySurface(g_display, g_surface);
+        g_surface = EGL_NO_SURFACE;
+        ANativeWindow_release(g_surface_window);
+        g_surface_window = NULL;
+        g_bound_generation = (unsigned)~0u;
         return 0;
     }
     return 1;
 }
-
 static int platform_wait_for_surface(int timeout_ms) {
     struct timespec deadline;
     clock_gettime(CLOCK_REALTIME, &deadline);
@@ -241,7 +276,7 @@ static int platform_swap_buffers(void) {
         return 0;
     }
     if (eglSwapBuffers(g_display, g_surface)) {
-        g_frames++;
+        __atomic_add_fetch(&g_frames, 1ULL, __ATOMIC_RELAXED);
     } else {
         EGLint err = eglGetError();
         if (err == EGL_BAD_SURFACE || err == EGL_BAD_NATIVE_WINDOW) {
@@ -254,7 +289,9 @@ static int platform_swap_buffers(void) {
     return 1;
 }
 
-unsigned long long flint_android_frame_count(void) { return g_frames; }
+unsigned long long flint_android_frame_count(void) {
+    return __atomic_load_n(&g_frames, __ATOMIC_RELAXED);
+}
 
 static void platform_swap_interval(int interval) {
     if (g_display != EGL_NO_DISPLAY) eglSwapInterval(g_display, interval);
@@ -272,8 +309,12 @@ static void platform_destroy_context(void) {
     if (g_display == EGL_NO_DISPLAY) return;
     eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     if (g_surface != EGL_NO_SURFACE) eglDestroySurface(g_display, g_surface);
-    if (g_context != EGL_NO_CONTEXT) eglDestroyContext(g_display, g_context);
     g_surface = EGL_NO_SURFACE;
+    if (g_surface_window) {
+        ANativeWindow_release(g_surface_window);
+        g_surface_window = NULL;
+    }
+    if (g_context != EGL_NO_CONTEXT) eglDestroyContext(g_display, g_context);
     g_context = EGL_NO_CONTEXT;
     g_gl4es_ready = 0;
 }
