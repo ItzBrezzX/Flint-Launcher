@@ -257,12 +257,12 @@ extern "C" FLINT_GLFW_API void glfwTerminate(void) {
 
 extern "C" FLINT_GLFW_API void glfwGetVersion(int *major, int *minor, int *rev) {
     if (major) *major = 3;
-    if (minor) *minor = 3;
-    if (rev) *rev = 8;
+    if (minor) *minor = 4;
+    if (rev) *rev = 0;
 }
 
 extern "C" FLINT_GLFW_API const char *glfwGetVersionString(void) {
-    return "3.3.8 Flint Android GLFW-compatible backend";
+    return "3.4.0 Flint Android GLFW-compatible backend";
 }
 
 extern "C" FLINT_GLFW_API GLFWerrorfun glfwSetErrorCallback(GLFWerrorfun callback) {
