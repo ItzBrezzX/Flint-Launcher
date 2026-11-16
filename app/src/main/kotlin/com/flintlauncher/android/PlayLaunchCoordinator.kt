@@ -15,6 +15,7 @@ import com.flintlauncher.android.nativebridge.NativeBridge
 import com.flintlauncher.android.runtime.AndroidLwjglNativesInstaller
 import com.flintlauncher.android.runtime.GameLauncher
 import com.flintlauncher.android.runtime.KnownJreArtifacts
+import com.flintlauncher.android.runtime.JvmEnvironment
 import com.flintlauncher.android.runtime.LaunchRequest
 import com.flintlauncher.android.runtime.LaunchResult
 import com.flintlauncher.android.runtime.MobileJreManager
