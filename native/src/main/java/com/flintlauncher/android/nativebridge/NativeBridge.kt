@@ -20,6 +20,8 @@ object NativeBridge {
     external fun nativeSmokeTest(): String
     external fun nativeEglSmoke(): String
     external fun nativeEglCapabilities(): String
+    /** Set one process-level environment variable before JLI_Launch starts. */
+    external fun nativeSetEnv(key: String, value: String): Boolean
     external fun nativeLoadJre(jreHomePath: String): Boolean
     external fun nativeLaunchJvm(args: Array<String>): Int
     external fun nativeShutdown()
