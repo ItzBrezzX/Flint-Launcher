@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flintlauncher.android.runtime.KnownJreArtifacts
 import com.flintlauncher.android.runtime.MobileJreManager
-import com.flintlauncher.android.runtime.RuntimeSmoke
 import com.flintlauncher.android.ui.state.RuntimeEntryUi
 import com.flintlauncher.android.ui.state.RuntimeSettingsUiState
 import kotlinx.coroutines.CancellationException
@@ -55,8 +54,11 @@ class RuntimeSettingsViewModel(
                             verified = runtime.verified,
                         )
                     }
-                    val gpuProbe = RuntimeSmoke.run().eglCapabilities
-                    runtimes to gpuProbe
+                    // Do not create EGL contexts while entering Settings. Some Android
+                    // vendor GPU drivers terminate the process during pbuffer probing;
+                    // a Kotlin try/catch cannot recover from a native SIGSEGV/abort.
+                    // The explicit GL4ES window test remains the opt-in device probe.
+                    runtimes to "Not probed automatically. Open the GL4ES window test to probe the renderer."
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
