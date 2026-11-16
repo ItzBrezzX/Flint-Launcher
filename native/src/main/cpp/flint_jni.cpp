@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <mutex>
 #include <unordered_set>
+#include <unordered_map>
 #include <fstream>
 
 #define LOG_TAG "FlintNative"
@@ -58,6 +59,7 @@ static void *g_libjli = nullptr;
 static JLI_Launch_func g_jli_launch = nullptr;
 static std::vector<void *> g_jre_handles;
 static std::unordered_set<std::string> g_jre_loaded_paths;
+static std::unordered_map<std::string, void *> g_jre_library_handles;
 static std::string g_loaded_jre_home;
 static std::mutex g_jre_load_mutex;
 
@@ -111,8 +113,12 @@ static bool resolve_jre_library(const std::string &home, const std::string &name
     return find_library_recursive(join_path(home, "lib"), name, result);
 }
 
-static bool load_jre_library(const std::string &path, bool required) {
-    if (g_jre_loaded_paths.find(path) != g_jre_loaded_paths.end()) return true;
+static bool load_jre_library(const std::string &path, bool required, void **loadedHandle = nullptr) {
+    const auto existing = g_jre_library_handles.find(path);
+    if (existing != g_jre_library_handles.end()) {
+        if (loadedHandle) *loadedHandle = existing->second;
+        return true;
+    }
     dlerror();
     void *handle = dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
     if (!handle) {
@@ -123,6 +129,8 @@ static bool load_jre_library(const std::string &path, bool required) {
     }
     g_jre_handles.push_back(handle);
     g_jre_loaded_paths.insert(path);
+    g_jre_library_handles[path] = handle;
+    if (loadedHandle) *loadedHandle = handle;
     LOGI("Loaded JRE library: %s", path.c_str());
     return true;
 }
@@ -215,8 +223,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
         LOGE("JRE verification failed: libjli.so not found under %s", home.c_str());
         return JNI_FALSE;
     }
-    if (!load_jre_library(jliPath, true)) return JNI_FALSE;
-    g_libjli = g_jre_handles.back();
+    if (!load_jre_library(jliPath, true, &g_libjli)) return JNI_FALSE;
 
     std::string jvmPath;
     const std::vector<std::string> jvmCandidates = {
