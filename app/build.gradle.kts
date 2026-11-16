@@ -55,14 +55,6 @@ android {
         jvmTarget = "17"
     }
 
-    // Extract JNI libraries into ApplicationInfo.nativeLibraryDir. Flint's
-    // runtime loader intentionally resolves GL4ES/LWJGL by filesystem path.
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-        }
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
