@@ -97,6 +97,8 @@ class HomeViewModel(
      * A Started result only confirms that the native JLI worker was entered; it does not
      * claim that the Minecraft title screen or in-game renderer has been verified.
      */
+    fun selectedVersionIdForLaunch(): String? = _state.value.selected?.minecraftVersion
+
     fun launchSelected() {
         if (launchJob?.isActive == true) return
         val selected = _state.value.selected

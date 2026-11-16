@@ -10,8 +10,9 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 /**
- * Stages the APK's Android/Bionic LWJGL and renderer libraries in the per-game
- * native directory used by both java.library.path and org.lwjgl.librarypath.
+ * Stages only LWJGL's JNI core/OpenGL libraries in the per-game native directory.
+ * Flint's GLFW C ABI and GL4ES libraries must be loaded from their original APK
+ * native-library paths so JNI and LWJGL share the same process-global instances.
  *
  * Linux/GLIBC .so files from Mojang's natives-linux jars are deliberately not
  * accepted here. Every staged file is checked for ELF class and e_machine.
@@ -22,8 +23,6 @@ object AndroidLwjglNativesInstaller {
     private val requiredLibraries = listOf(
         "liblwjgl.so",
         "liblwjgl_opengl.so",
-        "libglfw.so",
-        "libGL.so",
     )
 
     private val abiSpecs = mapOf(
@@ -39,7 +38,7 @@ object AndroidLwjglNativesInstaller {
     )
 
     /**
-     * Copies the four runtime-critical libraries from the APK's nativeLibraryDir.
+     * Copies LWJGL's two JNI libraries from the APK's nativeLibraryDir.
      * Throws with a specific reason when an ABI artifact is missing or mismatched.
      */
     fun install(

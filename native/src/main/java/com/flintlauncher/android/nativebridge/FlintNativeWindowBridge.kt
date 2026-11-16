@@ -27,6 +27,11 @@ object FlintNativeWindowBridge {
         return FlintInputEvent.decode(NativeBridge.nativePollInputEvents(maximum))
     }
 
+    /** Request a GLFW window close from the game thread without touching EGL from the UI thread. */
+    fun requestWindowClose() {
+        enqueue(FlintInputEvent.WINDOW_CLOSE)
+    }
+
     fun droppedEventCount(): Long {
         check(NativeBridge.isNativeLoaded) {
             "Flint native library is not loaded: ${NativeBridge.nativeLoadError}"

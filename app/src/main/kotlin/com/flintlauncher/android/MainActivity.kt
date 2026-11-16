@@ -67,7 +67,17 @@ class MainActivity : ComponentActivity() {
                 // null, which the UI renders as a disabled control.
                 val homeActions = remember {
                     HomeActions(
-                        onLaunch = { homeViewModel.launchSelected() },
+                        onLaunch = {
+                            val versionId = homeViewModel.selectedVersionIdForLaunch()
+                            if (versionId.isNullOrBlank()) {
+                                homeViewModel.launchSelected()
+                            } else {
+                                startActivity(
+                                    Intent(this@MainActivity, GameActivity::class.java)
+                                        .putExtra(GameActivity.EXTRA_VERSION_ID, versionId),
+                                )
+                            }
+                        },
                         onSelectInstallation = { homeViewModel.selectInstallation(it) },
                         onDismissLaunchMessage = { homeViewModel.dismissLaunchMessage() },
                         onRefreshPartners = { homeViewModel.refreshPartners(force = true) },
