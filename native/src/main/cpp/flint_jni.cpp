@@ -22,6 +22,7 @@
 #define LOG_TAG "FlintNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 
 /*
@@ -267,7 +268,9 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     g_loaded_jre_home = home;
     LOGI("JRE native load complete; JLI_Launch resolved from %s", jliPath.c_str());
     return JNI_TRUE;
-}extern "C" JNIEXPORT jint JNICALL
+}
+
+extern "C" JNIEXPORT jint JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     JNIEnv *env, jclass, jobjectArray argsArray
 ) {
@@ -325,7 +328,9 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     LOGI("JLI_Launch returned %d", code);
     freeArguments();
     return code;
-}extern "C" JNIEXPORT jboolean JNICALL
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadGL4ES(
     JNIEnv *env, jclass, jstring libraryPath
 ) {
