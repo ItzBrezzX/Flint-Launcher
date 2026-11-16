@@ -1,59 +1,66 @@
-# Stage 15: independent audit (honest status)
+# Stage 15: independent audit (updated runtime integration status)
 
-Date: 12 Nov 2026. Scope: everything in this repository. Method: reading and static consistency checks only. **There was no Kotlin compiler, no Gradle, no network and no device in the environment that wrote this code.**
+Updated: 16 November 2026. Scope: source architecture, uploaded `FLINT-FULL-CODE-VERSI-KITA.zip`, runtime wiring and GitHub Actions validation.
 
-## What was checked
+## ZIP audit and integration decision
 
-- Bracket balance of all Kotlin sources, that every internal import resolves to a declared symbol, that every version-catalog alias exists, that every `project(":x")` is declared, that the module graph has no cycles, that `R.string` references exist, that XML and workflow YAML parse, and that no secrets are committed. All passed.
-- Test logic was traced by hand against the code (expected values, ordering, fixtures).
+The uploaded ZIP was compared file-by-file with the existing Flint repository. It contained 48 files (43 new relative paths and 5 modifications). The archive was not overlaid because it replaces the existing Kotlin-DSL multi-module build with a separate seven-module Groovy build, changes the app manifest/theme, and includes nonfunctional native stubs.
 
-## What has NOT been verified
+The following ZIP ideas were adapted into the existing architecture rather than copied:
+- Crash reporting: redacted, atomic crash files with five-report retention.
+- Game Activity and Android Surface lifetime.
+- Touch input and virtual controls, connected to Flint's existing native GLFW FIFO.
+- Surface/EGL/GL4ES/GLFW/JLI owner-thread sequencing.
+- Explicit GLFW close request and documentation/checklist.
 
-| Claim someone might make | Reality |
+The ZIP's `nativeJliLaunch()` returning `-1`, no-op native input functions and JNI-only GLFW stub were excluded.
+
+## Current source integration
+
+| Component | State |
 |---|---|
-| "It compiles" | Unknown. ~45 Kotlin files were never compiled. Expect some compile errors on the first build; a single one fails the whole APK build |
-| "Tests pass" | Unknown. 149 unit tests exist, none has been run |
-| "Download works" | Designed and tested against a *fake* Mojang server in code that has not run. Never exercised against Mojang's real servers or on a phone |
-| "Minecraft runs" | No. There is no Java runtime or renderer in the project |
-| "Microsoft login works" | The chain client is written. It has never talked to Microsoft, and it needs an Azure app registration approved by Mojang |
-| "CI works" | Workflows were written and syntax-checked, never executed |
+| Existing 18-module Kotlin-DSL build | Preserved |
+| PLAY → `GameActivity` | Connected |
+| Android Surface → EGL window | Wired in native source |
+| GL4ES on the game EGL context | Wired in native source |
+| Flint GLFW C ABI attachment and event pump | Wired in native source |
+| Android LWJGL 3.3.3 core/OpenGL natives | Included in native CMake build |
+| JLI launch on the EGL owner thread | Wired in source |
+| Android key/mouse/scroll/focus input FIFO | Wired |
+| Virtual touch joystick and game controls | Wired |
+| Relative cursor motion for locked-camera mode | Wired |
+| Graceful GLFW close | Wired; no force-kill guarantee |
+| Redacted crash reports | Wired |
+| Minecraft title screen/world/audio | Not verified on physical hardware |
 
-## Requirement coverage
+## Validation boundary
 
-| Brief item | State |
-|---|---|
-| Version manager (release/snapshot/beta, search, sort, installed status) | Written + tests |
-| Installation manager: vanilla | Written + tests (end-to-end with fake server) |
-| Installation manager: Fabric/Quilt | Metadata + compatibility only; no install flow in the UI |
-| Installation manager: Forge/NeoForge | Reported as unsupported (needs the Java runtime) |
-| Download manager (all listed stats, pause/resume/cancel/retry, ranges, backoff, SHA-1, corruption, low storage, persistence) | Written + tests. Pause and cancel are tested only through the coordinator with fakes, not inside `DownloadManager` itself |
-| Background execution | Foreground service (`dataSync`) written, untested. Android 15 limits `dataSync` services to about 6 hours per day |
-| Accounts: offline UUID, Microsoft chain | Written + tests. No account UI, no secure token storage |
-| Skins | Not started |
-| Mods, modpacks | Not started |
-| Profiles | Domain + storage + tests. No UI, not wired to Home or launch |
-| Partners/servers | Written + tests; default list is public servers, not partners |
-| News, friends, settings | Not started |
-| Auto-update of launcher, metadata refresh intervals | Not started (version catalog is fetched on demand only) |
-| Launch pipeline step 7-8 (renderer, start game) | Not started |
+GitHub Actions is the build gate for Kotlin compilation, unit tests, Android lint, NDK compilation, ABI packaging and GLFW symbol exports. A CI pass only verifies those software/build contracts; it cannot prove the real GPU driver or Minecraft game loop on the phone.
 
-## Known risks and bugs to look for first
+The latest branch-specific CI and APK workflow results are linked from the branch's Actions page:
+https://github.com/ItzBrezzX/Flint-Launcher/actions
 
-1. **First compile.** Likeliest trouble spots: Compose API signatures, `fun interface` with suspend methods, MockWebServer test helpers, and kotlinx.serialization on private classes.
-2. **Runtime feasibility.** Android 10+ restrictions on executing downloaded code, JRE 25 for Minecraft 26.x, renderer support per device. Spike 0 decides whether the project is viable as designed.
-3. **LWJGL libraries.** The planner downloads Mojang's LWJGL jars; the Android runtime needs its own. They are not filtered yet, so the install is larger than needed and the classpath would be wrong at launch.
-4. **Legacy assets.** Versions with virtual asset indexes (about 1.7 and older) fail with a clear message instead of installing.
-5. **Storage location.** Game files go to app-specific external storage when available. On devices where that is small or slow this needs a user-visible setting.
-6. **Status API.** The server list depends on mcstatus.io, whose terms were not read.
-7. **XSTS error table, auth endpoint URLs and Fabric/Quilt endpoints** are from memory or community docs and must be confirmed against primary sources.
-8. **Unverified default servers.** Hoplite's address and all website URLs are unconfirmed.
-9. **Licence.** No `LICENSE` file; the choice depends on which Pojav-derived components are bundled.
+## Remaining risks and device tests
 
-## Recommended order from here
+1. **JRE availability and compatibility.** Flint does not bundle a JRE. Import a trusted mobile ARM64 JRE for the selected Minecraft Java major, then verify `libjli.so` and `libjvm.so`.
+2. **Native loader and driver variance.** A successful CMake/ELF build does not prove that device-specific EGL, GL4ES and LWJGL symbols all behave correctly at runtime.
+3. **Minecraft title screen.** The app must reach the title screen on the target phone before gameplay can be claimed.
+4. **Input feel.** Verify camera relative movement, virtual joystick, mouse clicks, key repeats, focus loss and pointer cancellation on real hardware.
+5. **Graceful STOP.** The GLFW close request requires Minecraft to continue polling events. If JLI hangs or stops pumping events, the launcher intentionally avoids unsafe cross-thread EGL destruction and reports that the session did not close.
+6. **Microsoft authentication.** Refresh-token/session exchange and full sign-in UI remain incomplete; the currently wired path uses an offline account.
+7. **Modded versions.** Forge/NeoForge and many mod-loader/native combinations remain separate work; do not assume support from vanilla launch wiring.
 
-1. Run **Actions: Android CI** and fix compile errors until it is green. Then read the test report and fix failures.
-2. Install the debug APK on an ARM64 phone: open PROFILES, install a small old release, watch the Download Manager, kill the app mid-download and confirm Retry resumes.
-3. Run Spike 0 (architecture §3): start vanilla to the main menu with an existing Android JRE and renderer.
-4. Only then continue with accounts UI, profiles UI, mods and settings.
+## Physical acceptance checklist
 
-A feature should be called supported only when the launch matrix in `tests/README.md` has a passing row for it.
+- [ ] App opens to Flint PLAY without a startup crash.
+- [ ] Compatible ARM64 JRE import and verification succeed.
+- [ ] Minecraft installation and hashes verify.
+- [ ] Production Surface, EGL and GL4ES initialize on the game owner thread.
+- [ ] LWJGL resolves Flint's GLFW C ABI and creates a logical window.
+- [ ] Minecraft reaches the title screen.
+- [ ] A single-player world renders and accepts input.
+- [ ] Audio works or fails safely without crashing.
+- [ ] STOP returns to Flint and releases native resources on the owner thread.
+- [ ] Background/foreground, orientation/surface recreation and repeated-launch tests pass.
+
+Until title-screen and world-entry checks pass on physical hardware, **do not claim READY TO PLAY**.

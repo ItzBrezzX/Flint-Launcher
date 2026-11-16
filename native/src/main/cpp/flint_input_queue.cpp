@@ -20,8 +20,24 @@ void push_input_event(const InputEvent &event) {
     {
         std::lock_guard<std::mutex> lock(queue_mutex);
         if (size == kCapacity) {
+            const bool is_close =
+                event.type == static_cast<int32_t>(InputEventType::Close);
+            const bool is_release =
+                (event.type == static_cast<int32_t>(InputEventType::Key) && event.action == 0) ||
+                (event.type == static_cast<int32_t>(InputEventType::MouseButton) && event.action == 0) ||
+                (event.type == static_cast<int32_t>(InputEventType::Focus) && event.action == 0);
+
+            if (!is_close && !is_release) {
+                ++dropped;
+                return;
+            }
+
+            // Do not let pointer-motion floods discard key/button releases,
+            // focus-loss cleanup or STOP. Evict the oldest queued record and
+            // append the critical transition so the GLFW owner thread sees it.
+            head = (head + 1) % kCapacity;
+            --size;
             ++dropped;
-            return;
         }
         const size_t tail = (head + size) % kCapacity;
         queue[tail] = event;

@@ -14,12 +14,10 @@ class AndroidLwjglNativesInstallerTest {
     private val nativeNames = listOf(
         "liblwjgl.so",
         "liblwjgl_opengl.so",
-        "libglfw.so",
-        "libGL.so",
     )
 
     @Test
-    fun stagesAllRequiredArm64LibrariesAndPreservesTheElfHeaders() {
+    fun stagesOnlyLwjglJniLibrariesAndPreservesTheirElfHeaders() {
         val source = File(temporary.root, "apk-libs").apply { mkdirs() }
         nativeNames.forEach { name -> File(source, name).writeBytes(elfHeader(elfClass = 2, machine = 183)) }
         val destination = File(temporary.root, "minecraft-natives")
@@ -54,7 +52,7 @@ class AndroidLwjglNativesInstallerTest {
         }.exceptionOrNull()
 
         assertTrue(error is IllegalStateException)
-        assertTrue(error!!.message!!.contains("libGL.so"))
+        assertTrue(error!!.message!!.contains("liblwjgl_opengl.so"))
     }
 
     @Test

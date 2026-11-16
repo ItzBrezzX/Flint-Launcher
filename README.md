@@ -1,68 +1,66 @@
 # Flint Launcher
 
-An open-source Minecraft: Java Edition launcher for Android (ARM64 first).
-Author: KingBrezz. Package: `com.flintlauncher.android`.
+An open-source Minecraft: Java Edition launcher for Android, ARM64 first. Package: `com.flintlauncher.android`.
 
-> **Status: early scaffold.** The project structure, build files, CI workflows and design documents exist. **The launcher does not run Minecraft yet.** The scaffold has not been compiled and the workflows have not been run. Nothing below the "Implemented" list should be assumed to work.
+> **Status: development — not yet READY TO PLAY.** The source now contains a production launch path from PLAY → Android Surface → EGL/GL4ES → Flint GLFW C ABI → LWJGL → in-process `JLI_Launch`. CI and physical-device acceptance are tracked separately. Minecraft title-screen and world-entry success have **not** been confirmed on hardware.
 
 Flint is an unofficial project and is not affiliated with Mojang or Microsoft.
 
-## Status
-
-"Written" means source code and unit tests exist. **Nothing has been compiled, no test has been run, and nothing has run on a device.** See [docs/AUDIT.md](docs/AUDIT.md) for the full, honest picture.
+## Current implementation
 
 | Area | State |
 |---|---|
-| Research and architecture | Done: [docs/RESEARCH.md](docs/RESEARCH.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Gradle multi-module project (17 modules + app) and GitHub Actions (CI, APK, release) | Written. YAML syntax checked only, workflows never run |
-| Home screen, navigation (PLAY / PROFILES / MODS / PARTNERS / SETTINGS, no Store), theme | Written. Real state only, empty states and disabled controls instead of fake data |
-| Server list: 5 default public servers, live status via mcstatus.io, Copy IP, Visit | Written with tests |
-| **Minecraft download and install**: version catalog (Release/Snapshot/Beta, search, sort), manifest and version-JSON handling with SHA-1 checks, client jar, libraries, assets, log4j config, parallel resumable verified downloads, pause/resume/cancel/retry, storage check, foreground service and notification | Written with tests, including an end-to-end test against a fake Mojang server. Lives under the PROFILES tab ("Installations") for now |
-| Launch argument building (rules, placeholders, legacy and modern formats) | Written with tests, not connected to a runtime |
-| Microsoft login chain (PKCE, Xbox, XSTS, Minecraft, entitlement, profile) | Client written with tests. No sign-in screen, no secure token storage, no Azure app yet |
-| Profiles (validation, isolated folders, clone, import/export with unsafe-argument stripping) | Domain and storage written with tests. No profiles screen |
-| Fabric/Quilt metadata and compatibility check | Written with tests. Not exposed in the UI |
-| Forge, NeoForge, mods, modpacks, news, friends, skins, settings | **Not started** |
-| Offline accounts (UUID convention, validation, persistence, manager) | **Implemented** with unit tests. UI screen not fully wired |
-| Microsoft auth client (PKCE chain) | Written with tests. No Keystore token store, no sign-in UI, no live Azure app |
-| Launch readiness resolver (explicit states, runtime/renderer/account gates) | **Implemented** (pure logic) |
-| Real-time install UI + stages + READY TO PLAY gate | **Implemented** in Compose (driven by real DownloadManager) |
-| Touch control models / editor / overlay | **Implemented** in Compose. Input bridge to game process **not implemented** |
-| Java runtime and rendering on Android (so the game can actually start) | **Interfaces only** (`JavaRuntimeManager`, `GameLauncher`, `UnimplementedGameLauncher`). No ARM64 JRE, no JNI, no renderer libs. **BLOCKED** on Spike 0 |
+| Compose launcher shell, navigation and theme | Implemented |
+| Version catalog and Minecraft install pipeline | Implemented in source with unit and fake-server tests; current CI is the release gate |
+| Mojang launch metadata and JVM/game argument construction | Implemented and connected to the launch request |
+| Offline account storage and launch identity | Implemented; offline account path is the currently wired path |
+| Microsoft authentication | OAuth/Xbox/Minecraft client pieces exist; refresh/session exchange and full login UI remain incomplete |
+| Profiles, mods and modpacks | Domain pieces exist; several screens and full install flows remain incomplete |
+| Renderer preview | GL4ES/EGL/GLFW preview path exists |
+| Production game window | Surface-backed `GameActivity` and same-thread EGL/GL4ES/GLFW/JLI setup are wired in source |
+| Android LWJGL natives | LWJGL 3.3.3 core/OpenGL Android builds plus Flint GLFW/GL4ES are integrated in native CMake |
+| Touch input | Android key/mouse/scroll input, virtual WASD joystick, attack/use/jump/sneak/inventory/pause and relative camera motion are connected to the native GLFW FIFO |
+| Graceful STOP | Enqueues a GLFW close request; not a force-kill if the game stops processing events |
+| Crash reports | Redacted rotating reports stored in app-private `files/crash-reports/` |
+| Minecraft title screen, single-player world and audio | **Not verified on a physical device** |
+
+## Runtime prerequisites
+
+Flint does not bundle a Java runtime in the APK. A compatible mobile OpenJDK/JRE for the selected Minecraft version must be imported or installed and verified. Remote JRE URLs are intentionally not fabricated where a trusted artifact and checksum are unavailable.
+
+The selected Minecraft version must also have its client JAR, libraries, assets and Android-compatible native dependencies installed. The GLFW backend implements the Android-facing subset required by the current LWJGL binding; it is not a complete desktop window manager.
+
+See [docs/ANDROID_RUNTIME_INTEGRATION.md](docs/ANDROID_RUNTIME_INTEGRATION.md) for the full Surface, EGL ownership, input, STOP and validation flow. See [docs/SPIKE0.md](docs/SPIKE0.md) for the device acceptance checklist.
 
 ## Build
 
-Requirements: JDK 17, Android SDK (platform 35), Gradle 8.9.
+Requirements: JDK 17, Android SDK platform 35, Android NDK/CMake and Gradle 8.9.
+
+This repository currently pins Gradle 8.9 in GitHub Actions and does not require a committed Gradle wrapper. With Gradle 8.9 installed locally:
 
 ```bash
-gradle wrapper --gradle-version 8.9   # one time: creates gradlew and the wrapper jar, then commit them
-./gradlew :app:assembleDebug
-./gradlew test
+gradle assembleDebug
+gradle test
+gradle lintDebug
 ```
 
-The APK is written to `app/build/outputs/apk/debug/`.
+The debug APK is written to `app/build/outputs/apk/debug/`.
 
-## Build with GitHub Actions
+## GitHub Actions
 
-1. Push this repository to GitHub (branch `main`).
-2. Open **Actions → Build APK → Run workflow**.
-3. When it finishes, download **flint-launcher-debug-apk** from the run's artifacts.
+- **Android CI** compiles modules, runs unit tests, checks Android lint, packages native libraries and verifies the exported GLFW C ABI symbols.
+- **Build APK** produces a debug APK and verifies it can be installed by Android tooling.
+- Download the `flint-launcher-debug-apk` artifact from a successful Build APK workflow run.
 
-The workflows pin Gradle 8.9 themselves, so they do not need the wrapper jar. CI (`android-ci.yml`) compiles, runs unit tests and Android Lint on every push and pull request.
+A successful CI build does not prove that a particular phone's GPU driver, JRE binaries, Minecraft version or touch controls work. Those require physical-device tests.
 
-### Signed releases
+## Remaining device acceptance
 
-Add these repository secrets: `FLINT_KEYSTORE_BASE64` (base64 of your `.jks`), `FLINT_KEYSTORE_PASSWORD`, `FLINT_KEY_ALIAS`, `FLINT_KEY_PASSWORD`. Then push a tag such as `v0.1.0`; the release workflow builds a signed APK, writes `SHA256SUMS.txt` and publishes a GitHub Release. Without the secrets, releases fail on purpose. Never commit keystores or passwords.
+1. Open the APK and reach the Flint PLAY screen without a startup crash.
+2. Import a trusted compatible ARM64 JRE and install a supported vanilla Minecraft version.
+3. Launch to the Minecraft title screen.
+4. Enter a single-player world and verify rendering, camera, joystick, attack/use, jump, inventory, pause and audio.
+5. Use STOP and confirm Flint returns without a stuck EGL/JVM thread.
+6. Test background/foreground, surface recreation and repeated launches.
 
-## Known limitations
-
-- Minecraft can be downloaded and installed (once the build is verified) but **cannot be launched yet**: there is no Java runtime or renderer.
-- The server list uses a third-party status API (mcstatus.io): it sees the device IP, and it can be rate-limited or down, in which case servers show "Status unknown".
-- The home screen has no skin renderer, news images or real data sources yet; every action is disabled until its module exists.
-- Toolchain versions are an older, conservative set (see architecture §9).
-- Real Microsoft login needs an Azure app registration approved by Mojang; CurseForge needs an API key; friends needs a backend.
-- No `LICENSE` file yet: the licence depends on which third-party runtime components are bundled (architecture §12).
-
-## Contributing and security
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+Do not describe Flint as READY TO PLAY until those checks pass on the target Android hardware.

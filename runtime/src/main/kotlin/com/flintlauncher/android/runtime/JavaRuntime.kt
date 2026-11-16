@@ -1,5 +1,6 @@
 package com.flintlauncher.android.runtime
 
+import android.view.Surface
 import java.io.File
 
 /**
@@ -97,6 +98,12 @@ data class LaunchRequest(
     val userType: String,
     val runtime: JavaRuntimeInfo,
     val renderer: RendererInfo,
+    /** Android window Surface kept valid for the lifetime of the in-process game session. */
+    val windowSurface: Surface? = null,
+    val windowWidth: Int = 0,
+    val windowHeight: Int = 0,
+    /** APK-packaged GL4ES library used to initialize the production render context. */
+    val rendererLibrary: File? = null,
 )
 
 /**

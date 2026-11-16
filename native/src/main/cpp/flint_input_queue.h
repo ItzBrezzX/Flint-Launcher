@@ -15,6 +15,7 @@ enum class InputEventType : int32_t {
     WindowSize = 7,
     FramebufferSize = 8,
     Wake = 9,
+    Close = 10,
 };
 
 struct InputEvent {

@@ -6,6 +6,11 @@ import org.junit.Test
 
 class FlintInputEventTest {
     @Test
+    fun windowCloseEventUsesNativeGlfwCloseType() {
+        assertEquals(10, FlintInputEvent.WINDOW_CLOSE)
+    }
+
+    @Test
     fun decodesPackedNativeEventWithoutLosingCoordinates() {
         val packed = longArrayOf(
             FlintInputEvent.CURSOR.toLong(),
