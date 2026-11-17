@@ -49,6 +49,7 @@ object KnownJreArtifacts {
         JreArtifact("jre21-x86", 21, "x86", "$BASE/download_jre21/jre21-android-x86.tar.xz", "9b8c7d10c5f751acb3b33506593da44ece52a0fd03e0b3c283ba08a7f285a40f", 28689112L),
         JreArtifact("jre21-x86_64", 21, "x86_64", "$BASE/download_jre21/jre21-android-x86_64.tar.xz", "cb88723961f5f9ad63afa1f212eb199816c27cabfd7dc66567bde1d8fb69713b", 29662988L),
 
+        JreArtifact("jre25-arm", 25, "arm", "$BASE/download_jre25/jre25-android-arm.tar.xz", "9ae13aee9cba7b2d2d8f40965061667e876d7380d866f37a992db3eff296ffb5", 28252088L),
         JreArtifact("jre25-arm64", 25, "arm64", "$BASE/download_jre25/jre25-android-arm64.tar.xz", "d3eb7afe2240c26728a1bb440502c5f18ac3883e932d202dd7f0c9bcbbce4c37", 38031580L),
         JreArtifact("jre25-x86_64", 25, "x86_64", "$BASE/download_jre25/jre25-android-x86_64.tar.xz", "7fca862ee1b2d5fe23cd9c9c3d9b7ad3c241947ad1a6cc9464ef2e674867105d", 39061384L),
     )
