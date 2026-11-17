@@ -142,6 +142,20 @@ class DownloadManagerTest {
     }
 
     @Test
+    fun rejectsResponseLargerThanDeclaredSizeWithoutPromotingFile() = runBlocking {
+        val expected = bytes(1_024, 11)
+        fileServer.files["/oversized.bin"] = bytes(2 * 1024 * 1024, 12)
+
+        val result = newManager().run(listOf(request("/oversized.bin", expected)))
+
+        assertEquals(1, result.failed.size)
+        assertTrue(result.failed.single().reason.contains("declared size", ignoreCase = true))
+        assertFalse(File(tmp.root, "oversized.bin").exists())
+        assertFalse(File(tmp.root, "oversized.bin.part").exists())
+        assertEquals(3, fileServer.requests.size)
+    }
+
+    @Test
     fun failsOnChecksumMismatchAndLeavesNoFileBehind() = runBlocking {
         val data = bytes(2_000)
         fileServer.files["/x.bin"] = data

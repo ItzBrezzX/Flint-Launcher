@@ -11,6 +11,7 @@ import java.net.URI
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.zip.CRC32
 import java.util.zip.ZipFile
 
 data class PackMetadata(
@@ -54,6 +55,7 @@ class MrpackInstaller(
 ) {
     fun parse(zipFile: File): MrpackManifest {
         if (!zipFile.isFile) throw MrpackFormatException("mrpack archive does not exist")
+        if (zipFile.length() > MAX_ARCHIVE_BYTES) throw MrpackFormatException("mrpack archive is too large")
         try {
             ZipFile(zipFile).use { zip ->
                 val entry = zip.getEntry(INDEX_JSON)
@@ -91,7 +93,10 @@ class MrpackInstaller(
 
     fun plan(manifest: MrpackManifest, zipFile: File, gameDir: File): MrpackPlan {
         if (!zipFile.isFile) throw MrpackFormatException("mrpack archive does not exist")
+        if (zipFile.length() > MAX_ARCHIVE_BYTES) throw MrpackFormatException("mrpack archive is too large")
+        if (manifest.files.size > MAX_MANIFEST_FILES) throw MrpackFormatException("mrpack contains too many downloadable files")
         val requests = mutableListOf<DownloadRequest>()
+        var totalDownloadBytes = 0L
         val destinations = mutableSetOf<String>()
         var skipped = 0
 
@@ -116,15 +121,21 @@ class MrpackInstaller(
                     ExpectedHash(HashAlgorithm.SHA1, file.hashes.sha1.lowercase())
                 else -> throw MrpackFormatException("Pack file ${file.path} has no valid SHA-512 or SHA-1 hash")
             }
-            if (file.fileSize != null && file.fileSize < 0L) {
-                throw MrpackFormatException("Pack file ${file.path} has a negative file size")
+            val fileSize = file.fileSize
+                ?: throw MrpackFormatException("Pack file ${file.path} is missing its declared file size")
+            if (fileSize < 0L || fileSize > MAX_MOD_FILE_BYTES) {
+                throw MrpackFormatException("Pack file ${file.path} has an invalid or excessive file size")
             }
+            if (fileSize > MAX_MOD_TOTAL_BYTES - totalDownloadBytes) {
+                throw MrpackFormatException("Modpack download size exceeds the configured safety limit")
+            }
+            totalDownloadBytes += fileSize
 
             requests += DownloadRequest(
                 id = "mrpack:${file.path}",
                 url = url,
                 destination = destination,
-                sizeBytes = file.fileSize,
+                sizeBytes = fileSize,
                 hash = hash,
             )
         }
@@ -176,15 +187,32 @@ class MrpackInstaller(
     private fun collectOverrideEntries(zipFile: File, gameDir: File): List<Pair<String, String>> {
         val entries = mutableListOf<Pair<String, String>>()
         val destinations = mutableSetOf<String>()
+        var archiveEntryCount = 0
+        var overrideBytes = 0L
         ZipFile(zipFile).use { zip ->
             for (entry in zip.entries().asSequence()) {
+                archiveEntryCount++
+                if (archiveEntryCount > MAX_ARCHIVE_ENTRIES) {
+                    throw MrpackFormatException("mrpack contains too many ZIP entries")
+                }
                 if (entry.isDirectory) continue
                 val prefix = OVERRIDE_DIRS.firstOrNull { entry.name.startsWith(it) } ?: continue
-                val relative = entry.name.removePrefix(prefix).trimStart('/')
-                if (relative.isEmpty()) continue
+                val relative = entry.name.removePrefix(prefix)
+                if (relative.isBlank()) throw MrpackFormatException("Override entry has an empty destination path")
+                if (entries.size >= MAX_OVERRIDE_ENTRIES) {
+                    throw MrpackFormatException("mrpack contains too many override files")
+                }
+                if (entry.size < 0L || entry.size > MAX_OVERRIDE_FILE_BYTES) {
+                    throw MrpackFormatException("Override file is too large or has an unknown size: " + relative)
+                }
+                if (entry.size > MAX_OVERRIDE_TOTAL_BYTES - overrideBytes) {
+                    throw MrpackFormatException("Override data exceeds the configured safety limit")
+                }
+                overrideBytes += entry.size
+
                 val destination = safeResolve(gameDir, relative)
                 if (!destinations.add(destination.path)) {
-                    throw MrpackFormatException("Pack contains duplicate override path: $relative")
+                    throw MrpackFormatException("Pack contains duplicate override path: " + relative)
                 }
                 entries += entry.name to relative
             }
@@ -197,22 +225,38 @@ class MrpackInstaller(
         gameDir: File,
         overrideEntries: List<Pair<String, String>>,
     ): Int {
+        if (overrideEntries.size > MAX_OVERRIDE_ENTRIES) {
+            throw MrpackFormatException("mrpack contains too many override files")
+        }
         var extracted = 0
+        var totalWritten = 0L
         ZipFile(zipFile).use { zip ->
             for ((entryName, relativePath) in overrideEntries) {
-                val entry = zip.getEntry(entryName) ?: continue
+                val entry = zip.getEntry(entryName)
+                    ?: throw MrpackFormatException("Override entry disappeared from the archive: " + entryName)
+                if (entry.isDirectory || entry.size < 0L || entry.size > MAX_OVERRIDE_FILE_BYTES) {
+                    throw MrpackFormatException("Override entry has an invalid size or type: " + entryName)
+                }
+                if (entry.size > MAX_OVERRIDE_TOTAL_BYTES - totalWritten) {
+                    throw MrpackFormatException("Override data exceeds the configured safety limit")
+                }
+                if (entry.crc < 0L) throw MrpackFormatException("Override entry has no CRC checksum: " + entryName)
+
                 val destination = safeResolve(gameDir, relativePath)
                 val parent = destination.parentFile
-                    ?: throw MrpackFormatException("Invalid override path: $relativePath")
-                if (!parent.exists() && !parent.mkdirs() && !parent.isDirectory) {
-                    throw MrpackFormatException("Could not create override directory: ${parent.absolutePath}")
+                    ?: throw MrpackFormatException("Invalid override path: " + relativePath)
+                if (!parent.mkdirs() && !parent.isDirectory) {
+                    throw MrpackFormatException("Could not create override directory: " + parent.absolutePath)
                 }
                 val verifiedDestination = safeResolve(gameDir, relativePath)
-                val temporary = File(verifiedDestination.parentFile, verifiedDestination.name + ".flint-part")
+                val temporary = Files.createTempFile(parent.toPath(), ".flint-", ".part").toFile()
                 try {
-                    zip.getInputStream(entry).use { input ->
-                        temporary.outputStream().use { output -> input.copyTo(output) }
+                    val written = zip.getInputStream(entry).use { input ->
+                        temporary.outputStream().use { output ->
+                            copyOverrideEntry(input, output, entry.size, totalWritten, entry.crc)
+                        }
                     }
+                    totalWritten += written
                     moveReplacing(temporary, verifiedDestination)
                     extracted++
                 } finally {
@@ -223,21 +267,71 @@ class MrpackInstaller(
         return extracted
     }
 
+    private fun copyOverrideEntry(
+        input: java.io.InputStream,
+        output: java.io.OutputStream,
+        expectedSize: Long,
+        totalBefore: Long,
+        expectedCrc: Long,
+    ): Long {
+        val buffer = ByteArray(64 * 1024)
+        val crc = CRC32()
+        var written = 0L
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            if (count == 0) continue
+            val chunk = count.toLong()
+            if (written > expectedSize - chunk || written > MAX_OVERRIDE_FILE_BYTES - chunk ||
+                totalBefore > MAX_OVERRIDE_TOTAL_BYTES - written - chunk
+            ) {
+                throw MrpackFormatException("Override stream exceeds its declared or configured size")
+            }
+            crc.update(buffer, 0, count)
+            output.write(buffer, 0, count)
+            written += chunk
+        }
+        if (written != expectedSize) {
+            throw MrpackFormatException("Override stream size does not match its ZIP directory entry")
+        }
+        if (crc.value != expectedCrc) {
+            throw MrpackFormatException("Override CRC checksum mismatch")
+        }
+        return written
+    }
+
     companion object {
         const val INDEX_JSON = "modrinth.index.json"
         val OVERRIDE_DIRS = listOf("overrides/", "client-overrides/")
         private const val MAX_INDEX_BYTES = 4 * 1024 * 1024
+        private const val MAX_ARCHIVE_BYTES = 1024L * 1024 * 1024
+        private const val MAX_ARCHIVE_ENTRIES = 20_000
+        private const val MAX_MANIFEST_FILES = 10_000
+        private const val MAX_MOD_FILE_BYTES = 1024L * 1024 * 1024
+        private const val MAX_MOD_TOTAL_BYTES = 4L * 1024 * 1024 * 1024
+        private const val MAX_OVERRIDE_ENTRIES = 10_000
+        private const val MAX_OVERRIDE_FILE_BYTES = 256L * 1024 * 1024
+        private const val MAX_OVERRIDE_TOTAL_BYTES = 1024L * 1024 * 1024
         private val SHA512 = Regex("^[0-9a-fA-F]{128}$")
         private val SHA1 = Regex("^[0-9a-fA-F]{40}$")
 
         fun safeResolve(base: File, relative: String): File {
             if (relative.isBlank() || relative.startsWith('/') || relative.startsWith('\\') ||
-                relative.contains('\\') || relative.split('/').any { it == ".." || it == "." || it.isEmpty() }
+                relative.contains('\\') || relative.contains('\u0000') ||
+                relative.split('/').any { it == ".." || it == "." || it.isEmpty() }
             ) {
                 throw MrpackFormatException("Pack path is invalid or escapes target: $relative")
             }
             val baseCanonical = base.canonicalFile
-            val target = File(baseCanonical, relative).canonicalFile
+            val lexicalTarget = File(baseCanonical, relative)
+            var current: File? = lexicalTarget
+            while (current != null && current != baseCanonical) {
+                if (Files.isSymbolicLink(current.toPath())) {
+                    throw MrpackFormatException("Pack path traverses a symbolic link: $relative")
+                }
+                current = current.parentFile
+            }
+            val target = lexicalTarget.canonicalFile
             if (target == baseCanonical || !target.path.startsWith(baseCanonical.path + File.separator)) {
                 throw MrpackFormatException("Pack path escapes target: $relative")
             }

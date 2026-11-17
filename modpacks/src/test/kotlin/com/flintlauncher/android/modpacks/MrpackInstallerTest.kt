@@ -5,6 +5,7 @@ import com.flintlauncher.android.download.DownloadManager
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -163,4 +164,93 @@ class MrpackInstallerTest {
         assertTrue(result is MrpackInstallResult.Failure)
         assertTrue((result as MrpackInstallResult.Failure).message.contains("Could not read"))
     }
+
+    @Test
+    fun rejectsMissingDeclaredDownloadSize() {
+        val file = """{"path":"mods/a.jar","hashes":{"sha1":"$sha1"},"downloads":["https://cdn.modrinth.com/a.jar"]}"""
+        val pack = archive(manifest(file))
+        try {
+            MrpackInstaller().plan(MrpackInstaller().parse(pack), pack, File(tmp.root, "missing-size-profile"))
+            throw AssertionError("expected missing fileSize rejection")
+        } catch (error: MrpackFormatException) {
+            assertTrue(error.message.orEmpty().contains("file size"))
+        }
+    }
+
+    @Test
+    fun rejectsOversizedOverrideBeforeExtractingIt() {
+        val pack = archive(manifest(), overrides = mapOf("overrides/large.bin" to byteArrayOf(1)))
+        patchCentralDirectoryUncompressedSize(pack, "overrides/large.bin", 256L * 1024 * 1024 + 1)
+        try {
+            MrpackInstaller().plan(MrpackInstaller().parse(pack), pack, File(tmp.root, "large-profile"))
+            throw AssertionError("expected oversized override rejection")
+        } catch (error: MrpackFormatException) {
+            assertTrue(error.message.orEmpty().contains("large") || error.message.orEmpty().contains("too large"))
+        }
+    }
+
+    @Test
+    fun rejectsSymlinkComponentsInOverrideDestination() {
+        val profile = File(tmp.root, "symlink-profile").apply { mkdirs() }
+        val outside = File(tmp.root, "outside").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(profile, "config").toPath(), outside.toPath())
+        try {
+            MrpackInstaller.safeResolve(profile, "config/mod.toml")
+            throw AssertionError("expected symbolic-link path rejection")
+        } catch (error: MrpackFormatException) {
+            assertTrue(error.message.orEmpty().contains("symbolic link"))
+        }
+        assertFalse(File(outside, "mod.toml").exists())
+    }
+
+    @Test
+    fun overrideExtractionDoesNotFollowPredictableTemporarySymlink() = runBlocking {
+        val pack = archive(
+            manifest(),
+            overrides = mapOf("overrides/config/mod.toml" to "safe-content".toByteArray()),
+        )
+        val gameDir = File(tmp.root, "temporary-link-profile").apply { mkdirs() }
+        val configDir = File(gameDir, "config").apply { mkdirs() }
+        val outside = File(tmp.root, "outside-file.txt").apply { writeText("unchanged") }
+        java.nio.file.Files.createSymbolicLink(File(configDir, "mod.toml.flint-part").toPath(), outside.toPath())
+        val downloads = DownloadManager(OkHttpClient(), DownloadConfig(concurrency = 1, maxAttempts = 1))
+
+        val result = MrpackInstaller().install(pack, gameDir, downloads)
+
+        assertTrue(result is MrpackInstallResult.Success)
+        assertEquals("unchanged", outside.readText())
+        assertEquals("safe-content", File(configDir, "mod.toml").readText())
+    }
+
+    private fun patchCentralDirectoryUncompressedSize(file: File, entryName: String, size: Long) {
+        val bytes = file.readBytes()
+        var offset = 0
+        while (offset <= bytes.size - 46) {
+            if (readLittleEndianInt(bytes, offset) == 0x02014b50L) {
+                val nameLength = readLittleEndianShort(bytes, offset + 28)
+                val extraLength = readLittleEndianShort(bytes, offset + 30)
+                val commentLength = readLittleEndianShort(bytes, offset + 32)
+                val name = String(bytes, offset + 46, nameLength, Charsets.UTF_8)
+                if (name == entryName) {
+                    val value = size.toInt()
+                    for (index in 0 until 4) bytes[offset + 24 + index] = (value ushr (index * 8)).toByte()
+                    file.writeBytes(bytes)
+                    return
+                }
+                offset += 46 + nameLength + extraLength + commentLength
+            } else {
+                offset++
+            }
+        }
+        throw AssertionError("Could not find central directory entry: " + entryName)
+    }
+
+    private fun readLittleEndianShort(bytes: ByteArray, offset: Int): Int =
+        (bytes[offset].toInt() and 0xff) or ((bytes[offset + 1].toInt() and 0xff) shl 8)
+
+    private fun readLittleEndianInt(bytes: ByteArray, offset: Int): Long =
+        (bytes[offset].toLong() and 0xff) or
+            ((bytes[offset + 1].toLong() and 0xff) shl 8) or
+            ((bytes[offset + 2].toLong() and 0xff) shl 16) or
+            ((bytes[offset + 3].toLong() and 0xff) shl 24)
 }
