@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <fstream>
 #include <pthread.h>
+#include <new>
 
 #define LOG_TAG "FlintNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -397,7 +398,7 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
         return nullptr;
     };
 
-    JliLaunchRequest request{
+    auto *request = new (std::nothrow) JliLaunchRequest{
         g_jli_launch,
         static_cast<int>(argc),
         argv,
@@ -405,12 +406,19 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
         dotVersion,
         -100,
     };
+    if (!request) {
+        LOGE("Could not allocate the JLI pthread request");
+        flint_glfw_make_android_context_current();
+        freeArguments();
+        return -5;
+    }
 
     pthread_attr_t attributes;
     int attrResult = pthread_attr_init(&attributes);
     if (attrResult != 0) {
         LOGE("pthread_attr_init failed for JLI thread: %d", attrResult);
         flint_glfw_make_android_context_current();
+        delete request;
         freeArguments();
         return -11;
     }
@@ -419,28 +427,31 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
         LOGE("pthread_attr_setdetachstate failed for JLI thread: %d", attrResult);
         pthread_attr_destroy(&attributes);
         flint_glfw_make_android_context_current();
+        delete request;
         freeArguments();
         return -12;
     }
 
     pthread_t jliThread{};
-    const int createResult = pthread_create(&jliThread, &attributes, threadMain, &request);
+    const int createResult = pthread_create(&jliThread, &attributes, threadMain, request);
     pthread_attr_destroy(&attributes);
     if (createResult != 0) {
         LOGE("pthread_create failed for JLI thread: %d", createResult);
         flint_glfw_make_android_context_current();
+        delete request;
         freeArguments();
         return -13;
     }
 
     const int joinResult = pthread_join(jliThread, nullptr);
     if (joinResult != 0) {
-        LOGE("pthread_join failed for JLI thread: %d", joinResult);
-        // Do not free argv while the thread may still be using it.
+        LOGE("pthread_join failed for JLI thread: %d; retaining request and argv until process exit", joinResult);
+        // The worker may still reference request/argv. Retain them rather than risk a use-after-free.
         return -14;
     }
 
-    const jint code = request.result;
+    const jint code = request->result;
+    delete request;
     freeArguments();
     return code;
 }
