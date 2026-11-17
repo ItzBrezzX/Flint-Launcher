@@ -1,5 +1,6 @@
 package com.flintlauncher.android
 
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.SurfaceHolder
@@ -140,11 +141,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         if (NativeBridge.isNativeLoaded && width > 0 && height > 0) {
-            val hz = try {
-                display?.mode?.refreshRate ?: 60f
-            } catch (_: Throwable) {
-                60f
-            }
+            val hz = runCatching { displayRefreshRate() }.getOrDefault(60f)
             NativeBridge.nativeSetDisplayMetrics(width, height, hz)
         }
         surfaceAvailable = holder.surface.isValid && width > 0 && height > 0
@@ -279,6 +276,14 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         activityScope.cancel()
         super.onDestroy()
     }
+
+    @Suppress("DEPRECATION")
+    private fun displayRefreshRate(): Float =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display?.mode?.refreshRate ?: 60f
+        } else {
+            windowManager.defaultDisplay.refreshRate
+        }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
