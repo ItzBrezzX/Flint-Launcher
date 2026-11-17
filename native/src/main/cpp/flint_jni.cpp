@@ -568,6 +568,14 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativePollInputEvents(
     return output;
 }
 
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeGlfwPresentedFrameCount(
+    JNIEnv *, jclass
+) {
+    return static_cast<jlong>(flint_glfw_presented_frame_count());
+}
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeDroppedInputEventCount(
     JNIEnv *, jclass
