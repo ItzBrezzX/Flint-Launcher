@@ -25,7 +25,7 @@ class RuntimeArchitectureTest {
     @Test
     fun publishedJavaMajorsAreFilteredByArchitecture() {
         assertEquals(listOf(8, 17, 21, 25), KnownJreArtifacts.majorsFor("arm64-v8a"))
-        assertEquals(listOf(8, 17, 21), KnownJreArtifacts.majorsFor("armeabi-v7a"))
+        assertEquals(listOf(8, 17, 21, 25), KnownJreArtifacts.majorsFor("armeabi-v7a"))
     }
 
     @Test
@@ -33,7 +33,7 @@ class RuntimeArchitectureTest {
         assertEquals(17, KnownJreArtifacts.compatibleMajor(16, "arm64-v8a"))
         assertEquals(21, KnownJreArtifacts.compatibleMajor(21, "arm64-v8a"))
         assertNull(KnownJreArtifacts.compatibleMajor(26, "arm64-v8a"))
-        assertNull(KnownJreArtifacts.compatibleMajor(25, "armeabi-v7a"))
+        assertEquals(25, KnownJreArtifacts.compatibleMajor(25, "armeabi-v7a"))
     }
 
     @Test
