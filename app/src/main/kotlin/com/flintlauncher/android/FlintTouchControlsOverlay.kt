@@ -473,10 +473,24 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
         enqueue(FlintInputEvent.KEY, code = key, action = if (pressed) 1 else 0)
     }
 
-    private fun enqueue(type: Int, code: Int = 0, action: Int = 0) {
+    private fun enqueue(
+        type: Int,
+        code: Int = 0,
+        action: Int = 0,
+        modifiers: Int = 0,
+        x: Double = 0.0,
+        y: Double = 0.0,
+    ) {
         if (!NativeBridge.isNativeLoaded) return
         runCatching {
-            FlintNativeWindowBridge.enqueue(type = type, code = code, action = action)
+            FlintNativeWindowBridge.enqueue(
+                type = type,
+                code = code,
+                action = action,
+                modifiers = modifiers,
+                x = x,
+                y = y,
+            )
         }.onFailure { android.util.Log.w(TAG, "Touch control event could not be queued", it) }
     }
 
