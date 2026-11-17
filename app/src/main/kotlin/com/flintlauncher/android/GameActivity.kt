@@ -221,7 +221,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     statusPanel.visibility = View.VISIBLE
                     val failureReport = buildString {
                         appendLine(result.reason)
-                        result.logSnippet?.takeIf { it.isNotBlank() }?.let(::append)
+                        result.logSnippet?.takeIf { it.isNotBlank() }?.let { append(it) }
                     }
                     saveLaunchFailure(failureReport)
                     appendStartupLine("SETUP FAILED")
