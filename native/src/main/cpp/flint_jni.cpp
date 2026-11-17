@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <fstream>
 #include <pthread.h>
+#include <signal.h>
 #include <new>
 
 #define LOG_TAG "FlintNative"
@@ -178,6 +179,34 @@ static std::string jre_dot_version(const std::string &version) {
     if (first == std::string::npos) return version;
     const size_t second = version.find('.', first + 1);
     return second == std::string::npos ? version : version.substr(0, second);
+}
+
+/*
+ * Android ART installs process-wide signal handlers before loading Flint.
+ * HotSpot/JLI needs to install its own handlers during VM startup. PojavLauncher
+ * uses the same reset sequence; SIGSEGV is temporarily ignored because Android
+ * rejects setting it to SIG_DFL while preparing the JVM handler replacement.
+ *
+ * These dispositions intentionally remain owned by the embedded JVM after
+ * launch; restoring ART's handlers while HotSpot is alive would break VM signal
+ * handling.
+ */
+static void reset_signal_handlers_for_jli() {
+    struct sigaction action {};
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+
+    for (int signalNumber = SIGHUP; signalNumber < NSIG; ++signalNumber) {
+        if (signalNumber == SIGKILL || signalNumber == SIGSTOP) continue;
+
+        action.sa_handler = signalNumber == SIGSEGV ? SIG_IGN : SIG_DFL;
+        if (sigaction(signalNumber, &action, nullptr) != 0) {
+            const int error = errno;
+            LOGW("Could not reset signal handler %d before JLI: %s",
+                 signalNumber, strerror(error));
+        }
+    }
+    LOGI("Reset inherited Android/ART signal handlers before JLI_Launch");
 }
 
 
@@ -358,6 +387,10 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     LOGI("Prepared %d arguments; argv[%d]=NULL; Java %s",
          static_cast<int>(argc), static_cast<int>(argc), fullVersion.c_str());
 
+    // ART owns process-wide signal dispositions before the embedded JVM starts.
+    // Give HotSpot a clean signal environment before creating its JLI worker.
+    reset_signal_handlers_for_jli();
+
     // EGL is owned by the setup thread until this point. Release it here,
     // then bind the same context to the native pthread before entering HotSpot.
     if (!flint_glfw_release_android_context_current()) {
@@ -377,6 +410,17 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
 
     auto threadMain = [](void *opaque) -> void * {
         auto *request = static_cast<JliLaunchRequest *>(opaque);
+
+        // A pthread inherits the creator's signal mask. HotSpot expects its
+        // startup thread to receive the JVM's signal set normally.
+        sigset_t unblockedSignals;
+        sigemptyset(&unblockedSignals);
+        const int maskResult = pthread_sigmask(SIG_SETMASK, &unblockedSignals, nullptr);
+        if (maskResult != 0) {
+            LOGW("Could not clear inherited signal mask on JLI pthread: %s",
+                 strerror(maskResult));
+        }
+
         if (!flint_glfw_make_android_context_current()) {
             LOGE("Could not bind Flint EGL context to the dedicated JLI pthread");
             request->result = -10;
