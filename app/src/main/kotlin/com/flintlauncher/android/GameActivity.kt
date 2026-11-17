@@ -318,12 +318,17 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         gameThreadStarted = false
         stopButton.isEnabled = false
+        stopButton.visibility = View.GONE
         statusPanel.visibility = View.VISIBLE
-        val logs = coordinator.gameLogs().lineSequence().filter { it.isNotBlank() }.toList().takeLast(4).joinToString("\n")
-        statusView.text = if (logs.isBlank()) {
-            "Minecraft JVM exited. The game did not report a confirmed title-screen state."
+        val logs = coordinator.gameLogs()
+        appendStartupLine(if (logs.isBlank()) {
+            "Minecraft JVM exited before a confirmed game session."
         } else {
-            "Minecraft JVM exited.\n$logs"
+            "Minecraft JVM exited. Last runtime output follows:"
+        })
+        if (logs.isNotBlank()) {
+            logs.lineSequence().filter { it.isNotBlank() }.takeLast(8)
+                .forEach { appendStartupLine(it) }
         }
     }
 
