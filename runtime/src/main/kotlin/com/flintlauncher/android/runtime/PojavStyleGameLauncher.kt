@@ -172,12 +172,14 @@ class PojavStyleGameLauncher(
                         appendLog("Minecraft's Java main method returned.")
                     }
                 } catch (error: Throwable) {
-                    val detail = error.message ?: error.javaClass.simpleName
+                    val detail = formatThrowable(error)
                     if (!nativeReady.get()) {
                         setupError.compareAndSet(null, detail)
-                        appendLog("Native game setup failed: $detail")
+                        appendLog("Native game setup failed:")
+                        appendLog(detail)
                     } else {
-                        appendLog("Minecraft JLI failed: $detail")
+                        appendLog("Minecraft JLI failed:")
+                        appendLog(detail)
                     }
                     if (nativeSetup.count > 0L) nativeSetup.countDown()
                     Log.e(TAG, "Game thread failed", error)
@@ -273,6 +275,18 @@ class PojavStyleGameLauncher(
             .onFailure { appendLog("Could not enqueue GLFW close request: ${it.message}") }
     }
 
+    private fun formatThrowable(error: Throwable): String {
+        val causes = generateSequence(error) { it.cause }.take(12).toList()
+        val chain = causes.joinToString("\\n") { cause ->
+            buildString {
+                append(cause.javaClass.name)
+                cause.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(it) }
+            }
+        }
+        val trace = error.stackTraceToString().take(MAX_ERROR_TRACE_CHARS)
+        return "$chain\\nStack trace:\\n$trace"
+    }
+
     private fun appendLog(message: String) {
         synchronized(logBuffer) {
             logBuffer.append(message).append('\n')
@@ -287,6 +301,7 @@ class PojavStyleGameLauncher(
         const val TAG = "FlintGameLauncher"
         const val NATIVE_SETUP_TIMEOUT_SECONDS = 15L
         const val STOP_TIMEOUT_MILLIS = 8_000L
-        const val MAX_LOG_CHARS = 32 * 1024
+        const val MAX_LOG_CHARS = 48 * 1024
+        const val MAX_ERROR_TRACE_CHARS = 12 * 1024
     }
 }
