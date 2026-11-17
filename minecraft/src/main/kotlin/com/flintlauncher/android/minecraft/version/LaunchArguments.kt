@@ -41,8 +41,6 @@ data class LaunchCommand(
 }
 
 object LaunchCommandBuilder {
-    private val placeholder = Regex("\\$\\{([A-Za-z0-9_]+)}")
-
     private val legacyJvm = listOf(
         "-Djava.library.path=\${natives_directory}",
         "-cp",
@@ -79,7 +77,7 @@ object LaunchCommandBuilder {
         val jvm = extraJvmArguments + rawJvm.map { substitute(it, values) }
         val game = rawGame.map { substitute(it, values) } + extraGameArguments
 
-        val unresolved = (jvm + game).flatMap { placeholder.findAll(it).map { m -> m.groupValues[1] }.toList() }.distinct()
+        val unresolved = (jvm + game).flatMap { unresolvedPlaceholders(it) }.distinct()
         if (unresolved.isNotEmpty()) {
             throw LaunchConfigurationException("Unresolved launch placeholders: ${unresolved.joinToString()}")
         }
@@ -111,8 +109,55 @@ object LaunchCommandBuilder {
         c.resolutionHeight?.let { put("resolution_height", it.toString()) }
     }
 
-    internal fun substitute(text: String, values: Map<String, String>): String =
-        placeholder.replace(text) { match -> values[match.groupValues[1]] ?: match.value }
+    internal fun substitute(text: String, values: Map<String, String>): String {
+        val out = StringBuilder(text.length)
+        var index = 0
+        while (index < text.length) {
+            val start = text.indexOf("\${", index)
+            if (start < 0) {
+                out.append(text, index, text.length)
+                break
+            }
+            out.append(text, index, start)
+            val end = text.indexOf('}', start + 2)
+            if (end < 0) {
+                out.append(text, start, text.length)
+                break
+            }
+            val key = text.substring(start + 2, end)
+            if (isPlaceholderKey(key)) {
+                out.append(values[key] ?: text.substring(start, end + 1))
+            } else {
+                out.append(text, start, end + 1)
+            }
+            index = end + 1
+        }
+        return out.toString()
+    }
+
+    private fun unresolvedPlaceholders(text: String): List<String> {
+        val found = ArrayList<String>()
+        var index = 0
+        while (index < text.length) {
+            val start = text.indexOf("\${", index)
+            if (start < 0) break
+            val end = text.indexOf('}', start + 2)
+            if (end < 0) break
+            val key = text.substring(start + 2, end)
+            if (isPlaceholderKey(key)) found += key
+            index = end + 1
+        }
+        return found
+    }
+
+    private fun isPlaceholderKey(key: String): Boolean {
+        if (key.isEmpty()) return false
+        for (char in key) {
+            val ok = char in 'A'..'Z' || char in 'a'..'z' || char in '0'..'9' || char == '_'
+            if (!ok) return false
+        }
+        return true
+    }
 
     private fun resolve(entries: List<JsonElement>, env: Environment): List<String> =
         entries.flatMap { element ->
