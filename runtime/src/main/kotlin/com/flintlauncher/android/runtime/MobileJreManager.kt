@@ -92,13 +92,10 @@ class MobileJreManager(
             .sortedWith(compareBy<JavaRuntimeInfo> { it.majorVersion }.thenBy { it.id })
             .toList()
 
-        // Do not expose a runtime as verified until the device's native bridge
-        // can load its actual libjli and resolve JLI_Launch.
-        val verified = mutableListOf<JavaRuntimeInfo>()
-        for (candidate in candidates) {
-            if (verify(candidate)) verified += candidate
-        }
-        verified.toList()
+        // Listing must be side-effect free. nativeLoadJre loads process-global JVM
+        // libraries and permanently pins this app process to one JRE; only verify
+        // the selected runtime immediately before its first launch.
+        candidates
     }
 
     /** Selects the lowest installed Java major that satisfies the game requirement. */

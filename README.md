@@ -26,9 +26,9 @@ Flint is an unofficial project and is not affiliated with Mojang or Microsoft.
 
 ## Runtime prerequisites
 
-Flint does not bundle a Java runtime in the APK. A compatible mobile OpenJDK/JRE for the selected Minecraft version must be imported or installed and verified. Remote JRE URLs are intentionally not fabricated where a trusted artifact and checksum are unavailable.
+Flint does not bundle a Java runtime in the APK. A compatible mobile OpenJDK/JRE for the selected Minecraft version must be installed from the pinned catalog or imported from a trusted archive, then verified.
 
-The selected Minecraft version must also have its client JAR, libraries, assets and Android-compatible native dependencies installed. The GLFW backend implements the Android-facing subset required by the current LWJGL binding; it is not a complete desktop window manager.
+The selected Minecraft version must also have its client JAR, libraries, assets and Android-compatible native dependencies installed. MobileJreManager can download the catalogued Android OpenJDK archives with pinned byte-size and SHA-256 checks, or import a local archive. No JRE is bundled in the APK. The GLFW backend implements the Android-facing subset required by the current LWJGL binding; it is not a complete desktop window manager.
 
 See [docs/ANDROID_RUNTIME_INTEGRATION.md](docs/ANDROID_RUNTIME_INTEGRATION.md) for the full Surface, EGL ownership, input, STOP and validation flow. See [docs/SPIKE0.md](docs/SPIKE0.md) for the device acceptance checklist.
 
