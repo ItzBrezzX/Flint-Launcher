@@ -83,7 +83,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             text = "FLINT GAME STARTUP\n> Waiting for Android game Surface…"
             textSize = 12f
             typeface = Typeface.MONOSPACE
-            maxLines = 8
+            maxLines = 10
             setTextIsSelectable(true)
             setTextColor(0xffe7eef2.toInt())
             setPadding(14, 10, 14, 10)
@@ -279,7 +279,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun appendStartupLine(line: String) {
         if (line.isBlank()) return
         startupLines.addLast("> " + line.trim())
-        while (startupLines.size > 8) startupLines.removeFirst()
+        while (startupLines.size > 10) startupLines.removeFirst()
         if (::statusView.isInitialized) {
             statusView.text = "FLINT GAME STARTUP\n" + startupLines.joinToString("\n")
         }
