@@ -1,328 +1,256 @@
 package com.flintlauncher.android
 
-import android.app.Activity
-import android.graphics.Color
-import android.graphics.PixelFormat
-import android.os.Build
 import android.os.Bundle
-import android.system.Os
-import android.util.Log
 import android.view.Gravity
-import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.SurfaceHolder
-import android.view.SurfaceView
-import android.view.WindowManager
+import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
-import com.flintlauncher.android.nativebridge.FlintGlfwInputMapper
-import com.flintlauncher.android.nativebridge.FlintInputEvent
-import com.flintlauncher.android.nativebridge.NativeBridge
-import com.flintlauncher.android.runtime.LaunchRequest
-import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
+import com.flintlauncher.android.nativebridge.FlintGameSurfaceView
+import com.flintlauncher.android.runtime.LaunchResult
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
- * Full-screen Minecraft host.
+ * Owns the Android Surface for one Minecraft session.
  *
- * Order of work (inspired by Android desktop-port launchers, Flint-owned code):
- * 1. Publish nativeLibraryDir + display metrics to the host layer
- * 2. Create EGL window from the Android Surface
- * 3. Initialize GL4ES and the Flint GLFW backend
- * 4. Apply process environment and start JLI on a worker thread
- * 5. Forward touch/key events into the native input queue
+ * The Surface itself is passed to the runtime, but EGL and GLFW are created and
+ * destroyed only by the dedicated JLI thread inside PojavStyleGameLauncher.
  */
-class GameActivity : Activity(), SurfaceHolder.Callback {
+class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
-    private lateinit var surfaceView: SurfaceView
+    private val activityJob = SupervisorJob()
+    private val activityScope = CoroutineScope(activityJob + Dispatchers.Main.immediate)
+
+    private lateinit var surfaceView: FlintGameSurfaceView
     private lateinit var statusView: TextView
-    private var setupThread: Thread? = null
-    private val launchStarted = AtomicBoolean(false)
-    private var surfaceWidth = 0
-    private var surfaceHeight = 0
-    private var activePointerId = MotionEvent.INVALID_POINTER_ID
+    private lateinit var stopButton: Button
+
+    private var launchRequested = false
+    private var launchComplete = false
+    private var gameThreadStarted = false
+    private var surfaceAvailable = false
+    private var finishingAfterStop = false
+
+    private val coordinator
+        get() = (application as FlintApplication).container.playLaunchCoordinator
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        if (PendingLaunchStore.peek() == null) {
-            finishWithError("No prepared Minecraft launch is waiting.")
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                stopGame(finishWhenStopped = true)
+            }
+        })
+
+        val versionId = intent.getStringExtra(EXTRA_VERSION_ID)?.takeIf { it.isNotBlank() }
+        if (versionId == null) {
+            finish()
             return
         }
-        if (!NativeBridge.isNativeLoaded) {
-            finishWithError("Native library not loaded: " + (NativeBridge.nativeLoadError ?: "unknown"))
-            return
-        }
 
-        // Host registration happens before the surface thread runs.
-        NativeBridge.nativeSetNativeLibraryDir(applicationInfo.nativeLibraryDir)
-        NativeBridge.nativePreferPerformanceCores(true)
+        surfaceView = FlintGameSurfaceView(this)
+        surfaceView.holder.addCallback(this)
+        surfaceView.keepScreenOn = true
 
-        surfaceView = SurfaceView(this).apply {
-            holder.setFormat(PixelFormat.RGBA_8888)
-            holder.addCallback(this@GameActivity)
-            isFocusable = true
-            isFocusableInTouchMode = true
-        }
         statusView = TextView(this).apply {
-            setTextColor(Color.WHITE)
+            text = "Preparing Minecraft $versionId…"
             textSize = 13f
-            setPadding(16, 12, 16, 12)
-            setBackgroundColor(0xB9000000.toInt())
-            text = "Preparing Android surface for Minecraft…"
+            setTextColor(0xffffffff.toInt())
+            setPadding(18, 12, 18, 12)
+            setBackgroundColor(0xcc101820.toInt())
+        }
+        stopButton = Button(this).apply {
+            text = "STOP"
+            isEnabled = false
+            setOnClickListener { stopGame(finishWhenStopped = false) }
         }
 
-        setContentView(
-            FrameLayout(this).apply {
-                addView(
-                    surfaceView,
-                    FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                    ),
-                )
-                addView(
-                    statusView,
-                    FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.WRAP_CONTENT,
-                        FrameLayout.LayoutParams.WRAP_CONTENT,
-                        Gravity.TOP or Gravity.START,
-                    ),
-                )
+        val touchControls = FlintTouchControlsOverlay(this)
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(statusView)
+            addView(stopButton)
+        }
+        val root = FrameLayout(this)
+        root.addView(
+            surfaceView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        root.addView(
+            touchControls,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        root.addView(
+            controls,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.START,
+            ).apply {
+                marginStart = dp(12)
+                topMargin = dp(12)
             },
         )
+        setContentView(root)
+        surfaceView.requestFocus()
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        if (setupThread?.isAlive == true) return
-        val thread = Thread({ prepareAndLaunch(holder) }, "Flint-Game-Setup")
-        setupThread = thread
-        thread.start()
+        surfaceAvailable = holder.surface.isValid
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        surfaceWidth = width
-        surfaceHeight = height
-        val hz = displayRefreshHz()
-        NativeBridge.nativeSetDisplayMetrics(width, height, hz)
-        if (width > 0 && height > 0) {
-            runCatching { NativeBridge.nativeResizeWindowSurface(width, height) }
-            enqueue(FlintInputEvent.WINDOW_SIZE, x = width.toDouble(), y = height.toDouble())
-            enqueue(FlintInputEvent.FRAMEBUFFER_SIZE, x = width.toDouble(), y = height.toDouble())
+        surfaceAvailable = holder.surface.isValid && width > 0 && height > 0
+        if (!surfaceAvailable) return
+        surfaceView.notifySurfaceSize(width, height)
+        if (launchRequested) return
+
+        val versionId = intent.getStringExtra(EXTRA_VERSION_ID) ?: return
+        launchRequested = true
+        statusView.text = "Preparing Android EGL + GL4ES + GLFW for Minecraft $versionId…"
+
+        activityScope.launch {
+            val result = try {
+                coordinator.launch(versionId, holder.surface, width, height)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                LaunchResult.Failed(
+                    "Game setup failed: " + (error.message ?: error.javaClass.simpleName),
+                )
+            }
+
+            launchComplete = true
+            when (result) {
+                is LaunchResult.Started -> {
+                    gameThreadStarted = true
+                    stopButton.isEnabled = true
+                    statusView.text =
+                        "JLI entered on the Surface/EGL owner thread. Minecraft title screen is not yet confirmed."
+                    watchGameThread()
+                }
+                is LaunchResult.Failed -> {
+                    stopButton.isEnabled = false
+                    statusView.text = result.reason
+                }
+                LaunchResult.BlockedMissingRuntime -> {
+                    statusView.text = "A compatible verified Java runtime is required."
+                }
+                LaunchResult.BlockedMissingRenderer -> {
+                    statusView.text = "The packaged GL4ES renderer is missing."
+                }
+                LaunchResult.BlockedNotReady -> {
+                    statusView.text = "Minecraft installation or account is not ready."
+                }
+            }
         }
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        runCatching { NativeBridge.nativeGlfwSetWindowShouldClose(true) }
-        runCatching { NativeBridge.nativeDestroyWindowSurface() }
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                activePointerId = event.getPointerId(event.actionIndex)
-                val i = event.findPointerIndex(activePointerId)
-                if (i >= 0) {
-                    enqueue(FlintInputEvent.CURSOR, x = event.getX(i).toDouble(), y = event.getY(i).toDouble())
-                    enqueue(FlintInputEvent.MOUSE_BUTTON, code = 0, action = 1)
+        surfaceAvailable = false
+        if (launchRequested) {
+            // Do not depend on the UI having received LaunchResult.Started yet:
+            // JLI may already own the Surface while the setup callback is pending.
+            statusView.post { statusView.text = "Surface destroyed; requesting graceful Minecraft close…" }
+            activityScope.launch {
+                coordinator.stopGame()
+                if (!isFinishing) {
+                    statusView.text = if (coordinator.isGameRunning()) {
+                        "Minecraft did not close after the Surface was destroyed. Restart the launcher if it remains stuck."
+                    } else {
+                        "Minecraft session stopped. Return to PLAY to start a new session."
+                    }
+                    stopButton.isEnabled = false
+                    gameThreadStarted = coordinator.isGameRunning()
                 }
             }
-            MotionEvent.ACTION_MOVE -> {
-                val i = event.findPointerIndex(activePointerId)
-                if (i >= 0) {
-                    enqueue(FlintInputEvent.CURSOR, x = event.getX(i).toDouble(), y = event.getY(i).toDouble())
-                }
+        }
+    }
+
+    private suspend fun watchGameThread() {
+        while (activityScope.isActive && coordinator.isGameRunning()) {
+            delay(750)
+        }
+        if (!activityScope.isActive || isFinishing) return
+
+        gameThreadStarted = false
+        stopButton.isEnabled = false
+        val logs = coordinator.gameLogs().lineSequence().filter { it.isNotBlank() }.toList().takeLast(4).joinToString("\n")
+        statusView.text = if (logs.isBlank()) {
+            "Minecraft JVM exited. The game did not report a confirmed title-screen state."
+        } else {
+            "Minecraft JVM exited.\n$logs"
+        }
+    }
+
+    private fun stopGame(finishWhenStopped: Boolean) {
+        if (!gameThreadStarted) {
+            if (launchRequested && !launchComplete) {
+                statusView.text = "Minecraft is still preparing its runtime and game Surface. Wait for setup to finish before closing."
+            } else if (finishWhenStopped) {
+                finish()
+            } else {
+                statusView.text = "No active Minecraft session."
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
-                val i = event.findPointerIndex(activePointerId)
-                if (i >= 0) {
-                    enqueue(FlintInputEvent.CURSOR, x = event.getX(i).toDouble(), y = event.getY(i).toDouble())
-                    enqueue(FlintInputEvent.MOUSE_BUTTON, code = 0, action = 0)
-                }
-                activePointerId = MotionEvent.INVALID_POINTER_ID
-            }
-        }
-        return true
-    }
-
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        val glfwKey = FlintGlfwInputMapper.key(keyCode)
-        if (glfwKey != 0) {
-            enqueue(FlintInputEvent.KEY, code = glfwKey, action = 1)
-            return true
-        }
-        return super.onKeyDown(keyCode, event)
-    }
-
-    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        val glfwKey = FlintGlfwInputMapper.key(keyCode)
-        if (glfwKey != 0) {
-            enqueue(FlintInputEvent.KEY, code = glfwKey, action = 0)
-            return true
-        }
-        return super.onKeyUp(keyCode, event)
-    }
-
-    private fun prepareAndLaunch(holder: SurfaceHolder) {
-        val request = PendingLaunchStore.take()
-        if (request == null) {
-            finishWithError("Launch request disappeared before the surface was ready.")
             return
         }
-        try {
-            val width = surfaceWidth.takeIf { it > 0 } ?: surfaceView.width.takeIf { it > 0 } ?: 1280
-            val height = surfaceHeight.takeIf { it > 0 } ?: surfaceView.height.takeIf { it > 0 } ?: 720
-            val hz = displayRefreshHz()
-            NativeBridge.nativeSetDisplayMetrics(width, height, hz)
+        finishingAfterStop = finishWhenStopped
+        stopButton.isEnabled = false
+        statusView.text = "Requesting GLFW close on the Minecraft game thread…"
 
-            setStatus("Creating EGL window surface…")
-            val eglStatus = NativeBridge.nativeCreateWindowSurface(holder.surface)
-            if (eglStatus != "egl-window-ready") {
-                throw IllegalStateException("EGL window surface failed: $eglStatus")
-            }
-            NativeBridge.nativeResizeWindowSurface(width, height)
-
-            setStatus("Loading GL4ES…")
-            val glPath = File(applicationInfo.nativeLibraryDir, "libGL.so").absolutePath
-            if (!NativeBridge.nativeLoadGL4ES(glPath)) {
-                throw IllegalStateException("GL4ES failed to initialize ($glPath)")
-            }
-
-            setStatus("Attaching Flint GLFW backend…")
-            if (!NativeBridge.nativeGlfwAttachAndroidSurface(width, height)) {
-                throw IllegalStateException("GLFW could not attach the Android EGL surface")
-            }
-            if (!NativeBridge.nativeGlfwInitialize()) {
-                throw IllegalStateException("glfwInit failed after Android surface attach")
-            }
-            if (!NativeBridge.nativeGlfwCreateWindow(width, height, "Minecraft")) {
-                throw IllegalStateException("glfwCreateWindow failed for the Android surface")
-            }
-
-            applyProcessEnvironment(request)
-            setStatus("Starting Minecraft JVM…")
-            if (!launchStarted.compareAndSet(false, true)) return
-            startJvm(request)
-        } catch (error: Throwable) {
-            val message = error.message ?: error.javaClass.simpleName
-            Log.e(TAG, "Game surface setup failed", error)
-            PendingLaunchStore.reportError(message)
-            finishWithError(message)
-        }
-    }
-
-    private fun applyProcessEnvironment(request: LaunchRequest) {
-        val nativeLibDir = applicationInfo.nativeLibraryDir
-        val jreLibCandidates = listOf(
-            File(request.runtime.homeDir, "lib"),
-            File(request.runtime.homeDir, "lib/aarch64"),
-            File(request.runtime.homeDir, "lib/arm"),
-            File(request.runtime.homeDir, "lib/x86_64"),
-            File(request.runtime.homeDir, "lib/i386"),
-            File(request.runtime.homeDir, "lib/server"),
-            File(request.runtime.homeDir, "lib/jli"),
-        ).filter { it.isDirectory }.map { it.absolutePath }
-
-        val ldPath = buildList {
-            add(request.nativeDir.absolutePath)
-            add(nativeLibDir)
-            addAll(jreLibCandidates)
-            System.getenv("LD_LIBRARY_PATH")?.let { add(it) }
-        }.distinct().joinToString(":")
-
-        fun put(key: String, value: String) {
+        activityScope.launch {
             try {
-                Os.setenv(key, value, true)
+                coordinator.stopGame()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Throwable) {
-                Log.w(TAG, "Os.setenv($key) failed: ${error.message}")
+                statusView.text = "Could not request graceful close: ${error.message}"
             }
-        }
-        put("LD_LIBRARY_PATH", ldPath)
-        put("JAVA_HOME", request.runtime.homeDir.absolutePath)
-        put("LIBGL_ES", "2")
-        put("LIBGL_MIPMAP", "3")
-        put("LIBGL_NOERROR", "1")
-    }
-
-    private fun startJvm(request: LaunchRequest) {
-        Thread({
-            try {
-                NativeBridge.nativePreferPerformanceCores(true)
-                if (!NativeBridge.nativeLoadJre(request.runtime.homeDir.absolutePath)) {
-                    throw IllegalStateException("Failed to load libjli from ${request.runtime.homeDir.absolutePath}")
-                }
-                val args = mutableListOf<String>()
-                args += "java"
-                args += request.jvmArgs
-                if (request.jvmArgs.none { it == "-cp" || it == "-classpath" }) {
-                    args += "-cp"
-                    args += request.classpath.joinToString(File.pathSeparator) { it.absolutePath }
-                }
-                args += request.mainClass
-                args += request.gameArgs
-                setStatus("JLI_Launch ${request.versionId} as ${request.accountUsername}…")
-                val code = NativeBridge.nativeLaunchJvm(args.toTypedArray())
-                setStatus("Minecraft JVM returned exit code $code")
-                if (code != 0) {
-                    PendingLaunchStore.reportError("Minecraft JVM exited with code $code")
-                }
-            } catch (error: Throwable) {
-                val message = error.message ?: error.javaClass.simpleName
-                Log.e(TAG, "JVM launch failed", error)
-                PendingLaunchStore.reportError(message)
-                setStatus("Launch failed: $message")
-            }
-        }, "Flint-Minecraft-JVM").start()
-    }
-
-    private fun enqueue(
-        type: Int,
-        code: Int = 0,
-        action: Int = 0,
-        modifiers: Int = 0,
-        x: Double = 0.0,
-        y: Double = 0.0,
-    ) {
-        if (!NativeBridge.isNativeLoaded) return
-        runCatching {
-            NativeBridge.nativePushInputEvent(type, code, action, modifiers, x, y)
-        }
-    }
-
-    private fun displayRefreshHz(): Float {
-        return try {
-            if (Build.VERSION.SDK_INT >= 30) {
-                display?.mode?.refreshRate ?: 60f
+            val stillRunning = coordinator.isGameRunning()
+            gameThreadStarted = stillRunning
+            if (stillRunning) {
+                statusView.text =
+                    "Minecraft has not exited yet. EGL was kept on its owner thread; wait for the game to respond or restart the app."
+                stopButton.isEnabled = true
             } else {
-                @Suppress("DEPRECATION")
-                windowManager.defaultDisplay.refreshRate
+                statusView.text = "Minecraft stopped. EGL and GLFW were released by the game thread."
+                if (finishingAfterStop) finish()
             }
-        } catch (_: Throwable) {
-            60f
-        }
-    }
-
-    private fun setStatus(text: String) {
-        Log.i(TAG, text)
-        runOnUiThread { statusView.text = text }
-    }
-
-    private fun finishWithError(message: String) {
-        setStatus(message)
-        runOnUiThread {
-            statusView.text = message
-            statusView.postDelayed({ finish() }, 2500)
         }
     }
 
     override fun onDestroy() {
-        runCatching { NativeBridge.nativeGlfwSetWindowShouldClose(true) }
-        runCatching { NativeBridge.nativeShutdown() }
+        if (gameThreadStarted) {
+            // Queue only. Never destroy a Surface/EGL context from Activity's UI thread.
+            runCatching {
+                com.flintlauncher.android.nativebridge.FlintNativeWindowBridge.requestWindowClose()
+            }
+        }
+        if (::surfaceView.isInitialized) surfaceView.keepScreenOn = false
+        activityScope.cancel()
         super.onDestroy()
     }
 
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
     companion object {
-        private const val TAG = "FlintGameActivity"
+        const val EXTRA_VERSION_ID = "com.flintlauncher.android.extra.VERSION_ID"
     }
 }

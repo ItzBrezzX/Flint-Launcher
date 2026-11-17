@@ -97,6 +97,8 @@ class HomeViewModel(
      * A Started result only confirms that the native JLI worker was entered; it does not
      * claim that the Minecraft title screen or in-game renderer has been verified.
      */
+    fun selectedVersionIdForLaunch(): String? = _state.value.selected?.minecraftVersion
+
     fun launchSelected() {
         if (launchJob?.isActive == true) return
         val selected = _state.value.selected
@@ -118,7 +120,7 @@ class HomeViewModel(
             val message = when (result) {
                 is LaunchResult.Started ->
                     "Minecraft " + selected.minecraftVersion +
-                        " opened GameActivity. Surface → EGL → GL4ES → GLFW → JLI will run next. This is not yet proof of the title screen."
+                        " has entered the Pojav-style JVM launch path. This confirms JLI started, not that the title screen is playable; Android GLFW/LWJGL hand-off still needs device verification."
                 is LaunchResult.Failed -> result.reason
                 LaunchResult.BlockedMissingRuntime -> "A compatible, verified Java runtime is required before Minecraft can launch."
                 LaunchResult.BlockedMissingRenderer -> "The GL4ES renderer library is missing from this APK. Rebuild the :native module with GL4ES enabled."

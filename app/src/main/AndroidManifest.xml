@@ -16,6 +16,16 @@
         android:theme="@style/Theme.Flint"
         android:usesCleartextTraffic="false">
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/game_file_paths" />
+        </provider>
+
         <service
             android:name=".InstallService"
             android:exported="false"
@@ -28,10 +38,9 @@
 
         <activity
             android:name=".GameActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation"
-            android:exported="false"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

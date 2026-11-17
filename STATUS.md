@@ -1,26 +1,28 @@
-# Snapshot status: INCOMPLETE — host + game surface path
+# Snapshot status: INCOMPLETE
 
 Microsoft authentication remains paused.
 
-## Learned from references (implemented under Flint names)
+## Verified in previous local session
 
-| Reference | Idea taken | Flint implementation |
-|---|---|---|
-| mojoexec | native lib dir, display size, performance cores | `flint_host.cpp` + `NativeBridge.nativeSetNativeLibraryDir/SetDisplayMetrics/PreferPerformanceCores` |
-| glfw-glfw34 Android | surface-sized window + input queue | existing `flint_glfw` + `GameActivity` touch/key → `nativePushInputEvent` |
-| NativesPlugin zip | mostly scaffold/icons; no extra runtime logic used | — |
+- Gradle Wrapper 8.9 boots (`bash gradlew --version`).
+- Wrapper JAR SHA-256: `498495120a03b9a6ab5d155f5de3c8f0d986a449153702fb80fc80e134484f17`.
+- Local SDK/NDK install reached `:native` CMake configure + GL4ES git checkout for `arm64-v8a`.
+- Local NDK build was killed by ~1.2 GiB RAM limit (environment), not classified as a source defect.
 
-## New / updated files
+## Done in this snapshot
 
-- `native/.../flint_host.{h,cpp}`
-- `native/.../flint_jni.cpp` (host JNI)
-- `native/.../NativeBridge.kt`
-- `native/.../CMakeLists.txt`
-- `app/.../GameActivity.kt` (metrics, affinity, input, EGL→GL4ES→GLFW→JLI)
-- Prior: `PendingLaunchStore`, coordinator → GameActivity, manifest
+- `.github/workflows/android-build.yml` optimized for GitHub-hosted runners:
+  - JDK 17, Gradle 8.9 via `./gradlew`
+  - SDK platform 35, build-tools 35.0.0, NDK 27.0.12077973, CMake 3.22.1
+  - Sequential stages: native → SO check → unit tests → app APK → APK SO check
+  - `GRADLE_OPTS` caps workers/heap; `--no-daemon`
+  - Fails if `libflint_native.so`, `libGL.so`, or `libglfw.so` missing for any ABI
+  - Uploads APK + logs as artifacts (`actions/upload-artifact@v4`)
 
-## Not verified on device
+## Not done
 
-APK build, title screen, world load. You build and test locally.
+- GitHub CLI is not authenticated here → nothing was committed, pushed, or run on Actions.
+- No successful CI log, APK, or native ELF verification from CI.
+- No Minecraft menu / world / input verification.
 
 READY TO PLAY: no.
