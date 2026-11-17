@@ -117,6 +117,7 @@ FLINT_GLFW_API int flint_glfw_attach_android_surface(int width, int height);
 FLINT_GLFW_API void flint_glfw_detach_android_surface(void);
 FLINT_GLFW_API int flint_glfw_poll_events(void);
 FLINT_GLFW_API GLFWwindow *flint_glfw_android_window(void);
+FLINT_GLFW_API uint64_t flint_glfw_presented_frame_count(void);
 
 /* GLFW 3.x C ABI subset implemented by Flint. */
 FLINT_GLFW_API int glfwInit(void);
