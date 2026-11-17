@@ -2,10 +2,13 @@ package com.flintlauncher.android
 
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.WindowManager
+import android.graphics.Typeface
+import android.util.Log
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -46,6 +49,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var gameThreadStarted = false
     private var surfaceAvailable = false
     private var finishingAfterStop = false
+    private val startupLines = ArrayDeque<String>()
 
     private val coordinator
         get() = (application as FlintApplication).container.playLaunchCoordinator
@@ -76,15 +80,25 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
 
         statusView = TextView(this).apply {
-            text = "Preparing Minecraft $versionId…"
-            textSize = 13f
-            setTextColor(0xffffffff.toInt())
-            setPadding(18, 12, 18, 12)
-            setBackgroundColor(0xcc101820.toInt())
+            text = "FLINT GAME STARTUP\\n> Waiting for Android game Surface…"
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            maxLines = 8
+            setTextIsSelectable(true)
+            setTextColor(0xffe7eef2.toInt())
+            setPadding(14, 10, 14, 10)
+            setBackgroundColor(0xe6101820.toInt())
+            setOnLongClickListener {
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Flint startup log", text))
+                android.widget.Toast.makeText(this@GameActivity, "Startup log copied", android.widget.Toast.LENGTH_SHORT).show()
+                true
+            }
         }
         stopButton = Button(this).apply {
             text = "STOP"
             isEnabled = false
+            visibility = View.GONE
             setOnClickListener { stopGame(finishWhenStopped = false) }
         }
 
@@ -96,6 +110,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             orientation = LinearLayout.VERTICAL
             addView(statusView)
             addView(stopButton)
+            alpha = 1f
         }
         val root = FrameLayout(this)
         root.addView(
@@ -151,41 +166,72 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val versionId = intent.getStringExtra(EXTRA_VERSION_ID) ?: return
         launchRequested = true
-        statusView.text = "Preparing Android EGL + GL4ES + GLFW for Minecraft $versionId…"
+        appendStartupLine("Android Surface ready: ${width}x${height}")
+        appendStartupLine("Starting Minecraft ${versionId}…")
 
         activityScope.launch {
+            val logObserver = launch {
+                var consumed = ""
+                while (isActive && (!launchComplete || coordinator.isGameRunning())) {
+                    val output = runCatching { coordinator.gameLogs() }.getOrDefault("")
+                    if (output.length > consumed.length && output.startsWith(consumed)) {
+                        output.substring(consumed.length).lineSequence()
+                            .filter { it.isNotBlank() }
+                            .forEach { appendStartupLine(it) }
+                    } else if (output.length < consumed.length) {
+                        output.lineSequence().filter { it.isNotBlank() }.takeLast(4)
+                            .forEach { appendStartupLine(it) }
+                    }
+                    consumed = output
+                    delay(180)
+                }
+            }
+
             val result = try {
-                coordinator.launch(versionId, holder.surface, width, height)
+                coordinator.launch(versionId, holder.surface, width, height) { stage ->
+                    runOnUiThread { appendStartupLine(stage) }
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Throwable) {
-                LaunchResult.Failed(
-                    "Game setup failed: " + (error.message ?: error.javaClass.simpleName),
-                )
+                Log.e(TAG, "Game startup failed", error)
+                val details = formatLaunchFailure(error)
+                saveLaunchFailure(details)
+                LaunchResult.Failed(details)
+            } finally {
+                launchComplete = true
+                logObserver.cancel()
             }
 
-            launchComplete = true
             when (result) {
                 is LaunchResult.Started -> {
                     gameThreadStarted = true
                     stopButton.isEnabled = true
-                    statusPanel.visibility = View.GONE
-                    statusView.text =
-                        "JLI entered on the Surface/EGL owner thread. Minecraft title screen is not yet confirmed."
+                    stopButton.visibility = View.VISIBLE
+                    appendStartupLine("JLI started on the EGL owner thread.")
+                    appendStartupLine("Waiting for the first Minecraft frame…")
+                    activityScope.launch { hideStartupPanelAfterFirstFrame() }
                     watchGameThread()
                 }
                 is LaunchResult.Failed -> {
                     stopButton.isEnabled = false
-                    statusView.text = result.reason
+                    stopButton.visibility = View.GONE
+                    statusPanel.visibility = View.VISIBLE
+                    appendStartupLine(result.reason)
+                    result.logSnippet?.lineSequence()?.filter { it.isNotBlank() }?.takeLast(8)
+                        ?.forEach { appendStartupLine(it) }
                 }
                 LaunchResult.BlockedMissingRuntime -> {
-                    statusView.text = "A compatible verified Java runtime is required."
+                    stopButton.visibility = View.GONE
+                    appendStartupLine("BLOCKED: a compatible verified Java runtime is required.")
                 }
                 LaunchResult.BlockedMissingRenderer -> {
-                    statusView.text = "The packaged GL4ES renderer is missing."
+                    stopButton.visibility = View.GONE
+                    appendStartupLine("BLOCKED: packaged GL4ES renderer is missing.")
                 }
                 LaunchResult.BlockedNotReady -> {
-                    statusView.text = "Minecraft installation or account is not ready."
+                    stopButton.visibility = View.GONE
+                    appendStartupLine("BLOCKED: Minecraft installation or account is not ready.")
                 }
             }
         }
@@ -209,6 +255,58 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     gameThreadStarted = coordinator.isGameRunning()
                 }
             }
+        }
+    }
+
+    private fun appendStartupLine(line: String) {
+        if (line.isBlank()) return
+        startupLines.addLast("> " + line.trim())
+        while (startupLines.size > 8) startupLines.removeFirst()
+        if (::statusView.isInitialized) {
+            statusView.text = "FLINT GAME STARTUP\\n" + startupLines.joinToString("\\n")
+        }
+    }
+
+    private fun formatLaunchFailure(error: Throwable): String {
+        val causes = generateSequence(error) { it.cause }.take(8).toList()
+        val summary = causes.joinToString("\\n") { cause ->
+            cause.javaClass.name + cause.message?.let { ": $it" }.orEmpty()
+        }
+        val trace = error.stackTraceToString().lineSequence().take(18).joinToString("\\n")
+        return "Game startup failed\\n$summary\\n\\nStack trace:\\n$trace"
+    }
+
+    private fun saveLaunchFailure(details: String) {
+        runCatching {
+            val directory = java.io.File(filesDir, "launch-reports")
+            check(directory.isDirectory || directory.mkdirs())
+            java.io.File(directory, "latest-launch-error.txt").writeText(details)
+        }.onFailure { Log.e(TAG, "Could not save startup error report", it) }
+    }
+
+    private suspend fun hideStartupPanelAfterFirstFrame() {
+        val start = SystemClock.elapsedRealtime()
+        var waitingNoticeShown = false
+        while (activityScope.isActive && coordinator.isGameRunning()) {
+            val frameCount = runCatching {
+                if (NativeBridge.isNativeLoaded) NativeBridge.nativeGlfwPresentedFrameCount() else 0L
+            }.getOrDefault(0L)
+            if (frameCount > 0L) {
+                statusPanel.animate()
+                    .alpha(0f)
+                    .setDuration(180)
+                    .withEndAction {
+                        statusPanel.visibility = View.GONE
+                        statusPanel.alpha = 1f
+                    }
+                    .start()
+                return
+            }
+            if (!waitingNoticeShown && SystemClock.elapsedRealtime() - start > 12_000L) {
+                appendStartupLine("Still waiting for Minecraft to render its first frame; native/JVM logs are being collected.")
+                waitingNoticeShown = true
+            }
+            delay(250)
         }
     }
 
@@ -288,6 +386,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
+        private const val TAG = "FlintGameActivity"
         const val EXTRA_VERSION_ID = "com.flintlauncher.android.extra.VERSION_ID"
     }
 }
