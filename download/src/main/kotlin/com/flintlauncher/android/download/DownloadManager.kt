@@ -33,6 +33,7 @@ private class PausedSignal : RuntimeException()
 private class CancelledSignal : RuntimeException()
 private class HttpStatusException(val code: Int) : IOException("HTTP $code")
 private class RetryableDownloadException(message: String) : IOException(message)
+private class OversizedDownloadException(message: String) : IOException(message)
 
 /**
  * Parallel, resumable, verified downloads.
@@ -229,7 +230,8 @@ class DownloadManager(
         if (expectedSize == null || offset != expectedSize) {
             val builder = Request.Builder().url(request.url)
             if (offset > 0) builder.header("Range", "bytes=$offset-")
-            client.newCall(builder.build()).execute().use { response ->
+            try {
+                client.newCall(builder.build()).execute().use { response ->
                 var append = false
                 when {
                     response.code == 416 -> {
@@ -267,22 +269,35 @@ class DownloadManager(
                     }
                     else -> throw HttpStatusException(response.code)
                 }
-                val body = response.body ?: throw IOException("Empty response body")
-                body.byteStream().use { input ->
-                    FileOutputStream(part, append).use { output ->
-                        val buffer = ByteArray(config.bufferSize)
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read < 0) break
-                            output.write(buffer, 0, read)
-                            counted.addAndGet(read.toLong())
-                            downloaded.addAndGet(read.toLong())
-                            networkBytes.addAndGet(read.toLong())
-                            if (cancelled) throw CancelledSignal()
-                            if (paused.value) throw PausedSignal()
+                    val body = response.body ?: throw IOException("Empty response body")
+                    val remaining = expectedSize?.minus(counted.get())
+                    if (remaining != null && (remaining < 0L || body.contentLength() > remaining)) {
+                        throw OversizedDownloadException("Download body exceeds its declared size")
+                    }
+                    body.byteStream().use { input ->
+                        FileOutputStream(part, append).use { output ->
+                            val buffer = ByteArray(config.bufferSize)
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                val remainingBytes = expectedSize?.minus(counted.get())
+                                if (remainingBytes != null && read.toLong() > remainingBytes) {
+                                    throw OversizedDownloadException("Download stream exceeds its declared size")
+                                }
+                                output.write(buffer, 0, read)
+                                counted.addAndGet(read.toLong())
+                                downloaded.addAndGet(read.toLong())
+                                networkBytes.addAndGet(read.toLong())
+                                if (cancelled) throw CancelledSignal()
+                                if (paused.value) throw PausedSignal()
+                            }
                         }
                     }
                 }
+            } catch (oversized: OversizedDownloadException) {
+                part.delete()
+                sync(counted, 0)
+                throw RetryableDownloadException(oversized.message ?: "Download exceeded declared size")
             }
         }
         finish(request, part, counted)
