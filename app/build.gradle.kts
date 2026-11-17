@@ -39,6 +39,15 @@ android {
         }
     }
 
+    // Runtime code resolves GL4ES, GLFW and LWJGL JNI artifacts through
+    // ApplicationInfo.nativeLibraryDir. Keep native libraries extracted there
+    // instead of leaving them only as uncompressed entries inside the APK.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false // enabled once keep-rules for JNI/reflection exist

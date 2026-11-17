@@ -19,7 +19,7 @@ Flint is an unofficial project and is not affiliated with Mojang or Microsoft.
 | Renderer preview | GL4ES/EGL/GLFW preview path exists |
 | Production game window | Surface-backed `GameActivity` and same-thread EGL/GL4ES/GLFW/JLI setup are wired in source |
 | Android LWJGL natives | LWJGL 3.3.3 core/OpenGL Android builds plus Flint GLFW/GL4ES are integrated in native CMake |
-| Touch input | Android key/mouse/scroll input, virtual WASD joystick, attack/use/jump/sneak/inventory/pause and relative camera motion are connected to the native GLFW FIFO |
+| Touch input | Reference-style HUD with top toolbar and 3×3 action pad; settings can add/remove buttons, bind keyboard or mouse actions, drag buttons freely, and persist the layout; Android keyboard text is forwarded to the native GLFW FIFO |
 | Graceful STOP | Enqueues a GLFW close request; not a force-kill if the game stops processing events |
 | Crash reports | Redacted rotating reports stored in app-private `files/crash-reports/` |
 | Minecraft title screen, single-player world and audio | **Not verified on a physical device** |

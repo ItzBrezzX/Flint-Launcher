@@ -1,4 +1,5 @@
 #include "flint_glfw_backend.h"
+#include "flint_host.h"
 #include "flint_input_queue.h"
 #include <jni.h>
 #include <android/log.h>
@@ -572,4 +573,32 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeDroppedInputEvent
     JNIEnv *, jclass
 ) {
     return static_cast<jlong>(flint::dropped_input_event_count());
+}
+
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSetNativeLibraryDir(
+    JNIEnv *env, jclass, jstring dir
+) {
+    if (!dir) {
+        flint_host_set_native_library_dir(nullptr);
+        return;
+    }
+    const char *path = env->GetStringUTFChars(dir, nullptr);
+    flint_host_set_native_library_dir(path);
+    env->ReleaseStringUTFChars(dir, path);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSetDisplayMetrics(
+    JNIEnv *, jclass, jint width, jint height, jfloat refreshHz
+) {
+    flint_host_set_display_metrics(width, height, refreshHz);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativePreferPerformanceCores(
+    JNIEnv *, jclass, jboolean enable
+) {
+    return flint_host_prefer_performance_cores(enable ? 1 : 0) == 0 ? JNI_TRUE : JNI_FALSE;
 }

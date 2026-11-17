@@ -22,6 +22,15 @@ object NativeBridge {
     external fun nativeEglCapabilities(): String
     /** Set one process-level environment variable before JLI_Launch starts. */
     external fun nativeSetEnv(key: String, value: String): Boolean
+
+    /** APK nativeLibraryDir for resolving packaged .so files. */
+    external fun nativeSetNativeLibraryDir(dir: String)
+
+    /** Active window size and refresh rate. */
+    external fun nativeSetDisplayMetrics(width: Int, height: Int, refreshHz: Float)
+
+    /** Best-effort performance-core preference for the calling thread. */
+    external fun nativePreferPerformanceCores(enable: Boolean): Boolean
     external fun nativeLoadJre(jreHomePath: String): Boolean
     external fun nativeLaunchJvm(args: Array<String>): Int
     external fun nativeShutdown()

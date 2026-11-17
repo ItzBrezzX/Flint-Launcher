@@ -3,6 +3,8 @@ package com.flintlauncher.android
 import android.os.Bundle
 import android.view.Gravity
 import android.view.SurfaceHolder
+import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -10,6 +12,7 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import com.flintlauncher.android.nativebridge.FlintGameSurfaceView
+import com.flintlauncher.android.nativebridge.NativeBridge
 import com.flintlauncher.android.runtime.LaunchResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -34,6 +37,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var surfaceView: FlintGameSurfaceView
     private lateinit var statusView: TextView
     private lateinit var stopButton: Button
+    private lateinit var keyboardInputView: FlintKeyboardInputView
+    private lateinit var statusPanel: LinearLayout
 
     private var launchRequested = false
     private var launchComplete = false
@@ -59,9 +64,15 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
 
+        if (NativeBridge.isNativeLoaded) {
+            NativeBridge.nativeSetNativeLibraryDir(applicationInfo.nativeLibraryDir)
+            NativeBridge.nativePreferPerformanceCores(true)
+        }
+
         surfaceView = FlintGameSurfaceView(this)
         surfaceView.holder.addCallback(this)
         surfaceView.keepScreenOn = true
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
 
         statusView = TextView(this).apply {
             text = "Preparing Minecraft $versionId…"
@@ -76,8 +87,11 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             setOnClickListener { stopGame(finishWhenStopped = false) }
         }
 
-        val touchControls = FlintTouchControlsOverlay(this)
-        val controls = LinearLayout(this).apply {
+        keyboardInputView = FlintKeyboardInputView(this)
+        val touchControls = FlintTouchControlsOverlay(this).apply {
+            onKeyboardRequested = { keyboardInputView.showKeyboard() }
+        }
+        statusPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(statusView)
             addView(stopButton)
@@ -98,7 +112,15 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             ),
         )
         root.addView(
-            controls,
+            keyboardInputView,
+            FrameLayout.LayoutParams(
+                dp(1),
+                dp(1),
+                Gravity.BOTTOM or Gravity.END,
+            ),
+        )
+        root.addView(
+            statusPanel,
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -117,6 +139,14 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        if (NativeBridge.isNativeLoaded && width > 0 && height > 0) {
+            val hz = try {
+                display?.mode?.refreshRate ?: 60f
+            } catch (_: Throwable) {
+                60f
+            }
+            NativeBridge.nativeSetDisplayMetrics(width, height, hz)
+        }
         surfaceAvailable = holder.surface.isValid && width > 0 && height > 0
         if (!surfaceAvailable) return
         surfaceView.notifySurfaceSize(width, height)
@@ -142,6 +172,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 is LaunchResult.Started -> {
                     gameThreadStarted = true
                     stopButton.isEnabled = true
+                    statusPanel.visibility = View.GONE
                     statusView.text =
                         "JLI entered on the Surface/EGL owner thread. Minecraft title screen is not yet confirmed."
                     watchGameThread()
@@ -192,6 +223,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         gameThreadStarted = false
         stopButton.isEnabled = false
+        statusPanel.visibility = View.VISIBLE
         val logs = coordinator.gameLogs().lineSequence().filter { it.isNotBlank() }.toList().takeLast(4).joinToString("\n")
         statusView.text = if (logs.isBlank()) {
             "Minecraft JVM exited. The game did not report a confirmed title-screen state."

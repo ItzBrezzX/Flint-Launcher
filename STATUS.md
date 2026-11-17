@@ -1,28 +1,25 @@
-# Snapshot status: INCOMPLETE
+# Snapshot status: INCOMPLETE — touch HUD + native packaging update
 
-Microsoft authentication remains paused.
+Base: uploaded `Flint-Launcher-main (5).zip`, merged with `Flint-Launcher-latest-host-patch.zip`.
 
-## Verified in previous local session
+## Included in this source update
 
-- Gradle Wrapper 8.9 boots (`bash gradlew --version`).
-- Wrapper JAR SHA-256: `498495120a03b9a6ab5d155f5de3c8f0d986a449153702fb80fc80e134484f17`.
-- Local SDK/NDK install reached `:native` CMake configure + GL4ES git checkout for `arm64-v8a`.
-- Local NDK build was killed by ~1.2 GiB RAM limit (environment), not classified as a source defect.
+- Reference-style in-game touch HUD: top toolbar (`DEBUG`, `CHAT`, `KEYBOARD`, `TAB`, `MOUSE`, `3RD`) and the lower-left 3×3 action pad.
+- Touch HUD settings gear with move mode, add custom button, select/rebind key or mouse action, remove custom button, hide/show controls, and reset layout.
+- Dragging preserves the point where the user grabbed a button; button centers are clamped so controls remain inside the visible screen.
+- HUD positions and custom button bindings are saved in app-private SharedPreferences using normalized screen coordinates.
+- Invisible Android keyboard input view forwards committed text and key presses to the native GLFW input queue.
+- Android APK native packaging uses legacy extraction so runtime libraries can be resolved from `ApplicationInfo.nativeLibraryDir`, as expected by the launcher code.
+- Host native bridge remains merged: native library directory, display metrics and performance-core preference.
 
-## Done in this snapshot
+## Renderer investigation
 
-- `.github/workflows/android-build.yml` optimized for GitHub-hosted runners:
-  - JDK 17, Gradle 8.9 via `./gradlew`
-  - SDK platform 35, build-tools 35.0.0, NDK 27.0.12077973, CMake 3.22.1
-  - Sequential stages: native → SO check → unit tests → app APK → APK SO check
-  - `GRADLE_OPTS` caps workers/heap; `--no-daemon`
-  - Fails if `libflint_native.so`, `libGL.so`, or `libglfw.so` missing for any ABI
-  - Uploads APK + logs as artifacts (`actions/upload-artifact@v4`)
+The inspected `app-debug(1).apk` contains `lib/arm64-v8a/libGL.so` and the matching GLFW/LWJGL libraries. Its `libGL.so` is a valid AArch64 ELF with GL4ES exports. The screenshot's missing-renderer message is therefore consistent with a library lookup/extraction-path problem, not proof that the APK archive has no GL4ES entry. The packaging change above addresses the `nativeLibraryDir` extraction assumption, but it still needs a newly built APK and on-device validation.
 
-## Not done
+## Verification status
 
-- GitHub CLI is not authenticated here → nothing was committed, pushed, or run on Actions.
-- No successful CI log, APK, or native ELF verification from CI.
-- No Minecraft menu / world / input verification.
+- Source and APK archive inspection: completed.
+- Build: not completed. `./gradlew :app:assembleDebug --offline` could not start the build because Gradle 8.9 was not cached and the environment could not resolve `services.gradle.org`; no Android SDK is installed in this environment.
+- Device verification: not performed. Minecraft title screen, world rendering, keyboard, touch bindings and layout persistence remain unverified on the user's phone.
 
-READY TO PLAY: no.
+READY TO PLAY: no — do not treat this source update as a verified APK.

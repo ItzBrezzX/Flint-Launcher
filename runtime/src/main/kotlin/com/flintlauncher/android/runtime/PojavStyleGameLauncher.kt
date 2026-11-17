@@ -124,6 +124,8 @@ class PojavStyleGameLauncher(
                 var eglCreated = false
                 var glfwAttached = false
                 try {
+                    runCatching { NativeBridge.nativePreferPerformanceCores(true) }
+
                     if (!surface.isValid) {
                         throw IllegalStateException("Android Surface became invalid before EGL setup.")
                     }
@@ -197,7 +199,7 @@ class PojavStyleGameLauncher(
                 }
             }, "Flint-Minecraft-JVM")
 
-            worker.isDaemon = true
+            worker.isDaemon = false
             launchThread = worker
             worker.start()
 
