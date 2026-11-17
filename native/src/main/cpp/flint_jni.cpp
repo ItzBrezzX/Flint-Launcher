@@ -387,10 +387,6 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     LOGI("Prepared %d arguments; argv[%d]=NULL; Java %s",
          static_cast<int>(argc), static_cast<int>(argc), fullVersion.c_str());
 
-    // ART owns process-wide signal dispositions before the embedded JVM starts.
-    // Give HotSpot a clean signal environment before creating its JLI worker.
-    reset_signal_handlers_for_jli();
-
     // EGL is owned by the setup thread until this point. Release it here,
     // then bind the same context to the native pthread before entering HotSpot.
     if (!flint_glfw_release_android_context_current()) {
@@ -426,6 +422,10 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
             request->result = -10;
             return nullptr;
         }
+
+        // Reset ART signal handlers only after the worker successfully owns EGL
+        // and is about to enter HotSpot; failed EGL hand-off leaves ART untouched.
+        reset_signal_handlers_for_jli();
 
         LOGI("JLI_Launch entering on dedicated native pthread (not ART-attached)");
         request->result = request->launch(
