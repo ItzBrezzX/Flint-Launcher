@@ -93,4 +93,15 @@ class MobileJreManagerTest {
         assertTrue(marker.isFile)
         assertEquals("previous-runtime", marker.readText())
     }
+
+    @Test
+    fun catalogIncludesPublishedJava25ArmRuntimeWithPinnedMetadata() {
+        val artifact = KnownJreArtifacts.find(25, "arm")
+        assertEquals("jre25-arm", artifact?.id)
+        assertEquals(28252088L, artifact?.sizeBytes)
+        assertEquals(
+            "9ae13aee9cba7b2d2d8f40965061667e876d7380d866f37a992db3eff296ffb5",
+            artifact?.sha256,
+        )
+    }
 }
