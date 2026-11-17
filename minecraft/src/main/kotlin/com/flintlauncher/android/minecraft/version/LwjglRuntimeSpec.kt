@@ -30,6 +30,11 @@ data class LwjglRuntimeSpec(
 
             if (coordinates.isEmpty()) return null
 
+            val groups = coordinates.map { it.group }.distinct()
+            if (groups.size > 1) {
+                throw IllegalArgumentException("Mixed LWJGL Maven groups: ${groups.joinToString()}")
+            }
+
             val core = coordinates.filter { it.artifact == "lwjgl" }
             val selected = (core.ifEmpty { coordinates }).first()
             val parsed = supportedVersion.matchEntire(selected.version)

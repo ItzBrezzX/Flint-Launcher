@@ -11,7 +11,6 @@ import com.flintlauncher.android.minecraft.manifest.VersionType
 import com.flintlauncher.android.minecraft.version.Environment
 import com.flintlauncher.android.minecraft.version.LaunchCommandBuilder
 import com.flintlauncher.android.minecraft.version.LaunchContext
-import com.flintlauncher.android.minecraft.version.LwjglRuntimeSpec
 import com.flintlauncher.android.nativebridge.NativeBridge
 import com.flintlauncher.android.runtime.AndroidLwjglNativesInstaller
 import com.flintlauncher.android.runtime.GameLauncher
@@ -116,23 +115,6 @@ class PlayLaunchCoordinator(
         } catch (error: Exception) {
             return LaunchResult.Failed("Could not prepare Minecraft $versionId: ${error.message ?: "installation metadata error"}")
         } ?: return LaunchResult.BlockedNotReady
-
-        val lwjglSpec = try {
-            LwjglRuntimeSpec.resolve(
-                installed.version.libraries,
-                Environment(osName = "linux", osArch = arch),
-            )
-        } catch (error: IllegalArgumentException) {
-            return LaunchResult.Failed(
-                "Minecraft $versionId declares incompatible LWJGL libraries: ${error.message ?: "invalid metadata"}",
-            )
-        }
-        if (lwjglSpec?.isLegacy2 == true) {
-            return LaunchResult.Failed(
-                "Minecraft $versionId requires LWJGL 2 (${lwjglSpec.version}), but this APK bundles the LWJGL 3 Android runtime. " +
-                    "This version cannot be launched with the current native backend.",
-            )
-        }
 
         val runtime = try {
             manager.findCompatible(installed.requiredJavaMajor, arch)

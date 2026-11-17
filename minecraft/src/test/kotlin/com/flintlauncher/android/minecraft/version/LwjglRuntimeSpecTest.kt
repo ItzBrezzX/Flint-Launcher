@@ -59,6 +59,22 @@ class LwjglRuntimeSpecTest {
     }
 
     @Test
+    fun rejectsMixedLwjglMavenGroupsEvenWhenVersionsMatch() {
+        try {
+            LwjglRuntimeSpec.resolve(
+                listOf(
+                    Library("org.lwjgl.lwjgl:lwjgl:3.3.1"),
+                    Library("org.lwjgl:lwjgl-glfw:3.3.1"),
+                ),
+                androidLinux,
+            )
+            fail("Expected mixed LWJGL Maven groups to be rejected")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("Mixed LWJGL Maven groups"))
+        }
+    }
+
+    @Test
     fun rejectsMixedLwjglModuleVersions() {
         try {
             LwjglRuntimeSpec.resolve(
