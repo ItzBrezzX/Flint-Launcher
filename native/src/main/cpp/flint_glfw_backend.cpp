@@ -254,6 +254,33 @@ extern "C" FLINT_GLFW_API int flint_glfw_attach_android_surface(int width, int h
     return GLFW_TRUE;
 }
 
+extern "C" FLINT_GLFW_API int flint_glfw_make_android_context_current(void) {
+    if (!g_surfaceAttached || g_display == EGL_NO_DISPLAY ||
+        g_surface == EGL_NO_SURFACE || g_context == EGL_NO_CONTEXT) {
+        set_error(GLFW_PLATFORM_ERROR, "No attached Android EGL context is available to bind");
+        return GLFW_FALSE;
+    }
+    if (eglGetCurrentContext() == g_context) return GLFW_TRUE;
+    if (!eglMakeCurrent(g_display, g_surface, g_surface, g_context)) {
+        set_error(GLFW_PLATFORM_ERROR, "Could not bind the attached Android EGL context to this thread");
+        return GLFW_FALSE;
+    }
+    return GLFW_TRUE;
+}
+
+extern "C" FLINT_GLFW_API int flint_glfw_release_android_context_current(void) {
+    if (g_display == EGL_NO_DISPLAY || g_context == EGL_NO_CONTEXT) {
+        set_error(GLFW_PLATFORM_ERROR, "No attached Android EGL context is available to release");
+        return GLFW_FALSE;
+    }
+    if (eglGetCurrentContext() != g_context) return GLFW_TRUE;
+    if (!eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)) {
+        set_error(GLFW_PLATFORM_ERROR, "Could not release the attached Android EGL context from this thread");
+        return GLFW_FALSE;
+    }
+    return GLFW_TRUE;
+}
+
 extern "C" FLINT_GLFW_API void flint_glfw_detach_android_surface(void) {
     glfwTerminate();
     g_surfaceAttached = false;

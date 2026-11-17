@@ -8,7 +8,6 @@
 #include <dlfcn.h>
 #include <string.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <stdio.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -19,6 +18,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <fstream>
+#include <pthread.h>
 
 #define LOG_TAG "FlintNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -204,16 +204,6 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSetEnv(
     return success ? JNI_TRUE : JNI_FALSE;
 }
 
-static void reset_signal_handlers(void) {
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = SIG_DFL;
-    for (int s = 1; s < 32; ++s) {
-        if (s == SIGKILL || s == SIGSTOP) continue;
-        sigaction(s, &sa, nullptr);
-    }
-}
-
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     JNIEnv *env, jclass, jstring jreHomePath
@@ -367,13 +357,90 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     LOGI("Prepared %d arguments; argv[%d]=NULL; Java %s",
          static_cast<int>(argc), static_cast<int>(argc), fullVersion.c_str());
 
-    reset_signal_handlers();
-    const jint code = g_jli_launch(
-        static_cast<int>(argc), argv, 0, nullptr, 0, nullptr,
-        fullVersion.c_str(), dotVersion.c_str(), argv[0], "FlintLauncher",
-        JNI_FALSE, JNI_TRUE, JNI_FALSE, 0
-    );
-    LOGI("JLI_Launch returned %d", code);
+    // EGL is owned by the setup thread until this point. Release it here,
+    // then bind the same context to the native pthread before entering HotSpot.
+    if (!flint_glfw_release_android_context_current()) {
+        LOGE("Could not release EGL context from the ART-attached launch thread");
+        freeArguments();
+        return -9;
+    }
+
+    struct JliLaunchRequest {
+        JLI_Launch_func launch;
+        int argc;
+        char **argv;
+        std::string fullVersion;
+        std::string dotVersion;
+        jint result;
+    };
+
+    auto threadMain = [](void *opaque) -> void * {
+        auto *request = static_cast<JliLaunchRequest *>(opaque);
+        if (!flint_glfw_make_android_context_current()) {
+            LOGE("Could not bind Flint EGL context to the dedicated JLI pthread");
+            request->result = -10;
+            return nullptr;
+        }
+
+        LOGI("JLI_Launch entering on dedicated native pthread (not ART-attached)");
+        request->result = request->launch(
+            request->argc, request->argv, 0, nullptr, 0, nullptr,
+            request->fullVersion.c_str(), request->dotVersion.c_str(),
+            request->argv[0], "FlintLauncher",
+            JNI_FALSE, JNI_TRUE, JNI_FALSE, 0
+        );
+        LOGI("JLI_Launch returned %d on dedicated native pthread", static_cast<int>(request->result));
+
+        if (!flint_glfw_release_android_context_current()) {
+            LOGE("Could not release EGL context from the dedicated JLI pthread");
+        }
+        return nullptr;
+    };
+
+    JliLaunchRequest request{
+        g_jli_launch,
+        static_cast<int>(argc),
+        argv,
+        fullVersion,
+        dotVersion,
+        -100,
+    };
+
+    pthread_attr_t attributes;
+    int attrResult = pthread_attr_init(&attributes);
+    if (attrResult != 0) {
+        LOGE("pthread_attr_init failed for JLI thread: %d", attrResult);
+        flint_glfw_make_android_context_current();
+        freeArguments();
+        return -11;
+    }
+    attrResult = pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_JOINABLE);
+    if (attrResult != 0) {
+        LOGE("pthread_attr_setdetachstate failed for JLI thread: %d", attrResult);
+        pthread_attr_destroy(&attributes);
+        flint_glfw_make_android_context_current();
+        freeArguments();
+        return -12;
+    }
+
+    pthread_t jliThread{};
+    const int createResult = pthread_create(&jliThread, &attributes, threadMain, &request);
+    pthread_attr_destroy(&attributes);
+    if (createResult != 0) {
+        LOGE("pthread_create failed for JLI thread: %d", createResult);
+        flint_glfw_make_android_context_current();
+        freeArguments();
+        return -13;
+    }
+
+    const int joinResult = pthread_join(jliThread, nullptr);
+    if (joinResult != 0) {
+        LOGE("pthread_join failed for JLI thread: %d", joinResult);
+        // Do not free argv while the thread may still be using it.
+        return -14;
+    }
+
+    const jint code = request.result;
     freeArguments();
     return code;
 }

@@ -15,9 +15,10 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * Production in-process JLI launcher.
  *
- * EGL creation, GL4ES initialization, GLFW platform attachment and JLI_Launch
- * are performed by one dedicated thread. Android Surface ownership is therefore
- * never transferred between EGL threads. A Started result means native setup
+ * EGL creation, GL4ES initialization and GLFW attachment run on the Android
+ * game worker. JLI_Launch runs on a native pthread so HotSpot is never entered
+ * from an ART-attached Java thread; Flint explicitly transfers the EGL context
+ * to that pthread for the duration of JLI and releases it before returning. A Started result means native setup
  * completed and the worker entered JLI; it does not mean Minecraft reached its
  * title screen.
  */
@@ -163,7 +164,7 @@ class PojavStyleGameLauncher(
                     nativeReady.set(true)
                     nativeSetup.countDown()
 
-                    appendLog("Calling JLI_Launch on the EGL/GLFW owner thread.")
+                    appendLog("Calling JLI_Launch on a dedicated native pthread; EGL is transferred to that thread.")
                     val exitCode = NativeBridge.nativeLaunchJvm(args.toTypedArray())
                     appendLog("JLI_Launch returned exit code $exitCode.")
                     if (exitCode != 0) {

@@ -112,8 +112,13 @@ enum {
     GLFW_PLATFORM_NULL = 0x00060005
 };
 
-/* Flint-owned Android window attachment hooks. Call on the EGL owner thread. */
+/* Flint-owned Android EGL hooks.
+ * Attach/detach are called by the setup thread. The current-context helpers
+ * explicitly transfer the attached EGL context to/from the dedicated JLI pthread.
+ */
 FLINT_GLFW_API int flint_glfw_attach_android_surface(int width, int height);
+FLINT_GLFW_API int flint_glfw_make_android_context_current(void);
+FLINT_GLFW_API int flint_glfw_release_android_context_current(void);
 FLINT_GLFW_API void flint_glfw_detach_android_surface(void);
 FLINT_GLFW_API int flint_glfw_poll_events(void);
 FLINT_GLFW_API GLFWwindow *flint_glfw_android_window(void);
