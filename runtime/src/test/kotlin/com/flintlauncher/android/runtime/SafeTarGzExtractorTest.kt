@@ -71,6 +71,23 @@ class SafeTarGzExtractorTest {
     }
 
     @Test
+    fun rejectsNonEmptyDestinationWithSymlinkParents() {
+        val parent = createTempDir()
+        val destination = File(parent, "destination").apply { mkdirs() }
+        val outside = File(parent, "outside").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(destination, "link").toPath(), outside.toPath())
+        val archive = buildTarGz(listOf(TarEntry("link/evil.txt", "bad".toByteArray())))
+
+        try {
+            SafeTarGzExtractor.extract(archive, destination)
+            fail("expected non-empty destination to be rejected")
+        } catch (error: Exception) {
+            assertTrue(error.message.orEmpty().contains("empty"))
+        }
+        assertFalse(File(outside, "evil.txt").exists())
+    }
+
+    @Test
     fun skipsSymbolicLinksInsteadOfCreatingThem() {
         val archive = buildTarGz(
             listOf(

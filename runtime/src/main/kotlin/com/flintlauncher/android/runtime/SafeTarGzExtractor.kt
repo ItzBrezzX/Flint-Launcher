@@ -24,10 +24,15 @@ object SafeTarGzExtractor {
 
     fun extract(tarGz: File, destDir: File): Result {
         require(tarGz.isFile) { "Archive not found: " + tarGz }
-        if (destDir.exists() && !destDir.deleteRecursively()) {
-            throw IOException("Could not clear JRE staging directory")
+        if (Files.isSymbolicLink(destDir.toPath())) {
+            throw IOException("JRE staging destination must not be a symbolic link")
         }
-        if (!destDir.mkdirs() && !destDir.isDirectory) {
+        if (destDir.exists()) {
+            if (!destDir.isDirectory) throw IOException("JRE staging destination is not a directory")
+            if (destDir.listFiles()?.isNotEmpty() == true) {
+                throw IOException("JRE staging destination must be empty before extraction")
+            }
+        } else if (!destDir.mkdirs()) {
             throw IOException("Could not create JRE staging directory")
         }
 
