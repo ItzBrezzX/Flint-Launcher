@@ -4,6 +4,8 @@ import com.flintlauncher.android.download.DownloadManager
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -45,5 +47,50 @@ class MobileJreManagerTest {
 
         assertEquals(listOf(17, 21), manager.listInstalled().map { it.majorVersion })
         assertEquals(21, manager.findCompatible(21, "arm64")?.majorVersion)
+    }
+
+    @Test
+    fun localImportRequiresChecksumAndRejectsTraversalRuntimeIds() = runBlocking {
+        val runtimes = temporary.newFolder("import-runtimes")
+        val downloads = temporary.newFolder("import-downloads")
+        val archive = temporary.newFile("untrusted.tar.gz").apply { writeText("not a valid archive") }
+        val manager = MobileJreManager(
+            runtimesDir = runtimes,
+            downloadDir = downloads,
+            deviceArch = "arm64",
+            downloads = DownloadManager(OkHttpClient()),
+        )
+
+        val missingChecksum = manager.importLocalArchive(archive, "local-jre", 17)
+        assertTrue(missingChecksum.isFailure)
+        assertTrue(missingChecksum.exceptionOrNull()?.message.orEmpty().contains("SHA-256"))
+
+        val traversalId = manager.importLocalArchive(archive, "../outside", 17, "0".repeat(64))
+        assertTrue(traversalId.isFailure)
+        assertTrue(traversalId.exceptionOrNull()?.message.orEmpty().contains("Runtime ID"))
+        assertFalse(File(runtimes.parentFile, "outside").exists())
+    }
+
+    @Test
+    fun failedLocalImportKeepsExistingRuntimeDirectory() = runBlocking {
+        val runtimes = temporary.newFolder("existing-runtimes")
+        val downloads = temporary.newFolder("existing-downloads")
+        val target = File(runtimes, "local-jre").apply { mkdirs() }
+        val marker = File(target, "keep.txt").apply { writeText("previous-runtime") }
+        val archive = temporary.newFile("broken.tar.gz").apply { writeText("not a valid archive") }
+        val checksum = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(archive.readBytes()).joinToString("") { "%02x".format(it) }
+        val manager = MobileJreManager(
+            runtimesDir = runtimes,
+            downloadDir = downloads,
+            deviceArch = "arm64",
+            downloads = DownloadManager(OkHttpClient()),
+        )
+
+        val result = manager.importLocalArchive(archive, "local-jre", 17, checksum)
+
+        assertTrue(result.isFailure)
+        assertTrue(marker.isFile)
+        assertEquals("previous-runtime", marker.readText())
     }
 }

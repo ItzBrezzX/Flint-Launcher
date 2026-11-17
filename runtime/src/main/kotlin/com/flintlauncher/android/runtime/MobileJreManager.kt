@@ -180,7 +180,11 @@ class MobileJreManager(
         }
     }
 
-    /** Imports a local .tar.xz or .tar.gz archive when the user already has a trusted JRE. */
+    /**
+     * Imports a local JRE archive after mandatory SHA-256 verification.
+     * Runtime IDs are constrained to one safe path component, and an existing
+     * runtime is kept until the staged replacement has passed probing.
+     */
     suspend fun importLocalArchive(
         archive: File,
         id: String,
@@ -188,32 +192,79 @@ class MobileJreManager(
         expectedSha256: String? = null,
     ): Result<JavaRuntimeInfo> = withContext(Dispatchers.IO) {
         try {
+            if (!id.matches(Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")) || id == "." || id == "..") {
+                throw IOException("Runtime ID must be 1-64 safe letters, digits, dots, underscores or hyphens")
+            }
             if (!archive.isFile) throw IOException("Archive not found: " + archive)
-            if (expectedSha256 != null) {
-                val actual = sha256Hex(archive)
-                if (!actual.equals(expectedSha256, ignoreCase = true)) {
-                    throw IOException("SHA-256 mismatch: expected " + expectedSha256 + ", got " + actual)
-                }
+            if (expectedSha256 == null || !expectedSha256.matches(Regex("^[0-9a-fA-F]{64}$"))) {
+                throw IOException("A valid SHA-256 checksum is required to import a local JRE archive")
             }
-            runtimesDir.mkdirs()
-            val staging = File(runtimesDir, "." + id + ".importing")
-            val target = File(runtimesDir, id)
+            val actual = sha256Hex(archive)
+            if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                throw IOException("SHA-256 mismatch: expected " + expectedSha256 + ", got " + actual)
+            }
+
+            val root = runtimesDir.canonicalFile
+            if (!root.exists() && !root.mkdirs() && !root.isDirectory) {
+                throw IOException("Could not create runtime directory")
+            }
+            val staging = File(root, ".$id.importing")
+            val target = File(root, id)
+            val backup = File(root, ".$id.backup")
+            if (staging.canonicalFile.parentFile != root ||
+                target.canonicalFile.parentFile != root ||
+                backup.canonicalFile.parentFile != root
+            ) {
+                throw IOException("Runtime ID resolves outside the runtime directory")
+            }
+
             staging.deleteRecursively()
-            staging.mkdirs()
-            when {
-                archive.name.endsWith(".tar.xz", ignoreCase = true) -> SafeTarXzExtractor.extract(archive, staging)
-                archive.name.endsWith(".tar.gz", ignoreCase = true) || archive.name.endsWith(".tgz", ignoreCase = true) ->
-                    SafeTarGzExtractor.extract(archive, staging)
-                else -> throw IOException("Only .tar.xz and .tar.gz JRE archives are supported")
+            backup.deleteRecursively()
+            if (!staging.mkdirs() && !staging.isDirectory) {
+                throw IOException("Could not create runtime import staging directory")
             }
-            flattenSingleRoot(staging)
-            val staged = probe(staging)
-            if (!staged.verified) throw IOException("The archive is not a usable mobile JRE")
-            if (staged.majorVersion != major) throw IOException("The archive contains Java " + staged.majorVersion + ", not Java " + major)
-            if (staged.arch != deviceArch) throw IOException("The archive is " + staged.arch + ", but this device needs " + deviceArch)
-            target.deleteRecursively()
-            Files.move(staging.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            Result.success(probe(target))
+
+            try {
+                when {
+                    archive.name.endsWith(".tar.xz", ignoreCase = true) -> SafeTarXzExtractor.extract(archive, staging)
+                    archive.name.endsWith(".tar.gz", ignoreCase = true) || archive.name.endsWith(".tgz", ignoreCase = true) ->
+                        SafeTarGzExtractor.extract(archive, staging)
+                    else -> throw IOException("Only .tar.xz and .tar.gz JRE archives are supported")
+                }
+                flattenSingleRoot(staging)
+                val staged = probe(staging)
+                if (!staged.verified) throw IOException("The archive is not a usable mobile JRE")
+                if (staged.majorVersion != major) {
+                    throw IOException("The archive contains Java " + staged.majorVersion + ", not Java " + major)
+                }
+                if (staged.arch != deviceArch) {
+                    throw IOException("The archive is " + staged.arch + ", but this device needs " + deviceArch)
+                }
+
+                if (target.exists() && !target.renameTo(backup)) {
+                    throw IOException("Could not move the previous runtime out of the way")
+                }
+                try {
+                    try {
+                        Files.move(staging.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+                    } catch (_: Exception) {
+                        if (!staging.renameTo(target)) {
+                            throw IOException("Could not activate the imported Java runtime")
+                        }
+                    }
+                    val imported = probe(target)
+                    backup.deleteRecursively()
+                    Result.success(imported)
+                } catch (error: Exception) {
+                    target.deleteRecursively()
+                    if (backup.exists() && !backup.renameTo(target)) {
+                        throw IOException("Import failed and the previous runtime could not be restored", error)
+                    }
+                    throw error
+                }
+            } finally {
+                staging.deleteRecursively()
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
