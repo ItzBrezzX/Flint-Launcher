@@ -75,6 +75,7 @@ bool g_surfaceAttached = false;
 bool g_initialized = false;
 bool g_windowCreated = false;
 std::atomic_bool g_close_requested{false};
+std::atomic<uint64_t> g_presentedFrameCount{0};
 EGLDisplay g_display = EGL_NO_DISPLAY;
 EGLSurface g_surface = EGL_NO_SURFACE;
 EGLContext g_context = EGL_NO_CONTEXT;
@@ -267,6 +268,10 @@ extern "C" FLINT_GLFW_API GLFWwindow *flint_glfw_android_window(void) {
     return g_windowCreated ? &g_window : nullptr;
 }
 
+extern "C" FLINT_GLFW_API uint64_t flint_glfw_presented_frame_count(void) {
+    return g_presentedFrameCount.load(std::memory_order_relaxed);
+}
+
 extern "C" FLINT_GLFW_API int flint_glfw_poll_events(void) {
     if (!g_initialized || !g_windowCreated) return 0;
     const auto events = flint::poll_input_events(1024);
@@ -342,6 +347,7 @@ extern "C" FLINT_GLFW_API GLFWwindow *glfwCreateWindow(
     if (g_windowCreated) return &g_window;
 
     g_window = GLFWwindow{};
+    g_presentedFrameCount.store(0, std::memory_order_relaxed);
     g_window.title = title ? title : "Flint";
     g_window.shouldClose = g_close_requested.load(std::memory_order_relaxed);
     g_window.width = g_surfaceWidth;
@@ -576,6 +582,8 @@ extern "C" FLINT_GLFW_API void glfwSwapBuffers(GLFWwindow *window) {
     }
     if (!eglSwapBuffers(g_display, g_surface)) {
         set_error(GLFW_PLATFORM_ERROR, "eglSwapBuffers failed in Flint GLFW backend");
+    } else {
+        g_presentedFrameCount.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
