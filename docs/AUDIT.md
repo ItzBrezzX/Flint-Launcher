@@ -42,7 +42,7 @@ https://github.com/ItzBrezzX/Flint-Launcher/actions
 
 ## Remaining risks and device tests
 
-1. **JRE availability and compatibility.** Flint does not bundle a JRE. Import a trusted mobile ARM64 JRE for the selected Minecraft Java major, then verify `libjli.so` and `libjvm.so`.
+1. **JRE availability and compatibility.** Flint does not bundle a JRE. The source catalog pins Android OpenJDK archives by ABI, byte size and SHA-256; local trusted archive import is also supported. Verify `libjli.so` and `libjvm.so` for the selected Java major before launch.
 2. **Native loader and driver variance.** A successful CMake/ELF build does not prove that device-specific EGL, GL4ES and LWJGL symbols all behave correctly at runtime.
 3. **Minecraft title screen.** The app must reach the title screen on the target phone before gameplay can be claimed.
 4. **Input feel.** Verify camera relative movement, virtual joystick, mouse clicks, key repeats, focus loss and pointer cancellation on real hardware.

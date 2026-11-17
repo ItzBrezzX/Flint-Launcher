@@ -120,12 +120,12 @@ private fun RuntimeCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsA
                 Text("Checking installed runtimes…")
             }
         } else if (state.installedRuntimes.isEmpty()) {
-            Text("No verified Java runtime installed.", color = FlintColors.TextMuted)
+            Text("No Java runtime with valid metadata and native libraries found.", color = FlintColors.TextMuted)
         } else {
             state.installedRuntimes.forEach { runtime ->
                 SettingLine(
                     "Java " + runtime.major,
-                    runtime.arch + " · " + runtime.vendor + " · " + (if (runtime.verified) "Verified" else "Not verified"),
+                    runtime.arch + " · " + runtime.vendor + " · " + (if (runtime.verified) "Files present" else "Incomplete"),
                 )
             }
         }
@@ -147,7 +147,7 @@ private fun RuntimeCard(state: RuntimeSettingsUiState, actions: RuntimeSettingsA
                     Column(Modifier.weight(1f)) {
                         Text("OpenJDK " + major, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (installed) "Installed and verified" else "Mobile runtime · SHA-256 verified download",
+                            if (installed) "Installed · native JLI check runs before launch" else "Mobile runtime · SHA-256 verified download",
                             color = FlintColors.TextMuted,
                             style = MaterialTheme.typography.labelSmall,
                         )

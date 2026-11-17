@@ -108,7 +108,7 @@ class RuntimeSettingsViewModel(
                     _state.update {
                         it.copy(
                             installingMajor = null,
-                            message = "Java " + runtime.majorVersion + " (" + runtime.arch + ") installed and verified.",
+                            message = "Java " + runtime.majorVersion + " (" + runtime.arch + ") installed. Native JLI verification runs when this runtime is selected for launch.",
                         )
                     }
                 },

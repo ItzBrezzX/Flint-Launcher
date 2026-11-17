@@ -7,7 +7,7 @@ Java runtime management, renderer selection, launch readiness and the in-process
 | Component | State |
 |-----------|-------|
 | `LaunchReadinessResolver` | Implemented |
-| `MobileJreManager` | Local import, SHA-256 verification and JRE probing implemented; remote artifact URLs remain intentionally unavailable until trusted artifacts/checksums are selected |
+| `MobileJreManager` | Pinned Android OpenJDK catalog with size/SHA-256 download verification, local archive import and runtime probing |
 | `PojavStyleGameLauncher` | Production Surface/EGL/GL4ES/GLFW/JLI sequence wired to a single dedicated game thread |
 | `AndroidLwjglNativesInstaller` | Stages the APK-built LWJGL JNI core/OpenGL libraries; GLFW and GL4ES are reused by absolute APK path to avoid duplicate native state |
 | Native `flint_native` | JNI, ANativeWindow EGL, JRE loading, JLI entry and input FIFO are wired in source |
