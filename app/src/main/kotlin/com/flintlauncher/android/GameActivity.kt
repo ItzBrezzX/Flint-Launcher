@@ -177,9 +177,11 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     if (output.length > consumed.length && output.startsWith(consumed)) {
                         output.substring(consumed.length).lineSequence()
                             .filter { it.isNotBlank() }
+                            .toList()
+                            .takeLast(8)
                             .forEach { appendStartupLine(it) }
                     } else if (output.length < consumed.length) {
-                        output.lineSequence().filter { it.isNotBlank() }.takeLast(4)
+                        output.lineSequence().filter { it.isNotBlank() }.toList().takeLast(4)
                             .forEach { appendStartupLine(it) }
                     }
                     consumed = output
@@ -218,7 +220,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     stopButton.visibility = View.GONE
                     statusPanel.visibility = View.VISIBLE
                     appendStartupLine(result.reason)
-                    result.logSnippet?.lineSequence()?.filter { it.isNotBlank() }?.takeLast(8)
+                    result.logSnippet?.lineSequence()?.filter { it.isNotBlank() }?.toList()?.takeLast(8)
                         ?.forEach { appendStartupLine(it) }
                 }
                 LaunchResult.BlockedMissingRuntime -> {
@@ -327,7 +329,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             "Minecraft JVM exited. Last runtime output follows:"
         })
         if (logs.isNotBlank()) {
-            logs.lineSequence().filter { it.isNotBlank() }.takeLast(8)
+            logs.lineSequence().filter { it.isNotBlank() }.toList().takeLast(8)
                 .forEach { appendStartupLine(it) }
         }
     }
