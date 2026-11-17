@@ -246,7 +246,12 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
             Toast.makeText(context, "Touch controls mode", Toast.LENGTH_SHORT).show()
         } else {
             mousePointerMode = true
-            mousePointerActive = false
+            mousePointerActive = true
+            if (mousePointerX == 0f && mousePointerY == 0f) {
+                mousePointerX = width / 2f
+                mousePointerY = height / 2f
+            }
+            enqueue(FlintInputEvent.CURSOR, x = mousePointerX.toDouble(), y = mousePointerY.toDouble())
             Toast.makeText(context, "Mouse pointer mode: drag to move, tap to click", Toast.LENGTH_SHORT).show()
         }
         invalidate()
@@ -276,7 +281,7 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
                 x = mousePointerX.toDouble(), y = mousePointerY.toDouble())
         }
         mousePointerId = MotionEvent.INVALID_POINTER_ID
-        mousePointerActive = false
+        // Keep the visible cursor at its last position while mouse mode remains enabled.
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
