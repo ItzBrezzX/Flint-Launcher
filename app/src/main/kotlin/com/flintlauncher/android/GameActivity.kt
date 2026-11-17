@@ -219,9 +219,25 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     stopButton.isEnabled = false
                     stopButton.visibility = View.GONE
                     statusPanel.visibility = View.VISIBLE
-                    appendStartupLine(result.reason)
-                    result.logSnippet?.lineSequence()?.filter { it.isNotBlank() }?.toList()?.takeLast(8)
-                        ?.forEach { appendStartupLine(it) }
+                    val failureReport = buildString {
+                        appendLine(result.reason)
+                        result.logSnippet?.takeIf { it.isNotBlank() }?.let(::append)
+                    }
+                    saveLaunchFailure(failureReport)
+                    appendStartupLine("SETUP FAILED")
+                    val usefulLines = failureReport.lineSequence()
+                        .map { it.trim() }
+                        .filter { line ->
+                            line.isNotBlank() &&
+                                (line.contains("Exception", ignoreCase = true) ||
+                                    line.contains("Error", ignoreCase = true) ||
+                                    line.startsWith("Caused by:") ||
+                                    line.startsWith("at "))
+                        }
+                        .distinct()
+                        .take(8)
+                    usefulLines.forEach { appendStartupLine(it) }
+                    if (startupLines.size <= 2) appendStartupLine(result.reason.take(180))
                 }
                 LaunchResult.BlockedMissingRuntime -> {
                     stopButton.visibility = View.GONE
