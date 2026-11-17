@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.AttributeSet
@@ -69,6 +70,11 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
     private var editingButtonId: String? = null
     private var editingOffsetX = 0f
     private var editingOffsetY = 0f
+    private var mousePointerMode = false
+    private var mousePointerActive = false
+    private var mousePointerId = MotionEvent.INVALID_POINTER_ID
+    private var mousePointerX = 0f
+    private var mousePointerY = 0f
 
     private val activePointers = mutableMapOf<Int, TouchButton>()
     private val activePressCounts = mutableMapOf<String, Int>()
@@ -135,6 +141,7 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
             buttons.firstOrNull { it.action == ACTION_TOGGLE_MOUSE }?.let { drawButton(canvas, it) }
         }
         drawSettingsButton(canvas)
+        if (mousePointerMode && mousePointerActive) drawMousePointer(canvas)
 
         if (editMode) {
             paint.style = Paint.Style.FILL
@@ -214,6 +221,65 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
         canvas.drawText("⚙", centerX, baseline, paint)
     }
 
+    private fun drawMousePointer(canvas: Canvas) {
+        val x = mousePointerX
+        val y = mousePointerY
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f * density
+        paint.color = 0xff101820.toInt()
+        canvas.drawCircle(x, y, 9f * density, paint)
+        paint.color = 0xfff4f7f9.toInt()
+        canvas.drawCircle(x, y, 7f * density, paint)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xff101820.toInt()
+        canvas.drawCircle(x, y, 2.5f * density, paint)
+        paint.strokeWidth = 1.5f * density
+        canvas.drawLine(x - 13f * density, y, x + 13f * density, y, paint)
+        canvas.drawLine(x, y - 13f * density, x, y + 13f * density, paint)
+    }
+
+    private fun toggleMousePointerMode() {
+        releaseAllControls()
+        if (mousePointerMode) {
+            releaseMousePointer()
+            mousePointerMode = false
+            mousePointerActive = false
+            Toast.makeText(context, "Touch controls mode", Toast.LENGTH_SHORT).show()
+        } else {
+            mousePointerMode = true
+            mousePointerActive = false
+            Toast.makeText(context, "Mouse pointer mode: drag to move, tap to click", Toast.LENGTH_SHORT).show()
+        }
+        invalidate()
+    }
+
+    private fun beginMousePointer(pointerId: Int, x: Float, y: Float) {
+        mousePointerId = pointerId
+        mousePointerActive = true
+        mousePointerX = x.coerceIn(0f, width.toFloat())
+        mousePointerY = y.coerceIn(0f, height.toFloat())
+        enqueue(FlintInputEvent.CURSOR, x = mousePointerX.toDouble(), y = mousePointerY.toDouble())
+        enqueue(FlintInputEvent.MOUSE_BUTTON, code = 0, action = 1,
+            x = mousePointerX.toDouble(), y = mousePointerY.toDouble())
+        invalidate()
+    }
+
+    private fun moveMousePointer(x: Float, y: Float) {
+        mousePointerX = x.coerceIn(0f, width.toFloat())
+        mousePointerY = y.coerceIn(0f, height.toFloat())
+        enqueue(FlintInputEvent.CURSOR, x = mousePointerX.toDouble(), y = mousePointerY.toDouble())
+        invalidate()
+    }
+
+    private fun releaseMousePointer() {
+        if (mousePointerId != MotionEvent.INVALID_POINTER_ID && mousePointerActive) {
+            enqueue(FlintInputEvent.MOUSE_BUTTON, code = 0, action = 0,
+                x = mousePointerX.toDouble(), y = mousePointerY.toDouble())
+        }
+        mousePointerId = MotionEvent.INVALID_POINTER_ID
+        mousePointerActive = false
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -244,13 +310,16 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
                     return true
                 }
 
-                val target = findButtonAt(x, y) ?: return false
-                if (target.action == ACTION_TOGGLE_MOUSE) {
-                    controlsVisible = !controlsVisible
-                    releaseAllControls()
-                    invalidate()
+                val target = findButtonAt(x, y)
+                if (target?.action == ACTION_TOGGLE_MOUSE) {
+                    toggleMousePointerMode()
                     return true
                 }
+                if (target == null && mousePointerMode) {
+                    beginMousePointer(pointerId, x, y)
+                    return true
+                }
+                if (target == null) return false
                 if (target.action == ACTION_KEYBOARD) {
                     onKeyboardRequested?.invoke()
                     return true
@@ -267,13 +336,15 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
                 val y = event.getY(event.actionIndex)
                 if (editMode) return true
                 val target = findButtonAt(x, y)
+                if (target?.action == ACTION_TOGGLE_MOUSE) {
+                    toggleMousePointerMode()
+                    return true
+                }
+                if (target == null && mousePointerMode) {
+                    enqueue(FlintInputEvent.CURSOR, x = x.toDouble(), y = y.toDouble())
+                    return true
+                }
                 when (target?.action) {
-                    ACTION_TOGGLE_MOUSE -> {
-                        controlsVisible = !controlsVisible
-                        releaseAllControls()
-                        invalidate()
-                        return true
-                    }
                     ACTION_KEYBOARD -> {
                         onKeyboardRequested?.invoke()
                         return true
@@ -285,6 +356,11 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_MOVE -> {
+                if (mousePointerMode && mousePointerId != MotionEvent.INVALID_POINTER_ID) {
+                    val index = event.findPointerIndex(mousePointerId)
+                    if (index >= 0) moveMousePointer(event.getX(index), event.getY(index))
+                    return true
+                }
                 if (editMode && editingPointerId != MotionEvent.INVALID_POINTER_ID) {
                     val index = event.findPointerIndex(editingPointerId)
                     if (index >= 0) {
@@ -304,6 +380,11 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
 
             MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP -> {
                 val pointerId = event.getPointerId(event.actionIndex)
+                if (mousePointerMode && pointerId == mousePointerId) {
+                    releaseMousePointer()
+                    invalidate()
+                    return true
+                }
                 if (editMode && pointerId == editingPointerId) {
                     editingPointerId = MotionEvent.INVALID_POINTER_ID
                     editingButtonId = null
@@ -319,6 +400,7 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                releaseMousePointer()
                 if (editMode) {
                     editingPointerId = MotionEvent.INVALID_POINTER_ID
                     editingButtonId = null
@@ -343,6 +425,7 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
         super.onWindowFocusChanged(hasWindowFocus)
         if (!hasWindowFocus) {
             releaseAllControls()
+            releaseMousePointer()
             editingPointerId = MotionEvent.INVALID_POINTER_ID
             editingButtonId = null
             editingOffsetX = 0f
@@ -443,7 +526,7 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
             if (editMode) "Finish moving buttons" else "Move buttons freely",
             "Add a new button",
             "Choose a button and change its key",
-            if (controlsVisible) "Hide touch controls (mouse mode)" else "Show touch controls",
+            if (controlsVisible) "Hide touch controls" else "Show touch controls",
             "Reset to reference layout",
         )
         AlertDialog.Builder(context)
