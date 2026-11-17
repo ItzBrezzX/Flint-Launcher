@@ -314,7 +314,7 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
                     return true
                 }
 
-                val target = findButtonAt(x, y)
+                val target = if (mousePointerMode) findMouseToggleAt(x, y) else findButtonAt(x, y)
                 if (target?.action == ACTION_TOGGLE_MOUSE) {
                     toggleMousePointerMode()
                     return true
@@ -339,7 +339,7 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
                 val x = event.getX(event.actionIndex)
                 val y = event.getY(event.actionIndex)
                 if (editMode) return true
-                val target = findButtonAt(x, y)
+                val target = if (mousePointerMode) findMouseToggleAt(x, y) else findButtonAt(x, y)
                 if (target?.action == ACTION_TOGGLE_MOUSE) {
                     toggleMousePointerMode()
                     return true
@@ -523,6 +523,11 @@ class FlintTouchControlsOverlay @JvmOverloads constructor(
         val radius = 24f * density
         return dx * dx + dy * dy <= radius * radius
     }
+
+    private fun findMouseToggleAt(x: Float, y: Float): TouchButton? =
+        buttons.firstOrNull { button ->
+            button.action == ACTION_TOGGLE_MOUSE && buttonBounds(button).contains(x, y)
+        }
 
     private fun moveButtonTo(id: String, x: Float, y: Float) {
         val current = buttons.firstOrNull { it.id == id } ?: return
