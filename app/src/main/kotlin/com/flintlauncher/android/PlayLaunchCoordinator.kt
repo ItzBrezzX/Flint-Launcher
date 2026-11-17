@@ -65,11 +65,14 @@ class PlayLaunchCoordinator(
         surface: Surface,
         width: Int,
         height: Int,
+        onProgress: (String) -> Unit = {},
     ): LaunchResult {
+        onProgress("Checking Android game Surface…")
         if (!surface.isValid) return LaunchResult.Failed("The Android game Surface is no longer valid.")
         if (width <= 0 || height <= 0) {
             return LaunchResult.Failed("The Android game Surface has invalid dimensions: ${width}x${height}.")
         }
+        onProgress("Resolving selected Minecraft account…")
         val account = try {
             accounts.selected()
         } catch (cancelled: CancellationException) {
@@ -88,6 +91,7 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Could not create a Minecraft session: ${error.message ?: "authentication failed"}")
         }
 
+        onProgress("Checking Android native bridge and renderer libraries…")
         val manager = runtimeManager ?: return LaunchResult.BlockedMissingRuntime
         val arch = deviceArch ?: return LaunchResult.Failed("This APK process ABI is not supported by the Java runtime catalog.")
         val launcher = gameLauncher ?: return LaunchResult.BlockedMissingRuntime
@@ -109,6 +113,7 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Flint's Android GLFW C ABI is missing from the APK: ${glfwLibrary.absolutePath}")
         }
 
+        onProgress("Reading installed Minecraft metadata…")
         val installed = try {
             installer.loadInstalledVersion(versionId)
         } catch (cancelled: CancellationException) {
@@ -117,6 +122,7 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Could not prepare Minecraft $versionId: ${error.message ?: "installation metadata error"}")
         } ?: return LaunchResult.BlockedNotReady
 
+        onProgress("Resolving Minecraft LWJGL dependencies…")
         val lwjglSpec = try {
             LwjglRuntimeSpec.resolve(
                 installed.version.libraries,
@@ -134,6 +140,7 @@ class PlayLaunchCoordinator(
             )
         }
 
+        onProgress("Finding a compatible Java runtime…")
         val runtime = try {
             manager.findCompatible(installed.requiredJavaMajor, arch)
                 ?: run {
@@ -153,6 +160,7 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Could not prepare Java runtime: ${error.message ?: "unknown error"}")
         }
 
+        onProgress("Verifying Java runtime…")
         val runtimeVerified = try {
             manager.verify(runtime)
         } catch (cancelled: CancellationException) {
@@ -172,6 +180,7 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("The game directory is not writable: ${gameDirectory.absolutePath}")
         }
 
+        onProgress("Extracting and staging Android native libraries…")
         val nativeDirectory = File(File(cacheDir, "minecraft-natives"), directoryKey("$versionId:${account.id}"))
         try {
             if (nativeDirectory.exists() && !nativeDirectory.deleteRecursively()) {
@@ -192,6 +201,7 @@ class PlayLaunchCoordinator(
             return LaunchResult.Failed("Could not extract Minecraft native libraries: ${error.message ?: "invalid native archive"}")
         }
 
+        onProgress("Preparing Minecraft JVM environment and game arguments…")
         val temporaryDirectory = File(cacheDir, "minecraft-tmp")
         if (!temporaryDirectory.isDirectory && !temporaryDirectory.mkdirs()) {
             return LaunchResult.Failed("Could not create the JVM temporary directory: ${temporaryDirectory.absolutePath}")
@@ -290,6 +300,7 @@ class PlayLaunchCoordinator(
             rendererLibrary = gl4esLibrary,
             environment = processEnvironment,
         )
+        onProgress("Creating EGL + GL4ES + GLFW, then starting Minecraft JVM…")
         return launcher.launch(request)
     }
 
