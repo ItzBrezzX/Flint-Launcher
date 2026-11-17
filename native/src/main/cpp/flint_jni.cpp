@@ -1,4 +1,5 @@
 #include "flint_glfw_backend.h"
+#include "flint_host.h"
 #include "flint_input_queue.h"
 #include <jni.h>
 #include <android/log.h>
@@ -9,20 +10,10 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <stdio.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <errno.h>
-#include <vector>
-#include <string>
-#include <algorithm>
-#include <mutex>
-#include <unordered_map>
-#include <fstream>
 
 #define LOG_TAG "FlintNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 
 /*
@@ -40,7 +31,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *, void *) {
     return JNI_VERSION_1_6;
 }
 
-typedef jint (*JLI_Launch_func)(
+typedef int (*JLI_Launch_func)(
     int argc, char **argv,
     int jargc, const char **jargv,
     int appclassc, const char **appclassv,
@@ -54,154 +45,13 @@ typedef jint (*JLI_Launch_func)(
     jint ergo
 );
 
-// JRE/JVM handles and symbols remain valid for the process lifetime.
 static void *g_libjli = nullptr;
 static JLI_Launch_func g_jli_launch = nullptr;
-static std::vector<void *> g_jre_handles;
-static std::unordered_map<std::string, void *> g_jre_library_handles;
-static std::string g_loaded_jre_home;
-static std::mutex g_jre_load_mutex;
-
 static void *g_gl4es = nullptr;
 static const GLubyte *(*g_gl4es_get_string)(GLenum) = nullptr;
 static void (*g_gl4es_clear_color)(GLfloat, GLfloat, GLfloat, GLfloat) = nullptr;
 static void (*g_gl4es_clear)(GLbitfield) = nullptr;
 static GLenum (*g_gl4es_get_error)(void) = nullptr;
-
-static std::string join_path(const std::string &a, const std::string &b) {
-    return a.empty() ? b : a + "/" + b;
-}
-
-static bool find_library_recursive(const std::string &directory, const std::string &name,
-                                   std::string &result, int depth = 0) {
-    if (depth > 8) return false;
-    DIR *dir = opendir(directory.c_str());
-    if (!dir) return false;
-    std::vector<std::string> subdirs;
-    struct dirent *entry = nullptr;
-    while ((entry = readdir(dir)) != nullptr) {
-        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
-        const std::string path = join_path(directory, entry->d_name);
-        struct stat st {};
-        if (stat(path.c_str(), &st) != 0) continue;
-        if (S_ISREG(st.st_mode) && name == entry->d_name) {
-            result = path;
-            closedir(dir);
-            return true;
-        }
-        if (S_ISDIR(st.st_mode)) subdirs.push_back(path);
-    }
-    closedir(dir);
-    std::sort(subdirs.begin(), subdirs.end());
-    for (const auto &subdir : subdirs) {
-        if (find_library_recursive(subdir, name, result, depth + 1)) return true;
-    }
-    return false;
-}
-
-static bool resolve_jre_library(const std::string &home, const std::string &name,
-                                const std::vector<std::string> &preferred, std::string &result) {
-    struct stat st {};
-    for (const auto &relative : preferred) {
-        const std::string candidate = join_path(home, relative);
-        if (stat(candidate.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
-            result = candidate;
-            return true;
-        }
-    }
-    return find_library_recursive(join_path(home, "lib"), name, result);
-}
-
-static bool load_jre_library(const std::string &path, bool required, void **loadedHandle = nullptr) {
-    const auto existing = g_jre_library_handles.find(path);
-    if (existing != g_jre_library_handles.end()) {
-        if (loadedHandle) *loadedHandle = existing->second;
-        return true;
-    }
-    dlerror();
-    void *handle = dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
-    if (!handle) {
-        const char *error = dlerror();
-        if (required) LOGE("Required JRE library failed: %s (%s)", path.c_str(), error ? error : "unknown");
-        else LOGW("Optional JRE library failed: %s (%s)", path.c_str(), error ? error : "unknown");
-        return !required;
-    }
-    g_jre_handles.push_back(handle);
-    g_jre_library_handles[path] = handle;
-    if (loadedHandle) *loadedHandle = handle;
-    LOGI("Loaded JRE library: %s", path.c_str());
-    return true;
-}
-
-static void collect_jre_libraries(const std::string &directory, std::vector<std::string> &result,
-                                  int depth = 0) {
-    if (depth > 8) return;
-    DIR *dir = opendir(directory.c_str());
-    if (!dir) return;
-    std::vector<std::string> subdirs;
-    struct dirent *entry = nullptr;
-    while ((entry = readdir(dir)) != nullptr) {
-        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
-        const std::string path = join_path(directory, entry->d_name);
-        struct stat st {};
-        if (stat(path.c_str(), &st) != 0) continue;
-        if (S_ISREG(st.st_mode)) {
-            const std::string name(entry->d_name);
-            if (name.size() > 3 && name.compare(name.size() - 3, 3, ".so") == 0) result.push_back(path);
-        } else if (S_ISDIR(st.st_mode)) {
-            subdirs.push_back(path);
-        }
-    }
-    closedir(dir);
-    std::sort(subdirs.begin(), subdirs.end());
-    for (const auto &subdir : subdirs) collect_jre_libraries(subdir, result, depth + 1);
-}
-
-static std::string read_jre_version(const std::string &home) {
-    std::ifstream release(join_path(home, "release"));
-    std::string line;
-    while (std::getline(release, line)) {
-        const std::string key = "JAVA_VERSION=";
-        if (line.compare(0, key.size(), key) != 0) continue;
-        std::string version = line.substr(key.size());
-        if (!version.empty() && version.front() == '"') version.erase(0, 1);
-        if (!version.empty() && version.back() == '"') version.pop_back();
-        if (!version.empty()) return version;
-    }
-    return "1.8.0";
-}
-
-static std::string jre_dot_version(const std::string &version) {
-    const size_t first = version.find('.');
-    if (first == std::string::npos) return version;
-    const size_t second = version.find('.', first + 1);
-    return second == std::string::npos ? version : version.substr(0, second);
-}
-
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSetEnv(
-    JNIEnv *env, jclass, jstring jkey, jstring jvalue
-) {
-    if (!jkey || !jvalue) return JNI_FALSE;
-
-    const char *key = env->GetStringUTFChars(jkey, nullptr);
-    if (!key) return JNI_FALSE;
-
-    const char *value = env->GetStringUTFChars(jvalue, nullptr);
-    if (!value) {
-        env->ReleaseStringUTFChars(jkey, key);
-        return JNI_FALSE;
-    }
-
-    const bool validKey = key[0] != '\0' && strchr(key, '=') == nullptr;
-    const bool success = validKey && setenv(key, value, 1) == 0;
-    if (!success) LOGE("Could not set process environment variable: %s", key);
-
-    env->ReleaseStringUTFChars(jvalue, value);
-    env->ReleaseStringUTFChars(jkey, key);
-    return success ? JNI_TRUE : JNI_FALSE;
-}
 
 static void reset_signal_handlers(void) {
     struct sigaction sa;
@@ -217,103 +67,41 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLoadJre(
     JNIEnv *env, jclass, jstring jreHomePath
 ) {
-    if (!jreHomePath) {
-        LOGE("nativeLoadJre received null JRE home");
-        return JNI_FALSE;
-    }
-    const char *homeChars = env->GetStringUTFChars(jreHomePath, nullptr);
-    if (!homeChars) return JNI_FALSE;
-    const std::string home(homeChars);
-    env->ReleaseStringUTFChars(jreHomePath, homeChars);
-
-    std::lock_guard<std::mutex> lock(g_jre_load_mutex);
-    if (g_jli_launch && g_loaded_jre_home == home) {
-        LOGI("JRE already initialized: %s", home.c_str());
-        return JNI_TRUE;
-    }
-    if (!g_loaded_jre_home.empty() && g_loaded_jre_home != home) {
-        LOGE("Refusing to mix JRE runtimes in one process: already initialized for %s", g_loaded_jre_home.c_str());
-        return JNI_FALSE;
-    }
-    // Pin the process to one runtime before the first dlopen. A partial failure
-    // cannot be safely rolled back because dependencies are process-global.
-    if (g_loaded_jre_home.empty()) g_loaded_jre_home = home;
-
-    // Configure the JRE search paths before the first dlopen. Absolute paths
-    // are still used below; this also helps Bionic resolve transitive NEEDED
-    // dependencies by SONAME where the process linker namespace permits it.
-    std::string jreLdPath =
-        join_path(home, "lib/jli") + ":" +
-        join_path(home, "lib") + ":" +
-        join_path(home, "lib/server") + ":" +
-        join_path(home, "lib/aarch64") + ":" +
-        join_path(home, "lib/aarch64/server") + ":" +
-        join_path(home, "lib/arm64") + ":" +
-        join_path(home, "lib/arm64/server");
-    const char *oldLdPath = getenv("LD_LIBRARY_PATH");
-    if (oldLdPath && *oldLdPath) jreLdPath += ":" + std::string(oldLdPath);
-    if (setenv("JAVA_HOME", home.c_str(), 1) != 0) {
-        LOGW("Could not update JAVA_HOME for JRE loading: %s", strerror(errno));
-    }
-    if (setenv("LD_LIBRARY_PATH", jreLdPath.c_str(), 1) != 0) {
-        LOGW("Could not update LD_LIBRARY_PATH for JRE loading: %s", strerror(errno));
-    } else {
-        LOGI("Configured JRE native search path before dlopen");
-    }
-
-    std::string jliPath;
-    const std::vector<std::string> jliCandidates = {
-        "lib/jli/libjli.so", "lib/libjli.so", "lib/aarch64/libjli.so",
-        "lib/arm64/libjli.so", "lib/aarch32/libjli.so", "lib/arm/libjli.so",
-        "lib/i386/libjli.so", "lib/amd64/libjli.so", "lib/x86_64/libjli.so"
+    const char *home = env->GetStringUTFChars(jreHomePath, nullptr);
+    if (!home) return JNI_FALSE;
+    const char *candidates[] = {
+        "/lib/libjli.so", "/lib/aarch64/libjli.so", "/lib/arm64/libjli.so",
+        "/lib/aarch32/libjli.so", "/lib/arm/libjli.so", "/lib/i386/libjli.so",
+        "/lib/amd64/libjli.so", "/lib/x86_64/libjli.so", "/lib/jli/libjli.so",
+        "/lib/server/libjli.so", "/lib/aarch64/server/libjli.so",
+        "/lib/arm64/server/libjli.so", "/lib/aarch32/server/libjli.so",
+        "/lib/arm/server/libjli.so", "/lib/i386/server/libjli.so",
+        "/lib/amd64/server/libjli.so", "/lib/x86_64/server/libjli.so", nullptr
     };
-    if (!resolve_jre_library(home, "libjli.so", jliCandidates, jliPath)) {
-        LOGE("JRE verification failed: libjli.so not found under %s", home.c_str());
+    char path[4096];
+    void *handle = nullptr;
+    for (int i = 0; candidates[i]; ++i) {
+        snprintf(path, sizeof(path), "%s%s", home, candidates[i]);
+        handle = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
+        if (handle) {
+            LOGI("dlopen JLI ok: %s", path);
+            break;
+        }
+        LOGI("dlopen JLI miss: %s (%s)", path, dlerror());
+    }
+    if (!handle) {
+        LOGE("Failed to dlopen libjli.so under %s", home);
+        env->ReleaseStringUTFChars(jreHomePath, home);
         return JNI_FALSE;
     }
-    if (!load_jre_library(jliPath, true, &g_libjli)) return JNI_FALSE;
-
-    std::string jvmPath;
-    const std::vector<std::string> jvmCandidates = {
-        "lib/server/libjvm.so", "lib/aarch64/server/libjvm.so",
-        "lib/arm64/server/libjvm.so", "lib/amd64/server/libjvm.so",
-        "lib/x86_64/server/libjvm.so", "lib/aarch64/libjvm.so",
-        "lib/arm64/libjvm.so", "lib/libjvm.so"
-    };
-    if (!resolve_jre_library(home, "libjvm.so", jvmCandidates, jvmPath)) {
-        LOGE("JRE verification failed: libjvm.so not found under %s", home.c_str());
-        return JNI_FALSE;
-    }
-    if (!load_jre_library(jvmPath, true)) return JNI_FALSE;
-
-    // Preload common OpenJDK libraries, then attempt every remaining .so in
-    // the JRE lib tree. Optional libraries vary by Java release and vendor.
-    const char *core[] = {
-        "libverify.so", "libjava.so", "libnet.so", "libnio.so", "libzip.so",
-        "libmanagement.so", "libawt.so", "libawt_headless.so",
-        "libfreetype.so", "libfontmanager.so", "libjawt.so", "libjsig.so"
-    };
-    for (const char *name : core) {
-        std::string path;
-        if (find_library_recursive(join_path(home, "lib"), name, path)) load_jre_library(path, false);
-        else LOGW("Optional JRE library absent: %s", name);
-    }
-
-    std::vector<std::string> libraries;
-    collect_jre_libraries(join_path(home, "lib"), libraries);
-    std::sort(libraries.begin(), libraries.end());
-    for (const auto &path : libraries) load_jre_library(path, false);
-
-    dlerror();
-    g_jli_launch = reinterpret_cast<JLI_Launch_func>(dlsym(g_libjli, "JLI_Launch"));
+    g_libjli = handle;
+    g_jli_launch = reinterpret_cast<JLI_Launch_func>(dlsym(handle, "JLI_Launch"));
+    env->ReleaseStringUTFChars(jreHomePath, home);
     if (!g_jli_launch) {
-        const char *error = dlerror();
-        LOGE("JLI_Launch symbol resolution failed: %s", error ? error : "symbol missing");
+        LOGE("JLI_Launch not found: %s", dlerror());
         return JNI_FALSE;
     }
-
-    g_loaded_jre_home = home;
-    LOGI("JRE native load complete; JLI_Launch resolved from %s", jliPath.c_str());
+    LOGI("JRE native symbols resolved (JLI_Launch ready)");
     return JNI_TRUE;
 }
 
@@ -324,56 +112,37 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLaunchJvm(
     if (!g_jli_launch) return -1;
     if (!argsArray) return -3;
     const jsize argc = env->GetArrayLength(argsArray);
-    if (env->ExceptionCheck()) return -6;
     if (argc <= 0 || argc > 512) return -4;
 
-    // calloc(argc + 1) provides the required argv[argc] == nullptr terminator.
     char **argv = static_cast<char **>(calloc(static_cast<size_t>(argc) + 1, sizeof(char *)));
     if (!argv) return -5;
-    auto freeArguments = [&]() {
-        for (jsize i = 0; i < argc; ++i) free(argv[i]);
-        free(argv);
-    };
-
     for (jsize i = 0; i < argc; ++i) {
         auto jstr = static_cast<jstring>(env->GetObjectArrayElement(argsArray, i));
-        if (env->ExceptionCheck() || !jstr) {
-            if (jstr) env->DeleteLocalRef(jstr);
-            freeArguments();
-            LOGE("Invalid or unreadable JVM argument at index %d", static_cast<int>(i));
-            return -6;
+        if (!jstr) {
+            argv[i] = strdup("");
+            continue;
         }
         const char *utf = env->GetStringUTFChars(jstr, nullptr);
-        if (!utf || env->ExceptionCheck()) {
-            env->DeleteLocalRef(jstr);
-            freeArguments();
-            LOGE("Could not convert JVM argument at index %d", static_cast<int>(i));
-            return -7;
-        }
-        argv[i] = strdup(utf);
-        env->ReleaseStringUTFChars(jstr, utf);
+        argv[i] = strdup(utf ? utf : "");
+        if (utf) env->ReleaseStringUTFChars(jstr, utf);
         env->DeleteLocalRef(jstr);
         if (!argv[i]) {
-            freeArguments();
-            LOGE("Out of memory copying JVM argument at index %d", static_cast<int>(i));
+            for (jsize j = 0; j < i; ++j) free(argv[j]);
+            free(argv);
             return -5;
         }
     }
-    argv[argc] = nullptr;
 
-    const std::string fullVersion = read_jre_version(g_loaded_jre_home);
-    const std::string dotVersion = jre_dot_version(fullVersion);
-    LOGI("Prepared %d arguments; argv[%d]=NULL; Java %s",
-         static_cast<int>(argc), static_cast<int>(argc), fullVersion.c_str());
-
+    LOGI("Calling JLI_Launch with argc=%d", static_cast<int>(argc));
     reset_signal_handlers();
-    const jint code = g_jli_launch(
+    const int code = g_jli_launch(
         static_cast<int>(argc), argv, 0, nullptr, 0, nullptr,
-        fullVersion.c_str(), dotVersion.c_str(), argv[0], "FlintLauncher",
+        "1.8.0-internal", "1.8", argv[0], argv[0],
         JNI_FALSE, JNI_TRUE, JNI_FALSE, 0
     );
     LOGI("JLI_Launch returned %d", code);
-    freeArguments();
+    for (jsize i = 0; i < argc; ++i) free(argv[i]);
+    free(argv);
     return code;
 }
 
@@ -572,4 +341,32 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeDroppedInputEvent
     JNIEnv *, jclass
 ) {
     return static_cast<jlong>(flint::dropped_input_event_count());
+}
+
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSetNativeLibraryDir(
+    JNIEnv *env, jclass, jstring dir
+) {
+    if (!dir) {
+        flint_host_set_native_library_dir(nullptr);
+        return;
+    }
+    const char *path = env->GetStringUTFChars(dir, nullptr);
+    flint_host_set_native_library_dir(path);
+    env->ReleaseStringUTFChars(dir, path);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeSetDisplayMetrics(
+    JNIEnv *, jclass, jint width, jint height, jfloat refreshHz
+) {
+    flint_host_set_display_metrics(width, height, refreshHz);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativePreferPerformanceCores(
+    JNIEnv *, jclass, jboolean enable
+) {
+    return flint_host_prefer_performance_cores(enable ? 1 : 0) == 0 ? JNI_TRUE : JNI_FALSE;
 }

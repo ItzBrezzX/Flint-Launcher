@@ -1,5 +1,7 @@
 package com.flintlauncher.android
 
+import android.content.Context
+import android.content.Intent
 import com.flintlauncher.android.account.AccountManager
 import com.flintlauncher.android.account.AccountType
 import com.flintlauncher.android.account.FlintAccount
@@ -11,19 +13,16 @@ import com.flintlauncher.android.minecraft.manifest.VersionType
 import com.flintlauncher.android.minecraft.version.Environment
 import com.flintlauncher.android.minecraft.version.LaunchCommandBuilder
 import com.flintlauncher.android.minecraft.version.LaunchContext
-import com.flintlauncher.android.minecraft.version.LwjglRuntimeSpec
 import com.flintlauncher.android.nativebridge.NativeBridge
 import com.flintlauncher.android.runtime.AndroidLwjglNativesInstaller
 import com.flintlauncher.android.runtime.GameLauncher
 import com.flintlauncher.android.runtime.KnownJreArtifacts
-import com.flintlauncher.android.runtime.JvmEnvironment
 import com.flintlauncher.android.runtime.LaunchRequest
 import com.flintlauncher.android.runtime.LaunchResult
 import com.flintlauncher.android.runtime.MobileJreManager
 import com.flintlauncher.android.runtime.PojavStyleGameLauncher
 import com.flintlauncher.android.runtime.RendererInfo
 import com.flintlauncher.android.runtime.RendererKind
-import android.view.Surface
 import kotlinx.coroutines.CancellationException
 import java.io.File
 import java.security.MessageDigest
@@ -45,31 +44,11 @@ class PlayLaunchCoordinator(
     private val launcherVersion: String,
     private val microsoftAccounts: MicrosoftAccountStore? = null,
     private val microsoftAuth: MicrosoftAuthClient? = null,
+    private val appContext: Context? = null,
 ) {
     private val gameLauncher: GameLauncher? = runtimeManager?.let(::PojavStyleGameLauncher)
 
-    /** A game launch must be bound to the Activity-owned Android Surface. */
-    suspend fun launch(versionId: String): LaunchResult =
-        LaunchResult.Failed("A live Android game Surface is required. Open Minecraft from the PLAY screen.")
-
-    suspend fun isGameRunning(): Boolean = gameLauncher?.isRunning() == true
-
-    suspend fun gameLogs(): String = gameLauncher?.stdout().orEmpty()
-
-    suspend fun stopGame() {
-        gameLauncher?.stop()
-    }
-
-    suspend fun launch(
-        versionId: String,
-        surface: Surface,
-        width: Int,
-        height: Int,
-    ): LaunchResult {
-        if (!surface.isValid) return LaunchResult.Failed("The Android game Surface is no longer valid.")
-        if (width <= 0 || height <= 0) {
-            return LaunchResult.Failed("The Android game Surface has invalid dimensions: ${width}x${height}.")
-        }
+    suspend fun launch(versionId: String): LaunchResult {
         val account = try {
             accounts.selected()
         } catch (cancelled: CancellationException) {
@@ -104,10 +83,6 @@ class PlayLaunchCoordinator(
         if (!gl4esLibrary.isFile) {
             return LaunchResult.BlockedMissingRenderer
         }
-        val glfwLibrary = File(nativeLibraryDir, "libglfw.so")
-        if (!glfwLibrary.isFile) {
-            return LaunchResult.Failed("Flint's Android GLFW C ABI is missing from the APK: ${glfwLibrary.absolutePath}")
-        }
 
         val installed = try {
             installer.loadInstalledVersion(versionId)
@@ -116,23 +91,6 @@ class PlayLaunchCoordinator(
         } catch (error: Exception) {
             return LaunchResult.Failed("Could not prepare Minecraft $versionId: ${error.message ?: "installation metadata error"}")
         } ?: return LaunchResult.BlockedNotReady
-
-        val lwjglSpec = try {
-            LwjglRuntimeSpec.resolve(
-                installed.version.libraries,
-                Environment(osName = "linux", osArch = arch),
-            )
-        } catch (error: IllegalArgumentException) {
-            return LaunchResult.Failed(
-                "Minecraft $versionId declares incompatible LWJGL libraries: ${error.message ?: "invalid metadata"}",
-            )
-        }
-        if (lwjglSpec?.isLegacy2 == true) {
-            return LaunchResult.Failed(
-                "Minecraft $versionId requires LWJGL 2 (${lwjglSpec.version}), but this APK bundles the LWJGL 3 Android runtime. " +
-                    "This version cannot be launched with the current native backend.",
-            )
-        }
 
         val runtime = try {
             manager.findCompatible(installed.requiredJavaMajor, arch)
@@ -181,9 +139,7 @@ class PlayLaunchCoordinator(
                 return LaunchResult.Failed("Could not create the native extraction directory.")
             }
             // Keep desktop Linux .so files out of this Android load path, then stage
-            // only LWJGL JNI libraries. GLFW and GL4ES are already loaded from the APK
-            // by libflint_native; reloading copies from this directory would duplicate
-            // their process-global state and split the EGL/GLFW session.
+            // version-pinned Bionic LWJGL/GLFW/GL4ES binaries from the installed APK.
             NativesExtractor.extract(installed.nativeJars, nativeDirectory, excludeSharedObjects = true)
             AndroidLwjglNativesInstaller.install(nativeLibraryDir, nativeDirectory, arch)
         } catch (cancelled: CancellationException) {
@@ -191,22 +147,6 @@ class PlayLaunchCoordinator(
         } catch (error: Exception) {
             return LaunchResult.Failed("Could not extract Minecraft native libraries: ${error.message ?: "invalid native archive"}")
         }
-
-        val temporaryDirectory = File(cacheDir, "minecraft-tmp")
-        if (!temporaryDirectory.isDirectory && !temporaryDirectory.mkdirs()) {
-            return LaunchResult.Failed("Could not create the JVM temporary directory: ${temporaryDirectory.absolutePath}")
-        }
-        if (!temporaryDirectory.canWrite()) {
-            return LaunchResult.Failed("The JVM temporary directory is not writable: ${temporaryDirectory.absolutePath}")
-        }
-        val processEnvironment = JvmEnvironment.build(
-            runtimeHome = runtime.homeDir,
-            gameNativeDirectory = nativeDirectory,
-            appNativeLibraryDirectory = nativeLibraryDir,
-            gameDirectory = gameDirectory,
-            temporaryDirectory = temporaryDirectory,
-            inheritedLdLibraryPath = System.getenv("LD_LIBRARY_PATH"),
-        )
 
         val classpath = installed.classpath.joinToString(File.pathSeparator) { it.absolutePath }
         val environment = Environment(
@@ -238,15 +178,7 @@ class PlayLaunchCoordinator(
         val extraJvmArguments = buildList {
             add("-Djava.library.path=${nativeDirectory.absolutePath}")
             add("-Dorg.lwjgl.librarypath=${nativeDirectory.absolutePath}")
-            // Keep the GLFW and GL4ES mappings pointed at the exact same APK
-            // library files already loaded by libflint_native. This prevents a
-            // second copy from being loaded from the per-game native directory.
-            add("-Dorg.lwjgl.glfw.libname=${glfwLibrary.absolutePath}")
-            add("-Dorg.lwjgl.opengl.libname=${gl4esLibrary.absolutePath}")
-            // Android uses these sonames instead of desktop Linux's versioned EGL/GLES names.
-            add("-Dorg.lwjgl.egl.libname=libEGL.so")
-            add("-Dorg.lwjgl.opengles.libname=libGLESv2.so")
-            add("-Djava.io.tmpdir=${temporaryDirectory.absolutePath}")
+            add("-Djava.io.tmpdir=${File(cacheDir, "minecraft-tmp").absolutePath}")
             add("-Duser.home=${gameDirectory.absolutePath}")
             installed.loggingJvmArgument?.let { add(it) }
         }
@@ -267,7 +199,7 @@ class PlayLaunchCoordinator(
             kind = RendererKind.GL4ES,
             displayName = "GL4ES",
             available = gl4esLibrary.isFile,
-            notes = "LWJGL JNI libraries are staged; the APK's GLFW and GL4ES instances are shared with the game thread.",
+            notes = "GL4ES + Flint GLFW; GameActivity performs EGL surface hand-off before JLI_Launch.",
         )
         val request = LaunchRequest(
             versionId = installed.versionId,
@@ -284,13 +216,30 @@ class PlayLaunchCoordinator(
             userType = session.userType,
             runtime = runtime,
             renderer = renderer,
-            windowSurface = surface,
-            windowWidth = width,
-            windowHeight = height,
-            rendererLibrary = gl4esLibrary,
-            environment = processEnvironment,
         )
-        return launcher.launch(request)
+
+        // Surface-first path (Mojo-style order): stage request, open GameActivity,
+        // let the activity create EGL/GLFW then start JLI on a worker thread.
+        val ctx = appContext
+            ?: return LaunchResult.Failed(
+                "Application context is required to open GameActivity for Minecraft.",
+            )
+        PendingLaunchStore.set(request)
+        val intent = Intent(ctx, GameActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            ctx.startActivity(intent)
+        } catch (error: Exception) {
+            PendingLaunchStore.take()
+            return LaunchResult.Failed(
+                "Could not open GameActivity: ${error.message ?: error.javaClass.simpleName}",
+            )
+        }
+        return LaunchResult.Started(
+            pid = null,
+            logFile = File(cacheDir, "minecraft-launch.log"),
+        )
     }
 
     private data class LaunchSession(

@@ -20,11 +20,18 @@ object NativeBridge {
     external fun nativeSmokeTest(): String
     external fun nativeEglSmoke(): String
     external fun nativeEglCapabilities(): String
-    /** Set one process-level environment variable before JLI_Launch starts. */
-    external fun nativeSetEnv(key: String, value: String): Boolean
     external fun nativeLoadJre(jreHomePath: String): Boolean
     external fun nativeLaunchJvm(args: Array<String>): Int
     external fun nativeShutdown()
+
+    /** APK nativeLibraryDir for process-local .so resolution. */
+    external fun nativeSetNativeLibraryDir(dir: String)
+
+    /** Active window size and refresh rate for the host backend. */
+    external fun nativeSetDisplayMetrics(width: Int, height: Int, refreshHz: Float)
+
+    /** Best-effort performance-core preference for the calling thread. */
+    external fun nativePreferPerformanceCores(enable: Boolean): Boolean
 
     /** Must be called on the thread where the Android EGL context is current. */
     external fun nativeLoadGL4ES(libraryPath: String): Boolean

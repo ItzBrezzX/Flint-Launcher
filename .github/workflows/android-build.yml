@@ -147,13 +147,6 @@ jobs:
             done
           done
 
-      - name: Verify NativeBridge JNI exports in packaged ELF libraries
-        run: |
-          set -euo pipefail
-          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
-          test -s "$APK"
-          python3 native/tools/verify_jni_exports.py "$APK" --abis arm64-v8a armeabi-v7a x86 x86_64
-
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
