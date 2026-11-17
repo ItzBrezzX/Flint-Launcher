@@ -80,7 +80,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
 
         statusView = TextView(this).apply {
-            text = "FLINT GAME STARTUP\\n> Waiting for Android game Surface…"
+            text = "FLINT GAME STARTUP\n> Waiting for Android game Surface…"
             textSize = 12f
             typeface = Typeface.MONOSPACE
             maxLines = 8
@@ -265,17 +265,17 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         startupLines.addLast("> " + line.trim())
         while (startupLines.size > 8) startupLines.removeFirst()
         if (::statusView.isInitialized) {
-            statusView.text = "FLINT GAME STARTUP\\n" + startupLines.joinToString("\\n")
+            statusView.text = "FLINT GAME STARTUP\n" + startupLines.joinToString("\n")
         }
     }
 
     private fun formatLaunchFailure(error: Throwable): String {
         val causes = generateSequence(error) { it.cause }.take(8).toList()
-        val summary = causes.joinToString("\\n") { cause ->
+        val summary = causes.joinToString("\n") { cause ->
             cause.javaClass.name + cause.message?.let { ": $it" }.orEmpty()
         }
-        val trace = error.stackTraceToString().lineSequence().take(18).joinToString("\\n")
-        return "Game startup failed\\n$summary\\n\\nStack trace:\\n$trace"
+        val trace = error.stackTraceToString().lineSequence().take(18).joinToString("\n")
+        return "Game startup failed\n$summary\n\nStack trace:\n$trace"
     }
 
     private fun saveLaunchFailure(details: String) {
