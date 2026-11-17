@@ -5,151 +5,244 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.file.Files
 import java.util.zip.GZIPInputStream
 
 /**
- * Minimal, safety-focused ustar/GNU tar.gz extractor for mobile JRE packages.
- *
- * Guarantees:
- * - All extracted paths stay under [destDir] (rejects `..` and absolute paths).
- * - Symbolic links are skipped (not followed or created).
- * - Hard links are skipped.
- * - File size is capped per entry and total.
- * - Incomplete extraction cleans up the destination directory.
- *
- * Not a general-purpose tar implementation. Sufficient for OpenJDK JRE layouts.
+ * Streaming, safety-focused ustar/GNU tar.gz extractor for mobile JRE packages.
+ * Regular files use a fixed-size buffer; symbolic and hard links are never created.
  */
 object SafeTarGzExtractor {
-
-    private const val MAX_ENTRY_BYTES = 256L * 1024 * 1024 // 256 MiB single file
-    private const val MAX_TOTAL_BYTES = 1024L * 1024 * 1024 // 1 GiB total
+    private const val MAX_ENTRY_BYTES = 256L * 1024 * 1024
+    private const val MAX_TOTAL_BYTES = 1024L * 1024 * 1024
+    private const val MAX_METADATA_BYTES = 16 * 1024
+    private const val MAX_ENTRIES = 100_000
     private const val BLOCK = 512
+    private const val BUFFER_SIZE = 64 * 1024
 
     data class Result(val filesWritten: Int, val bytesWritten: Long)
 
     fun extract(tarGz: File, destDir: File): Result {
-        require(tarGz.isFile) { "Archive not found: $tarGz" }
-        destDir.mkdirs()
-        val destCanonical = destDir.canonicalFile
+        require(tarGz.isFile) { "Archive not found: " + tarGz }
+        if (Files.isSymbolicLink(destDir.toPath())) {
+            throw IOException("JRE staging destination must not be a symbolic link")
+        }
+        if (destDir.exists()) {
+            if (!destDir.isDirectory) throw IOException("JRE staging destination is not a directory")
+            if (destDir.listFiles()?.isNotEmpty() == true) {
+                throw IOException("JRE staging destination must be empty before extraction")
+            }
+        } else if (!destDir.mkdirs()) {
+            throw IOException("Could not create JRE staging directory")
+        }
+
+        val root = destDir.canonicalFile
         var files = 0
-        var total = 0L
+        var writtenBytes = 0L
+        var processedBytes = 0L
+        var entries = 0
+        var nextLongName: String? = null
+
         try {
             GZIPInputStream(BufferedInputStream(FileInputStream(tarGz))).use { gzip ->
-                val buf = ByteArray(BLOCK)
+                val headerBuffer = ByteArray(BLOCK)
                 while (true) {
-                    val header = readFully(gzip, buf) ?: break
+                    val header = readBlock(gzip, headerBuffer) ?: break
                     if (isZeroBlock(header)) {
-                        // possible end-of-archive; read one more zero block if present
-                        readFully(gzip, buf)
+                        readBlock(gzip, headerBuffer)
                         break
                     }
-                    val name = parseName(header)
-                    val size = parseOctal(header, 124, 12)
-                    val typeFlag = header[156].toInt().toChar()
-                    val prefix = parseString(header, 345, 155)
-                    val fullName = if (prefix.isNotEmpty()) "$prefix/$name" else name
 
-                    // Consume entry data (even if we skip writing)
-                    val data = if (size > 0) {
-                        if (size > MAX_ENTRY_BYTES) throw IOException("Entry too large: $fullName ($size)")
-                        val bytes = ByteArray(size.toInt())
-                        readFullyOrThrow(gzip, bytes)
-                        // pad to 512
-                        val pad = ((size + BLOCK - 1) / BLOCK) * BLOCK - size
-                        if (pad > 0) {
-                            val skip = ByteArray(pad.toInt())
-                            readFullyOrThrow(gzip, skip)
-                        }
-                        bytes
-                    } else {
-                        ByteArray(0)
+                    entries++
+                    if (entries > MAX_ENTRIES) throw IOException("Archive contains too many entries")
+                    verifyChecksum(header)
+
+                    val shortName = parseString(header, 0, 100)
+                    val prefix = parseString(header, 345, 155)
+                    val headerName = if (prefix.isBlank()) shortName else prefix + "/" + shortName
+                    val entryName = nextLongName ?: headerName
+                    nextLongName = null
+                    val size = parseOctal(header, 124, 12)
+                    if (size < 0L || size > MAX_ENTRY_BYTES) {
+                        throw IOException("Entry too large or invalid: " + entryName + " (" + size + ")")
                     }
+                    if (size > MAX_TOTAL_BYTES - processedBytes) {
+                        throw IOException("Archive exceeds total uncompressed size limit")
+                    }
+                    processedBytes += size
+                    val typeFlag = header[156].toInt().toChar()
 
                     when (typeFlag) {
-                        '0', '\u0000' -> { // regular file
-                            val outFile = resolveSafe(destCanonical, fullName)
-                            outFile.parentFile?.mkdirs()
-                            FileOutputStream(outFile).use { it.write(data) }
+                        'L' -> {
+                            if (size > MAX_METADATA_BYTES) throw IOException("GNU long-name metadata is too large")
+                            nextLongName = readTextEntry(gzip, size)
+                        }
+                        'K' -> {
+                            if (size > MAX_METADATA_BYTES) throw IOException("GNU long-link metadata is too large")
+                            skipEntry(gzip, size)
+                        }
+                        'x', 'g' -> throw IOException("PAX tar metadata is not supported for local JRE imports")
+                        '0', '\u0000', '7' -> {
+                            val output = resolveSafe(root, entryName)
+                            val parent = output.parentFile
+                                ?: throw IOException("Invalid archive path: " + entryName)
+                            ensureNoSymlinkParents(root, parent)
+                            if (!parent.mkdirs() && !parent.isDirectory) {
+                                throw IOException("Could not create archive directory: " + parent)
+                            }
+                            if (Files.isSymbolicLink(output.toPath())) {
+                                throw IOException("Refusing to overwrite a symbolic link: " + entryName)
+                            }
+                            FileOutputStream(output).use { stream -> copyEntry(gzip, stream, size) }
+                            skipPadding(gzip, size)
                             files++
-                            total += data.size
-                            if (total > MAX_TOTAL_BYTES) throw IOException("Archive exceeds total size limit")
+                            writtenBytes += size
                         }
-                        '5' -> { // directory
-                            resolveSafe(destCanonical, fullName).mkdirs()
+                        '5' -> {
+                            val directory = resolveSafe(root, entryName)
+                            ensureNoSymlinkParents(root, directory)
+                            if (!directory.mkdirs() && !directory.isDirectory) {
+                                throw IOException("Could not create archive directory: " + directory)
+                            }
+                            skipEntry(gzip, size)
                         }
-                        '1', '2' -> {
-                            // hard link / symlink — skip for safety
-                        }
-                        else -> {
-                            // other types ignored
-                        }
+                        '1', '2' -> skipEntry(gzip, size)
+                        else -> skipEntry(gzip, size)
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (error: Exception) {
             destDir.deleteRecursively()
-            throw e
+            throw error
         }
-        return Result(files, total)
+
+        return Result(files, writtenBytes)
     }
 
     private fun resolveSafe(root: File, relative: String): File {
-        if (relative.isBlank()) throw IOException("Empty entry name")
-        if (relative.startsWith("/") || relative.startsWith("\\")) {
-            throw IOException("Absolute path rejected: $relative")
+        if (relative.isBlank() || relative.startsWith('/') || relative.startsWith('\\')) {
+            throw IOException("Absolute or empty archive path rejected: " + relative)
         }
-        val normalized = relative.replace('\\', '/')
-        if (normalized.split('/').any { it == ".." }) {
-            throw IOException("Path traversal rejected: $relative")
+        val normalized = relative.replace('\\', '/').trimEnd('/')
+        if (normalized.isBlank()) return root
+        val segments = normalized.split('/')
+        if (segments.any { it.isEmpty() || it == ".." }) {
+            throw IOException("Archive path traversal or empty segment rejected: " + relative)
         }
-        val candidate = File(root, normalized).canonicalFile
-        if (!candidate.path.startsWith(root.path)) {
-            throw IOException("Entry escapes destination: $relative")
+        val safeSegments = segments.filterNot { it == "." }
+        if (safeSegments.isEmpty()) return root
+        val candidate = File(root, safeSegments.joinToString(File.separator)).canonicalFile
+        val rootPath = root.path
+        if (candidate.path != rootPath && !candidate.path.startsWith(rootPath + File.separator)) {
+            throw IOException("Archive entry escapes destination: " + relative)
         }
         return candidate
     }
 
-    private fun parseName(header: ByteArray): String {
-        // support ustar prefix already handled; name at 0..99
-        return parseString(header, 0, 100)
+    private fun ensureNoSymlinkParents(root: File, path: File) {
+        var current: File? = path
+        while (current != null && current != root) {
+            if (Files.isSymbolicLink(current.toPath())) {
+                throw IOException("Archive writes through a symbolic link: " + current)
+            }
+            current = current.parentFile
+        }
     }
 
-    private fun parseString(header: ByteArray, off: Int, len: Int): String {
-        var end = off
-        val limit = off + len
+    private fun verifyChecksum(header: ByteArray) {
+        val expected = parseOctal(header, 148, 8)
+        var actual = 0L
+        header.forEachIndexed { index, byte ->
+            actual += if (index in 148..155) ' '.code.toLong() else (byte.toInt() and 0xff).toLong()
+        }
+        if (expected != actual) throw IOException("Invalid tar header checksum")
+    }
+
+    private fun parseString(header: ByteArray, offset: Int, length: Int): String {
+        var end = offset
+        val limit = offset + length
         while (end < limit && header[end] != 0.toByte()) end++
-        return String(header, off, end - off, Charsets.UTF_8)
+        return String(header, offset, end - offset, Charsets.UTF_8)
     }
 
-    private fun parseOctal(header: ByteArray, off: Int, len: Int): Long {
+    private fun parseOctal(header: ByteArray, offset: Int, length: Int): Long {
         var value = 0L
-        for (i in off until off + len) {
-            val c = header[i].toInt()
-            if (c == 0 || c == ' '.code) break
-            if (c < '0'.code || c > '7'.code) break
-            value = value * 8 + (c - '0'.code)
+        var seenDigit = false
+        var terminated = false
+        for (index in offset until offset + length) {
+            val character = header[index].toInt() and 0xff
+            if (character == 0 || character == ' '.code) {
+                if (seenDigit) terminated = true
+                continue
+            }
+            if (terminated || character !in '0'.code..'7'.code) {
+                throw IOException("Invalid octal value in tar header")
+            }
+            val digit = (character - '0'.code).toLong()
+            if (value > (Long.MAX_VALUE - digit) / 8L) {
+                throw IOException("Tar header numeric value overflow")
+            }
+            value = value * 8L + digit
+            seenDigit = true
         }
         return value
     }
 
-    private fun isZeroBlock(block: ByteArray): Boolean = block.all { it == 0.toByte() }
-
-    private fun readFully(input: java.io.InputStream, buf: ByteArray): ByteArray? {
-        var off = 0
-        while (off < buf.size) {
-            val n = input.read(buf, off, buf.size - off)
-            if (n < 0) return if (off == 0) null else throw IOException("Truncated tar stream")
-            off += n
-        }
-        return buf
+    private fun readTextEntry(input: java.io.InputStream, size: Long): String {
+        val bytes = ByteArray(size.toInt())
+        readFully(input, bytes)
+        skipPadding(input, size)
+        return String(bytes, Charsets.UTF_8).trimEnd('\u0000', '\n', '\r')
     }
 
-    private fun readFullyOrThrow(input: java.io.InputStream, buf: ByteArray) {
-        var off = 0
-        while (off < buf.size) {
-            val n = input.read(buf, off, buf.size - off)
-            if (n < 0) throw IOException("Truncated tar entry")
-            off += n
+    private fun copyEntry(input: java.io.InputStream, output: FileOutputStream, size: Long) {
+        var remaining = size
+        val buffer = ByteArray(BUFFER_SIZE)
+        while (remaining > 0L) {
+            val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+            if (count < 0) throw IOException("Truncated tar entry")
+            output.write(buffer, 0, count)
+            remaining -= count.toLong()
+        }
+    }
+
+    private fun skipEntry(input: java.io.InputStream, size: Long) {
+        var remaining = size
+        val buffer = ByteArray(BUFFER_SIZE)
+        while (remaining > 0L) {
+            val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+            if (count < 0) throw IOException("Truncated tar entry")
+            remaining -= count.toLong()
+        }
+        skipPadding(input, size)
+    }
+
+    private fun skipPadding(input: java.io.InputStream, size: Long) {
+        val padding = ((size + BLOCK - 1) / BLOCK) * BLOCK - size
+        if (padding > 0L) readFully(input, ByteArray(padding.toInt()))
+    }
+
+    private fun isZeroBlock(block: ByteArray): Boolean = block.all { it == 0.toByte() }
+
+    private fun readBlock(input: java.io.InputStream, buffer: ByteArray): ByteArray? {
+        var offset = 0
+        while (offset < buffer.size) {
+            val count = input.read(buffer, offset, buffer.size - offset)
+            if (count < 0) {
+                if (offset == 0) return null
+                throw IOException("Truncated tar header")
+            }
+            offset += count
+        }
+        return buffer
+    }
+
+    private fun readFully(input: java.io.InputStream, buffer: ByteArray) {
+        var offset = 0
+        while (offset < buffer.size) {
+            val count = input.read(buffer, offset, buffer.size - offset)
+            if (count < 0) throw IOException("Truncated tar stream")
+            offset += count
         }
     }
 }
