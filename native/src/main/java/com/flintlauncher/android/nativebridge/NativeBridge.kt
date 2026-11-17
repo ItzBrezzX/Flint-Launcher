@@ -81,6 +81,9 @@ object NativeBridge {
     external fun nativeGlfwWindowShouldClose(): Boolean
     external fun nativeGlfwSetWindowShouldClose(shouldClose: Boolean)
     external fun nativeGlfwVersion(): String
+
+    /** Number of frames successfully presented by the Minecraft GLFW window. */
+    external fun nativeGlfwPresentedFrameCount(): Long
     external fun nativeGlfwDestroyWindow()
 
     fun safeSmokeTest(): String =
