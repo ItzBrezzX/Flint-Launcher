@@ -338,7 +338,7 @@ class MrpackInstaller(
             return target
         }
 
-        private fun validateDownloadUrl        private fun validateDownloadUrl(url: String, path: String) {
+        private fun validateDownloadUrl(url: String, path: String) {
             val uri = runCatching { URI(url) }.getOrNull()
                 ?: throw MrpackFormatException("Pack file $path has an invalid download URL")
             if (!uri.scheme.equals("https", ignoreCase = true) ||
