@@ -79,3 +79,28 @@ The supplied Android GLFW platform registers a complete Android platform vtable 
 ### Verification boundary
 
 Archive inspection confirms source structure and coupling only. It does not establish runtime compatibility or performance. No renderer or windowing code from these archives should be treated as integrated merely because the archive builds independently. Flint acceptance still requires a matching Android ABI build and physical-device launch, title-screen, world-entry, input, resize, pause/resume, and teardown tests.
+
+## PojavLauncher comparison (v3_openjdk)
+
+Reference inspected: `TeamPojavLauncher/PojavLauncher`, branch `v3_openjdk` (source tree SHA `5431df433002c460ca322867d1954f3e62d16287`). This is an architecture comparison, not a source-code import.
+
+| Area | Pojav v3_openjdk pattern | Flint decision |
+|---|---|---|
+| Android Surface lifecycle | `GameView` uses a `SurfaceProvider` abstraction and forwards available/resized/destroyed callbacks to the platform backend | Keep Flint's Activity-owned `Surface` and explicit EGL owner thread. Ensure resize/destroy events are handled without destroying EGL from the UI/coroutine thread. |
+| GLFW boundary | `GLFWBackend` forwards surface lifecycle and input through its JNI GLFW binding | Keep Flint's existing GLFW-compatible ABI and bounded native input queue. Do not load Pojav's `mojort`/GLFW JNI layer beside Flint's backend. |
+| Input | Separate in-game and GUI touch processors; supports pointer capture, mouse/stylus, gamepad, text and modifier state | Keep Flint's input mapping and queue. Use Pojav behavior as a checklist for missing cases, not as a replacement input stack. |
+| Renderer selection | `GameRenderer` selects a `RenderSpec`, configures environment variables and optional library search paths, then attempts a renderer fallback | Flint currently has a GL4ES path. Do not expose LTW/Zink/Mesa/MobileGlues choices until their matching Android artifacts, EGL contract and version compatibility are present. |
+| Runtime and launch | Pojav has its own JRE utilities, game runner, service and native bridge | Keep Flint's own JRE manager, metadata/classpath resolver, authentication, launch coordinator and native lifecycle. Do not copy Pojav's launcher/account/install layers. |
+| Device tuning | Renderer setup can configure custom Vulkan driver paths, QGL config and big-core affinity through MojoExec | Flint already owns display metrics and a performance-core preference hook. Vulkan-driver override is not enabled by this source comparison alone. |
+
+### Concrete lifecycle and input lessons
+
+Pojav's `GameView` forwards surface availability to `Platform.updateSurface`, forwards size changes to `surfaceUpdated`, and reports destruction to `surfaceDestroyed`. Its GLFW backend maps Android key, mouse, scroll and text events to native GLFW calls. The separation between the Android view, platform backend, and game renderer is useful; the exact Pojav native bridge is not interchangeable with Flint's bridge.
+
+Pojav also switches between in-game and GUI touch processors when mouse-grab state changes. Its event handling covers hardware mouse/stylus, gamepad, pointer capture, touch controls and text input. Flint should verify these behaviors individually against its own input queue and callbacks.
+
+### Porting decision
+
+No Pojav Java, JNI, C/C++, or renderer implementation is copied by this audit. Pojav is LGPL-3.0; its GLFW and MojoExec submodules carry separate licenses. Any future source-level port must preserve the relevant license files and notices, isolate the imported component, and pass Flint's native ABI, lifecycle, and device tests. Architecture and behavior references do not by themselves grant proof of binary compatibility.
+
+The next implementation gate is to compare Flint's actual resize, pause/resume, Surface-destroy, pointer-grab, text-input, and gamepad paths against these Pojav behaviors, then add focused tests to Flint's existing interfaces. Do not replace the whole backend as a shortcut.
