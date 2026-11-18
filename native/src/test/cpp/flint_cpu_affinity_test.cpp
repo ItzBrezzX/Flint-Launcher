@@ -11,7 +11,7 @@ static void write_frequency(const std::filesystem::path &root, int cpu, const ch
     auto path = root / ("cpu" + std::to_string(cpu)) / "cpufreq" / "cpuinfo_max_freq";
     std::filesystem::create_directories(path.parent_path());
     std::ofstream out(path);
-    out << value << '\\n';
+    out << value << '\n';
     assert(out.good());
 }
 
