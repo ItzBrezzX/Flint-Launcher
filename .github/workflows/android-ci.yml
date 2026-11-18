@@ -39,6 +39,15 @@ jobs:
       - name: Dependency resolution check
         run: gradle :app:dependencies --configuration releaseRuntimeClasspath --quiet --no-parallel --max-workers=2 > /dev/null
 
+      - name: Test CPU performance-core selection
+        run: |
+          set -euo pipefail
+          c++ -std=c++17 -Wall -Wextra -Werror \
+            native/src/main/cpp/flint_cpu_affinity.cpp \
+            native/src/test/cpp/flint_cpu_affinity_test.cpp \
+            -o /tmp/flint-cpu-affinity-test
+          /tmp/flint-cpu-affinity-test
+
       - name: Compile all modules (debug)
         run: gradle assembleDebug --no-parallel --max-workers=2 --stacktrace
 
