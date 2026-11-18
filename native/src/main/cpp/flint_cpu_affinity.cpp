@@ -20,14 +20,14 @@ bool read_max_frequency(const char *root, int cpu, unsigned long *frequency) {
     const bool read_error = std::ferror(file) != 0;
     std::fclose(file);
     if (read_error || count == 0 || count == sizeof(buffer) - 1) return false;
-    buffer[count] = '\\0';
+    buffer[count] = '\0';
 
     errno = 0;
     char *end = nullptr;
     const unsigned long parsed = std::strtoul(buffer, &end, 10);
     if (errno != 0 || end == buffer || parsed == 0) return false;
     while (*end && std::isspace(static_cast<unsigned char>(*end))) ++end;
-    if (*end != '\\0') return false;
+    if (*end != '\0') return false;
     *frequency = parsed;
     return true;
 }
