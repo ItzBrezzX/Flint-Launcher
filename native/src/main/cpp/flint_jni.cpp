@@ -732,3 +732,14 @@ Java_com_flintlauncher_android_nativebridge_NativeBridge_nativePreferPerformance
 ) {
     return flint_host_prefer_performance_cores(enable ? 1 : 0) == 0 ? JNI_TRUE : JNI_FALSE;
 }
+
+#ifndef FLINT_LWJGL_VERSION
+#define FLINT_LWJGL_VERSION "unknown"
+#endif
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flintlauncher_android_nativebridge_NativeBridge_nativeLwjglNativeVersion(
+    JNIEnv *env, jclass
+) {
+    return env->NewStringUTF(FLINT_LWJGL_VERSION);
+}
