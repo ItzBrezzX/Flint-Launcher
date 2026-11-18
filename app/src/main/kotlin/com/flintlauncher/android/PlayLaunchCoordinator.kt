@@ -139,6 +139,22 @@ class PlayLaunchCoordinator(
                     "This version cannot be launched with the current native backend.",
             )
         }
+        if (lwjglSpec?.isModern3 == true) {
+            val nativeLwjglVersion = try {
+                NativeBridge.nativeLwjglNativeVersion()
+            } catch (error: UnsatisfiedLinkError) {
+                return LaunchResult.Failed(
+                    "Could not read Flint's bundled LWJGL native version: ${error.message ?: "JNI method unavailable"}.",
+                )
+            }
+            if (nativeLwjglVersion != lwjglSpec.version) {
+                return LaunchResult.Failed(
+                    "LWJGL version mismatch: Minecraft requires ${lwjglSpec.version}, but Flint bundles " +
+                        "Android JNI ${nativeLwjglVersion}. Starting with mismatched Java bindings and native " +
+                        "libraries can crash the JVM. A matching Android LWJGL build is required.",
+                )
+            }
+        }
 
         onProgress("Finding a compatible Java runtime…")
         val runtime = try {
