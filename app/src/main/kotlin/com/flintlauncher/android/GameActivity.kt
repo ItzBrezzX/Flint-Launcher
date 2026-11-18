@@ -71,7 +71,6 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         if (NativeBridge.isNativeLoaded) {
             NativeBridge.nativeSetNativeLibraryDir(applicationInfo.nativeLibraryDir)
-            NativeBridge.nativePreferPerformanceCores(true)
         }
 
         surfaceView = FlintGameSurfaceView(this)
