@@ -31,6 +31,8 @@ object NativeBridge {
 
     /** Best-effort performance-core preference for the calling thread. */
     external fun nativePreferPerformanceCores(enable: Boolean): Boolean
+    /** Exact LWJGL version used to build the packaged Android JNI libraries. */
+    external fun nativeLwjglNativeVersion(): String
     external fun nativeLoadJre(jreHomePath: String): Boolean
     external fun nativeLaunchJvm(args: Array<String>): Int
     external fun nativeShutdown()
