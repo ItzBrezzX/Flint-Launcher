@@ -55,3 +55,27 @@ The supplied MojoExec source is MIT-licensed and the GLFW fork is Zlib-licensed.
 ## Current boundary
 
 The changes in this audit improve API correctness and detect a known native/Java version mismatch. They do not prove that Flint reaches the Minecraft title screen on a physical device. Device acceptance still requires an actual launch with a matching Android LWJGL build, followed by title-screen and world-entry tests.
+
+## Archive-level verification (2026-11-18)
+
+The three available source archives were inspected directly:
+
+| Archive | Observed contents | Integration decision |
+|---|---|---|
+| `mojoexec-master.zip` | C/C++ native library, JNI Java binding, Vulkan/EGL loader, Android linker-namespace helpers, ARM64 function locator, and CPU-affinity helper | Do not link it into Flint as an isolated library. Its EGL/Vulkan handles and linker hooks assume the Mojo GLFW/runtime lifecycle. Reuse individual behavior only where Flint has an equivalent owner and test. |
+| `glfw-glfw34.zip` | GLFW 3.4 Android platform implementation, Android window/input/joystick/monitor code, EGL hooks, and Java JNI bindings | Do not mix individual Android platform files into Flint's single-Surface backend. The Android implementation imports MojoExec APIs and owns a different window/input lifecycle. Keep Flint's GLFW-compatible C ABI until a complete replacement can be integrated and tested together. |
+| `NativesPlugin-master.zip` | Android application/plugin wrapper; Gradle loads optional AAR files from `app/libs`; the supplied archive contains no native renderer or LWJGL implementation | No runtime code is reusable from this archive. It is an optional native-library distribution mechanism, not a renderer backend. |
+
+### Concrete MojoExec contract
+
+The public native header exposes a global render specification (`force_gles_context`, `override_major_version`, display width/height/refresh rate), a native-library directory, Vulkan/EGL handle acquisition, and a big-core affinity helper. The Java binding additionally exposes EGL preparation, custom Vulkan driver configuration, QGL config selection, Vulkan preload, native-library directory, and affinity configuration.
+
+Flint already owns the relevant Android Surface, EGL context, native-library lookup, display metrics, and thread-affinity entry points. Importing MojoExec would duplicate those owners and could make EGL handles or linker state disagree. The current targeted GLES client-API metadata correction is the safe behavior-level port; it does not require importing MojoExec.
+
+### GLFW coupling confirmed
+
+The supplied Android GLFW platform registers a complete Android platform vtable and includes Android-specific window, input-queue, joystick, monitor, and EGL code. Its Android initialization includes MojoExec headers and its Android EGL/window hooks are coupled to that platform lifecycle. This confirms that copying only `android_window.c`, `android_input_queue.c`, or the EGL hook into Flint would not be a self-contained integration.
+
+### Verification boundary
+
+Archive inspection confirms source structure and coupling only. It does not establish runtime compatibility or performance. No renderer or windowing code from these archives should be treated as integrated merely because the archive builds independently. Flint acceptance still requires a matching Android ABI build and physical-device launch, title-screen, world-entry, input, resize, pause/resume, and teardown tests.
