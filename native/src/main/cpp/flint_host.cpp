@@ -16,11 +16,11 @@ static FlintDisplayMetrics g_metrics = {1280, 720, 60.0f};
 
 void flint_host_set_native_library_dir(const char *path) {
     if (!path) {
-        g_native_lib_dir[0] = '\\0';
+        g_native_lib_dir[0] = '\0';
         return;
     }
     strncpy(g_native_lib_dir, path, sizeof(g_native_lib_dir) - 1);
-    g_native_lib_dir[sizeof(g_native_lib_dir) - 1] = '\\0';
+    g_native_lib_dir[sizeof(g_native_lib_dir) - 1] = '\0';
     LOGI("native library dir = %s", g_native_lib_dir);
 }
 
