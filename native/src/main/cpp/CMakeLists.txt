@@ -84,4 +84,7 @@ target_link_libraries(flint_native
     ${dl-lib}
 )
 target_compile_options(flint_native PRIVATE -Wall -Wextra -fvisibility=hidden)
+# Expose the exact JNI binding version to Kotlin so the launcher can reject
+# Minecraft Java bindings that do not match the packaged native binaries.
+target_compile_definitions(flint_native PRIVATE FLINT_LWJGL_VERSION=\"${FLINT_LWJGL_VERSION}\")
 add_dependencies(flint_native flint_lwjgl_opengl)
