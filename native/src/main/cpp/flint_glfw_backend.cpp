@@ -33,6 +33,12 @@ struct GLFWwindow {
     int stickyMouseButtons = 0;
     int lockKeyMods = 0;
     int rawMouseMotion = 0;
+    // Flint creates an OpenGL ES 2 context for the GL4ES renderer.
+    // Expose the actual client API/version to LWJGL, matching Mojo's
+    // force_gles_context behavior instead of advertising desktop OpenGL.
+    int contextClientApi = GLFW_OPENGL_ES_API;
+    int contextVersionMajor = 2;
+    int contextVersionMinor = 0;
     double cursorX = 0.0;
     double cursorY = 0.0;
     std::array<int, 512> keys{};
@@ -458,9 +464,9 @@ extern "C" FLINT_GLFW_API int glfwGetWindowAttrib(GLFWwindow *window, int attrib
         case GLFW_DECORATED: return g_window.decorated ? GLFW_TRUE : GLFW_FALSE;
         case GLFW_FLOATING: return g_window.floating ? GLFW_TRUE : GLFW_FALSE;
         case GLFW_MAXIMIZED: return g_window.maximized ? GLFW_TRUE : GLFW_FALSE;
-        case GLFW_CLIENT_API: return GLFW_OPENGL_API;
-        case GLFW_CONTEXT_VERSION_MAJOR: return 2;
-        case GLFW_CONTEXT_VERSION_MINOR: return 0;
+        case GLFW_CLIENT_API: return g_window.contextClientApi;
+        case GLFW_CONTEXT_VERSION_MAJOR: return g_window.contextVersionMajor;
+        case GLFW_CONTEXT_VERSION_MINOR: return g_window.contextVersionMinor;
         case GLFW_DOUBLEBUFFER: return GLFW_TRUE;
         default: return GLFW_FALSE;
     }
