@@ -1,6 +1,7 @@
 #include "flint_cpu_affinity.h"
 
 #include <cassert>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <string>
