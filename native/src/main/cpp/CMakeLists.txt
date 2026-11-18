@@ -73,6 +73,7 @@ add_library(flint_native SHARED
     flint_jni.cpp
     egl_smoke.cpp
     flint_host.cpp
+    flint_cpu_affinity.cpp
 )
 target_link_libraries(flint_native
     GL
