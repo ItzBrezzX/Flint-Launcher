@@ -1,6 +1,8 @@
 #include "flint_host.h"
+#include "flint_cpu_affinity.h"
 
 #include <android/log.h>
+#include <errno.h>
 #include <sched.h>
 #include <string.h>
 #include <unistd.h>
@@ -14,11 +16,11 @@ static FlintDisplayMetrics g_metrics = {1280, 720, 60.0f};
 
 void flint_host_set_native_library_dir(const char *path) {
     if (!path) {
-        g_native_lib_dir[0] = '\0';
+        g_native_lib_dir[0] = '\\0';
         return;
     }
     strncpy(g_native_lib_dir, path, sizeof(g_native_lib_dir) - 1);
-    g_native_lib_dir[sizeof(g_native_lib_dir) - 1] = '\0';
+    g_native_lib_dir[sizeof(g_native_lib_dir) - 1] = '\\0';
     LOGI("native library dir = %s", g_native_lib_dir);
 }
 
@@ -40,22 +42,35 @@ FlintDisplayMetrics flint_host_display_metrics(void) {
 int flint_host_prefer_performance_cores(int enable) {
     if (!enable) return 0;
 #if defined(__linux__)
-    long ncpu = sysconf(_SC_NPROCESSORS_CONF);
-    if (ncpu <= 0) {
+    long configured_cpus = sysconf(_SC_NPROCESSORS_CONF);
+    if (configured_cpus <= 0) {
         LOGW("CPU count unavailable");
         return -1;
     }
-    cpu_set_t set;
-    CPU_ZERO(&set);
-    int start = ncpu > 2 ? (int)(ncpu / 2) : 0;
-    for (int i = start; i < (int)ncpu; ++i) {
-        CPU_SET(i, &set);
-    }
-    if (sched_setaffinity(0, sizeof(set), &set) != 0) {
-        LOGW("sched_setaffinity failed");
+
+    cpu_set_t allowed;
+    CPU_ZERO(&allowed);
+    if (sched_getaffinity(0, sizeof(allowed), &allowed) != 0) {
+        LOGW("sched_getaffinity failed: %s", strerror(errno));
         return -1;
     }
-    LOGI("preferred performance CPU range [%d,%ld)", start, ncpu);
+
+    cpu_set_t performance_cpus;
+    unsigned long max_frequency = 0;
+    if (!flint_select_performance_cpus(
+            static_cast<int>(configured_cpus), &allowed,
+            "/sys/devices/system/cpu", &performance_cpus, &max_frequency)) {
+        LOGW("CPU frequency topology unavailable; keeping the current affinity");
+        return -1;
+    }
+
+    if (sched_setaffinity(0, sizeof(performance_cpus), &performance_cpus) != 0) {
+        LOGW("sched_setaffinity for performance CPUs failed: %s", strerror(errno));
+        return -1;
+    }
+
+    LOGI("selected %d performance CPU(s) at max frequency %lu kHz",
+         CPU_COUNT(&performance_cpus), max_frequency);
     return 0;
 #else
     (void)enable;
