@@ -28,13 +28,13 @@ jobs:
       - uses: android-actions/setup-android@v4
 
       # Uses the Gradle version pinned here until a wrapper jar is committed.
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.9"
 
       - name: Validate Gradle wrapper (only when a wrapper jar is committed)
         if: ${{ hashFiles('gradle/wrapper/gradle-wrapper.jar') != '' }}
-        uses: gradle/actions/wrapper-validation@v4
+        uses: gradle/actions/wrapper-validation@v6
 
       - name: Dependency resolution check
         run: gradle :app:dependencies --configuration releaseRuntimeClasspath --quiet --no-parallel --max-workers=2 > /dev/null
